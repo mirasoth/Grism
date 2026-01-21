@@ -2,7 +2,6 @@
 
 > **Grism** is an **AI-native, neurosymbolic, hypergraph database system** designed for modern agentic and LLM-driven workflows. It treats graphs as **executable knowledge**, not just queryable data, and provides a **Python-first user experience** with a **Rust-native core** and **pluggable execution backends (local or Ray-distributed)**.
 
-
 ## 1. Design Goals
 
 ### 1.1 Primary Goals
@@ -19,7 +18,6 @@
 * OLTP replacement
 * Row-oriented storage engine
 * SQL-first UX
-
 
 ## 2. High-Level Architecture
 
@@ -50,7 +48,6 @@
 └─────────────────────────────────────────┘
 ```
 
-
 ## 3. Data Model
 
 ## 3.1 Unified Hypergraph Data Model
@@ -62,7 +59,6 @@ Grism adopts a **single, canonical relational primitive: the *Hyperedge***. All 
 A **Hyperedge** models an arbitrary n-ary relation whose participants are explicitly bound through **named roles**. Traditional binary edges are treated as a special case of hyperedges with arity equal to two. This approach ensures a uniform logical foundation while enabling multiple projection views (e.g., property graph, Cypher-compatible graphs) without altering core semantics.
 
 This design establishes Grism as a **true hypergraph system**, while preserving efficient execution paths and compatibility with established graph query models.
-
 
 ### 3.1.2 Conceptual Entities
 
@@ -78,7 +74,6 @@ There is no independent logical `Edge` abstraction. Instead:
 > **Edge ≡ Hyperedge with arity = 2**, conventionally using the roles `source` and `target`.
 
 This guarantees that all relational constructs are represented uniformly and can participate in higher-order relations.
-
 
 ### 3.1.3 Hyperedge Structure
 
@@ -113,7 +108,6 @@ enum EntityRef {
 
 This recursive capability enables direct representation of reified relations, provenance chains, and inference traces.
 
-
 ### 3.1.4 Roles and Arity Semantics
 
 Hyperedges must satisfy the following constraints:
@@ -144,7 +138,6 @@ This structure natively supports:
 * Statements about relations
 * Temporal, causal, and epistemic modeling
 
-
 ### 3.1.5 Binary Edge Projection
 
 A binary edge is defined as a hyperedge that satisfies:
@@ -170,7 +163,6 @@ Binary edges:
 * Are exposed to users via property-graph or `EdgeFrame` views
 
 This separation of **logical semantics** and **physical layout** enables efficient traversal without compromising expressiveness.
-
 
 ### 3.1.6 Hyperedge-to-Hyperedge Relations
 
@@ -198,7 +190,6 @@ CAUSES(
 
 This capability is foundational for neurosymbolic reasoning, explainability, and agent memory.
 
-
 ### 3.1.7 Property Attachment Semantics
 
 Properties may be attached to the following entities:
@@ -218,7 +209,6 @@ This design preserves:
 * Columnar storage efficiency
 * Relational executability
 * Clear separation between structure and metadata
-
 
 ### 3.1.8 Global Invariants
 
@@ -267,7 +257,6 @@ Frames are **not storage structures**. They are:
 
 All Frames ultimately compile into logical plans operating over Nodes and Hyperedges.
 
-
 ### 3.2.2 Core Frame Types
 
 Grism defines the following canonical frame abstractions:
@@ -279,7 +268,6 @@ Grism defines the following canonical frame abstractions:
 | **EdgeFrame**      | A binary projection of `HyperedgeFrame`          |
 
 Among these, **HyperedgeFrame is the primary relational view**. All other frame types are either projections or constrained specializations.
-
 
 ### 3.2.3 HyperedgeFrame
 
@@ -303,7 +291,6 @@ This representation is intentionally normalized to support:
 * Join reordering
 * Cost-based planning
 
-
 ### 3.2.4 EdgeFrame as a Projection
 
 `EdgeFrame` is defined as a **restricted projection** of `HyperedgeFrame` satisfying:
@@ -325,7 +312,6 @@ EdgeFrame exists to:
 
 EdgeFrame does **not** introduce new semantics and cannot express relations beyond what is representable in HyperedgeFrame.
 
-
 ### 3.2.5 View Consistency Guarantees
 
 The following guarantees hold:
@@ -336,7 +322,6 @@ The following guarantees hold:
 
 Thus, EdgeFrame is a **compatibility view**, not a semantic restriction.
 
-
 ## 3.3 Traversal and Expansion Semantics
 
 ### 3.3.1 Expand as a Logical Operation
@@ -344,7 +329,6 @@ Thus, EdgeFrame is a **compatibility view**, not a semantic restriction.
 Traversal in Grism is expressed via the **Expand** logical operator. Expand consumes a Frame and produces a new Frame by following role bindings in hyperedges.
 
 Expand is defined over Hyperedges, not Nodes or Edges alone.
-
 
 ### 3.3.2 Binary Expansion (Property Graph Semantics)
 
@@ -361,7 +345,6 @@ Where:
 * Only binary hyperedges participate
 
 This mode enables efficient adjacency-based traversal and is the default for Cypher-compatible queries.
-
 
 ### 3.3.3 Role-Qualified Expansion
 
@@ -385,7 +368,6 @@ Example:
 (Paper)
 ```
 
-
 ### 3.3.4 Hyperedge Materialization
 
 Expand may optionally materialize hyperedges as first-class outputs:
@@ -402,7 +384,6 @@ This enables:
 
 Materialized hyperedges may subsequently participate in further expansions, including hyperedge-to-hyperedge traversal.
 
-
 ### 3.3.5 Execution Constraints and Optimization
 
 To preserve performance and predictability:
@@ -412,7 +393,6 @@ To preserve performance and predictability:
 * The planner may rewrite hyperedge expansions into binary projections when safe
 
 These rewrites preserve logical semantics while selecting optimal physical execution strategies.
-
 
 ### 3.3.6 Summary
 
@@ -437,7 +417,6 @@ The Hypergraph abstraction is:
 
 `Hypergraph` is **not** a storage engine, query language, or execution runtime. It is a **logical façade** over the Grism core.
 
-
 ### 4.2 Architectural Positioning
 
 The Hypergraph abstraction occupies a precise position in the system stack:
@@ -456,7 +435,6 @@ This separation ensures that:
 * Execution strategies can evolve independently
 * Distributed and local execution share the same logical foundation
 
-
 ### 4.3 Mental Model: DataFrame Analogy
 
 The Hypergraph API intentionally mirrors the **DataFrame mental model**, generalized from rows to relations:
@@ -470,7 +448,6 @@ The Hypergraph API intentionally mirrors the **DataFrame mental model**, general
 | GroupBy           | Hyperedge projection     |
 
 This analogy is conceptual rather than literal, but it provides a powerful intuition: **graphs are treated as executable relations**, not as pointer-based structures.
-
 
 ### 4.4 Views and Surface Projections
 
@@ -491,7 +468,6 @@ Key guarantees:
 * All views compile into the same Hyperedge-based logical plans
 
 Binary edges in property or Cypher views correspond to **arity-2 hyperedges** in the core model.
-
 
 ### 4.5 Core Hypergraph Operations
 
@@ -515,7 +491,6 @@ All operations:
 * Are **lazy** (no execution on construction)
 * Produce Frames (`NodeFrame`, `HyperedgeFrame`, or projections)
 
-
 ### 4.6 Relationship to Frames
 
 Conceptually:
@@ -529,7 +504,6 @@ Operations such as `nodes()`, `hyperedges()`, and `match()` return Frames, which
 
 Frames never outlive their Hypergraph context but may be freely composed and transformed within it.
 
-
 ### 4.7 Python-First Interface and Query-Language Agnosticism
 
 Grism is designed as a **Python-first system**. The primary user interface for constructing, composing, and executing hypergraph queries is the **Python API**, not an embedded textual query language.
@@ -541,7 +515,6 @@ The Hypergraph abstraction is therefore **query-language agnostic** by design:
 * Query languages, if supported, are treated strictly as **optional front-end projections**
 
 This ensures that the hypergraph model remains stable, extensible, and suitable for programmatic and agent-driven workloads.
-
 
 ### 4.8 Property-Graph Semantics via Python Projections
 
@@ -570,7 +543,6 @@ This query is semantically equivalent to a property-graph pattern match, but is:
 * Type-aware and IDE-friendly
 * Directly integrated with control flow, functions, and agents
 
-
 ### 4.9 Optional Query-Language Frontends
 
 While Grism is Python-first, the architecture does **not preclude** support for textual query languages in the future.
@@ -589,7 +561,6 @@ If enabled, such frontends:
 
 In all cases, Python remains the **reference interface** against which correctness and completeness are defined.
 
-
 ### 4.8 Naming and Semantic Guarantees
 
 The following guarantees apply to the Hypergraph abstraction:
@@ -600,7 +571,6 @@ The following guarantees apply to the Hypergraph abstraction:
 4. Hyperedge semantics always remain first-class
 
 These guarantees ensure that Section 4 remains fully consistent with the data model and traversal semantics defined in Section 3.
-
 
 ### 4.9 Summary
 
@@ -621,7 +591,6 @@ Design principles:
 
 This ensures a stable, composable, and AI-friendly surface aligned with the hypergraph model defined in Sections 3–4.
 
-
 ### 5.2 Hypergraph Root Object
 
 ```python
@@ -636,7 +605,6 @@ Key properties:
 * **Snapshot-bound**: Each Hypergraph is associated with a read snapshot (MVCC)
 * **Serializable**: Logical plans can be persisted, replayed, or shipped to workers
 * **Storage-agnostic**: No dependency on physical layout or execution backend
-
 
 ### 5.3 Frames as First-Class Values
 
@@ -655,7 +623,6 @@ Frames are:
 * **Value objects**: Equality is based on logical plan structure
 * **Composable**: Frames can be freely chained and nested
 * **Schema-aware**: Carry column and type metadata when available
-
 
 ### 5.4 Core Hypergraph Operations
 
@@ -682,7 +649,6 @@ The API exposes a minimal, orthogonal operator set:
 
 Each operation appends a node to the logical plan; no execution occurs at construction time.
 
-
 ### 5.5 Traversal Semantics in the API
 
 Traversal is always expressed via `expand()`, which is a direct surface representation of the **Expand logical operator** defined in Section 3.3.
@@ -694,7 +660,6 @@ Supported modes:
 * **Hyperedge materialization** for meta-reasoning
 
 This guarantees that Python traversal semantics are *identical* to the hypergraph traversal model.
-
 
 ## 6. Expression System
 
@@ -714,7 +679,6 @@ Key properties:
 * **Execution-backend agnostic**
 
 Expressions never access data directly; they describe computations to be applied during execution.
-
 
 ### 6.2 Column References & Scope Resolution
 
@@ -745,7 +709,6 @@ Resolution rules:
 
 These rules mirror relational scoping while respecting hypergraph expansion semantics.
 
-
 ### 6.3 Expression Categories
 
 **Comparison & Logical**:
@@ -771,7 +734,6 @@ col("score").coalesce(0.0)
 
 All functions are mapped to typed logical expressions and validated before execution.
 
-
 ### 6.4 Validation & Type Semantics
 
 Validation occurs in two stages:
@@ -780,7 +742,6 @@ Validation occurs in two stages:
 * **Plan validation**: Type compatibility, null semantics, aggregation legality
 
 Errors include full frame lineage and column suggestions, ensuring debuggability for both humans and agents.
-
 
 ## 7. Logical Plan Layer (Rust Canonical IR)
 
@@ -794,7 +755,6 @@ Logical plans are:
 * **Purely declarative**
 * **Execution-backend independent**
 * **Serializable and replayable**
-
 
 ### 7.2 Core Logical Operators
 
@@ -811,7 +771,6 @@ enum LogicalOp {
 
 Each operator consumes one or more input relations and produces a new relation over Nodes or Hyperedges.
 
-
 ### 7.3 Logical Operator Semantics
 
 * **Scan**: Binds a base relation (nodes or hyperedges)
@@ -822,7 +781,6 @@ Each operator consumes one or more input relations and produces a new relation o
 * **Infer**: Applies declarative rules to derive new hyperedges
 
 All operators are **side-effect free** and composable.
-
 
 ### 7.4 Plan Construction & Lineage
 
@@ -838,7 +796,6 @@ Scan → Expand → Filter → Project → Aggregate
 
 This lineage is surfaced via `hg.explain()` and drives both optimization and distributed execution.
 
-
 ### 7.5 Stability Guarantees
 
 The logical plan layer guarantees that:
@@ -849,13 +806,11 @@ The logical plan layer guarantees that:
 
 This makes the logical plan the cornerstone that unifies Grism’s hypergraph model, Python API, and execution engines.
 
-
 ## 8. Optimization
 
 Optimization in Grism operates **entirely on the hyperedge-native logical plan**. Unlike traditional relational or property-graph engines, optimization decisions are driven primarily by **Expand semantics, hyperedge arity, and role selectivity**, rather than generic join heuristics.
 
 The optimizer is deliberately split into **rule-based** and **cost-based** phases, both of which preserve the logical guarantees defined in Sections 3–7.
-
 
 ### 8.1 Optimization Objectives
 
@@ -868,7 +823,6 @@ The optimizer aims to:
 * Preserve explainability and determinism
 
 Crucially, **no optimization may alter hyperedge semantics** or observable results.
-
 
 ### 8.2 Rule-Based Optimization (Logical Rewrites)
 
@@ -888,7 +842,6 @@ Constraints:
 
 * Predicates referencing expanded roles or hyperedge properties cannot be pushed below Expand
 
-
 #### 8.2.2 Expand Reordering
 
 When multiple Expand operators are chained, the optimizer may reorder them if semantics permit.
@@ -900,11 +853,9 @@ Heuristics:
 
 Reordering is allowed only when role bindings are independent and hyperedge materialization semantics are unchanged.
 
-
 #### 8.2.3 Projection Pruning
 
 Unused roles, properties, and hyperedge columns are pruned early to reduce join width and memory pressure.
-
 
 ### 8.3 Cost-Based Optimization (Hyperedge-Aware)
 
@@ -918,7 +869,6 @@ Cost-based optimization selects physical execution strategies using estimates de
 * Hyperedge materialization cost
 * Cardinality growth
 * Distributed shuffle cost (Ray)
-
 
 #### 8.3.1 Expand Cost Model
 
@@ -938,7 +888,6 @@ Expand is the **dominant cost driver** in Grism.
 
 The optimizer aggressively rewrites n-ary expands into binary projections when semantics allow.
 
-
 ### 8.4 Distributed Cost Modeling (Ray)
 
 For Ray execution, the optimizer additionally considers:
@@ -946,7 +895,6 @@ For Ray execution, the optimizer additionally considers:
 * Data locality of Lance fragments
 * Shuffle volume induced by Expand and Aggregate
 * Stage fusion opportunities
-
 
 ### 8.5 Optimization Guarantees
 
@@ -957,13 +905,11 @@ The optimizer guarantees that:
 3. All rewrites are explainable via `hg.explain()`
 4. Cost-based decisions do not affect correctness
 
-
 ## 9. Execution Backends
 
 Grism supports multiple execution backends that share the **same logical plan semantics**. Execution backends differ only in *how* logical operators are executed, never in *what* they compute.
 
 All backends execute **hyperedge-native logical plans**, with `Expand` as the dominant physical operator.
-
 
 ### 9.1 Standalone Rust Engine
 
@@ -997,7 +943,6 @@ Each logical operator is compiled into a corresponding physical operator impleme
 
 The standalone engine prioritizes **low latency, predictable performance**, and serves as the semantic baseline for all other backends.
 
-
 ### 9.2 Ray Distributed Engine
 
 The Ray backend enables **distributed execution** of the same logical plans across a cluster.
@@ -1007,7 +952,6 @@ The Ray backend enables **distributed execution** of the same logical plans acro
 > **Ray orchestrates; Rust executes.**
 
 Ray is responsible for task scheduling, data movement, and fault tolerance, while Rust workers perform actual query execution.
-
 
 #### Ray Execution Flow
 
@@ -1024,7 +968,6 @@ The physical planner partitions the logical plan into **execution stages**, typi
 * Expand boundaries
 * Aggregation boundaries
 * Materialization points
-
 
 #### Ray Tasks
 
@@ -1049,11 +992,9 @@ Each task executes a fragment of the physical plan using the same Rust engine as
 
 The Ray backend preserves **identical semantics** to local execution while enabling scale-out execution for large graphs and agent workloads.
 
-
 ## 10. Storage Layer
 
 Grism’s storage layer is built on **Lance**, providing columnar, versioned persistence optimized for analytical and AI workloads.
-
 
 ### 10.1 Lance Dataset Layout
 
@@ -1073,7 +1014,6 @@ Logical separation is maintained between:
 
 This separation aligns with the hyperedge model and supports independent optimization of structure and content.
 
-
 ### 10.2 Storage Properties
 
 * Append-only writes
@@ -1083,11 +1023,9 @@ This separation aligns with the hyperedge model and supports independent optimiz
 
 Storage layout is **not exposed** to users or logical planning and may evolve without affecting semantics.
 
-
 ## 11. Indexing
 
 Indexes are **physical accelerators** that do not change logical semantics. They exist solely to optimize Expand, Filter, and Scan operations.
-
 
 ### 11.1 Structural Indexes
 
@@ -1097,7 +1035,6 @@ Indexes are **physical accelerators** that do not change logical semantics. They
 
 These indexes primarily accelerate **Expand execution**, especially in adjacency-based traversal.
 
-
 ### 11.2 Vector Indexes
 
 * Lance ANN indexes
@@ -1105,11 +1042,9 @@ These indexes primarily accelerate **Expand execution**, especially in adjacency
 
 Vector indexes integrate directly with expression evaluation (e.g. `sim()`), enabling hybrid symbolic–vector queries.
 
-
 ## 12. Reasoning & Neurosymbolic Layer
 
 The reasoning layer treats the hypergraph as **executable knowledge**, not static data.
-
 
 ### 12.1 Ontologies & Typing
 
@@ -1119,7 +1054,6 @@ The reasoning layer treats the hypergraph as **executable knowledge**, not stati
 
 Types participate directly in logical planning and optimization.
 
-
 ### 12.2 Rule Engine
 
 * Datalog-style declarative rules
@@ -1127,7 +1061,6 @@ Types participate directly in logical planning and optimization.
 * Rules derive **new hyperedges**, not side effects
 
 Rule execution is compiled into logical plans using the `Infer` operator, making reasoning explainable and replayable.
-
 
 ## 14. APIs & Interfaces
 
@@ -1144,7 +1077,6 @@ hg.explain(mode="physical")
 
 All interfaces compile into the same logical plan representation.
 
-
 ## 15. Transactions & Versioning
 
 * MVCC via Lance snapshots
@@ -1153,7 +1085,6 @@ All interfaces compile into the same logical plan representation.
 
 Each query executes against a **stable snapshot**, ensuring consistency across distributed and concurrent execution.
 
-
 ## 16. Security & Governance
 
 * Label- and role-based access control
@@ -1161,7 +1092,6 @@ Each query executes against a **stable snapshot**, ensuring consistency across d
 * Provenance tracking via hyperedge-to-hyperedge relations
 
 Security is enforced at the **logical plan level**, not as an afterthought in execution.
-
 
 ## 17. Rust & Python Crate Layout
 
@@ -1179,7 +1109,6 @@ grism/
 
 Crate boundaries reflect **semantic layers**, not implementation convenience.
 
-
 ## 18. Design Details & Semantics
 
 ### 18.1 Lazy Evaluation Guarantees
@@ -1196,7 +1125,6 @@ Crate boundaries reflect **semantic layers**, not implementation convenience.
 * `.explain()` never triggers execution
 * No implicit caching by default
 
-
 ### 18.2 Error Handling
 
 Errors are categorized by phase:
@@ -1207,7 +1135,6 @@ Errors are categorized by phase:
 
 All errors include **logical plan lineage** for explainability.
 
-
 ### 18.3 Performance Considerations
 
 * Streaming execution for large results
@@ -1215,7 +1142,6 @@ All errors include **logical plan lineage** for explainability.
 * Per-executor memory limits
 
 Future features may include explicit optimization hints and plan caching.
-
 
 ### 18.4 Concurrency Model
 
