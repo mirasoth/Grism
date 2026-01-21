@@ -1,46 +1,58 @@
-# Core Type Naming Freeze (Authoritative)
+# RFC Naming Alignment & Completion (Grism Core)
 
-This document locks down **all core type names** for the Grism / Mizar architecture. These names are **canonical** and should be treated as stable across RFCs, codebases, APIs, and documentation.
+This RFC **polishes, aligns, and completes** the RFC naming scheme so it is **fully consistent with the Grism architecture design** (v1) and **complete across all layers**: logical model, planning, execution, storage, reasoning, and distributed runtime.
 
----
-
-## 1. Foundational Concepts
-
-| Concept          | Canonical Name         | Notes                                    |
-| ---------------- | ---------------------- | ---------------------------------------- |
-| Graph model      | **Hypergraph**         | Standard graph-theoretic term            |
-| Entity (atomic)  | **Node**               | First-class entity                       |
-| Relation (n-ary) | **Hyperedge**          | Sole relational primitive                |
-| Binary relation  | **Edge** *(view only)* | Projection of Hyperedge, not a primitive |
-
-**Invariant:** All relations are hyperedges. Edge is a compatibility view.
+It **supersedes** earlier partial naming lists and should be treated as the **authoritative cross-RFC naming reference**.
 
 ---
 
-## 2. Logical Data Model Types
+## 0. Naming Principles (Normative)
 
-### 2.1 Core IDs
+1. **Hypergraph-first semantics**
+   All relations are hyperedges; binary edges are projections only.
+
+2. **Logical ≠ Physical ≠ Storage**
+   Naming must reflect layer boundaries precisely.
+
+3. **One concept → one canonical name**
+   Aliases are allowed only at public API boundaries.
+
+4. **Operators are semantic, not algorithmic**
+   Physical algorithms live in `*Exec` names only.
+
+5. **Python surface mirrors logical model**
+   Python names map 1:1 to logical operators and frames.
+
+---
+
+## 1. Foundational Model (Frozen)
+
+| Concept          | Canonical Name         | Notes                           |
+| ---------------- | ---------------------- | ------------------------------- |
+| Graph container  | **Hypergraph**         | Canonical user-facing container |
+| Atomic entity    | **Node**               | Stable identity                 |
+| Relation (n-ary) | **Hyperedge**          | Sole relational primitive       |
+| Binary relation  | **Edge** *(view only)* | Arity=2 hyperedge projection    |
+
+**Invariant:** There is no independent `Edge` primitive.
+
+---
+
+## 2. Identity & Structural Types
 
 ```text
 NodeId
 EdgeId
 Label
 Role
+PropertyKey
 ```
-
----
-
-### 2.2 Entity References
 
 ```text
 EntityRef
-  ├─ Node(NodeId)
-  └─ Hyperedge(EdgeId)
+ ├─ Node(NodeId)
+ └─ Hyperedge(EdgeId)
 ```
-
----
-
-### 2.3 Data Structures
 
 ```text
 Node
@@ -51,130 +63,215 @@ PropertyMap
 
 ---
 
-## 3. Frame Abstractions (User-Facing)
+## 3. Frame System (Logical Views)
 
-Frames are **logical views**, not storage structures.
+Frames are **immutable, lazy, logical relations**.
 
-| Frame            | Canonical Name     | Description                  |
-| ---------------- | ------------------ | ---------------------------- |
-| Node view        | **NodeFrame**      | Nodes matching predicates    |
-| Hyperedge view   | **HyperedgeFrame** | Primary relational view      |
-| Binary edge view | **EdgeFrame**      | Projection of HyperedgeFrame |
+| Frame              | Canonical Name     | Semantics                    |
+| ------------------ | ------------------ | ---------------------------- |
+| Node relation      | **NodeFrame**      | Nodes with predicates        |
+| Hyperedge relation | **HyperedgeFrame** | Primary relational view      |
+| Binary edge view   | **EdgeFrame**      | Projection of HyperedgeFrame |
 
-**Rule:** All query planning starts from NodeFrame or HyperedgeFrame.
+**Rule:** All planning starts from `NodeFrame` or `HyperedgeFrame`.
 
 ---
 
-## 4. Logical Plan & Operators
+## 4. Hypergraph Root API
 
-### 4.1 Logical Plan
+```text
+Hypergraph
+```
+
+| Method                | Semantics               |
+| --------------------- | ----------------------- |
+| `nodes()`             | NodeFrame scan          |
+| `hyperedges()`        | HyperedgeFrame scan     |
+| `match()`             | Pattern-based expansion |
+| `expand()`            | Hyperedge traversal     |
+| `filter()`            | Predicate selection     |
+| `select()`            | Projection              |
+| `groupby()` / `agg()` | Aggregation             |
+| `infer()`             | Rule-based derivation   |
+| `view()`              | Surface projection      |
+| `collect()`           | Trigger execution       |
+
+---
+
+## 5. Expression System
+
+```text
+Expr
+LogicalExpr
+AggExpr
+ColumnRef
+Literal
+FunctionExpr
+```
+
+Expression categories:
+
+* BooleanExpr
+* ComparisonExpr
+* ArithmeticExpr
+* VectorExpr
+* TypeExpr
+* NullExpr
+
+---
+
+## 6. Logical Plan (Canonical IR)
 
 ```text
 LogicalPlan
-LogicalExpr
+LogicalOp
+Schema
 ```
 
----
+### 6.1 Core Logical Operators
 
-### 4.2 Core Operators
+| Operator  | Canonical Name | Notes             |
+| --------- | -------------- | ----------------- |
+| Scan      | **Scan**       | Node / Hyperedge  |
+| Expand    | **Expand**     | Unified traversal |
+| Filter    | **Filter**     | Predicate         |
+| Project   | **Project**    | Expressions       |
+| Aggregate | **Aggregate**  | Group + agg       |
+| Limit     | **Limit**      | Cardinality bound |
+| Infer     | **Infer**      | Rule evaluation   |
 
-| Operator       | Canonical Name    | Notes                     |
-| -------------- | ----------------- | ------------------------- |
-| Scan nodes     | **ScanNode**      | NodeFrame source          |
-| Scan relations | **ScanHyperedge** | HyperedgeFrame source     |
-| Filter         | **Filter**        | Predicate filtering       |
-| Project        | **Project**       | Column selection          |
-| Expand         | **Expand**        | Traversal over hyperedges |
-| Join           | **Join**          | Relational join           |
-| Aggregate      | **Aggregate**     | Grouping                  |
-
-**Explicitly avoided:** `ScanEdge` (use ScanHyperedge + projection).
+**Important:** There is **no Join operator**. Joins are expressed via `Expand`.
 
 ---
 
-## 5. Traversal & Expansion Semantics
+## 7. Expand Semantics (Critical Section)
 
-| Concept                   | Canonical Name                    |
-| ------------------------- | --------------------------------- |
-| Traversal op              | **Expand**                        |
-| Binary traversal          | **BinaryExpand** *(mode)*         |
-| Role-based traversal      | **RoleExpand** *(mode)*           |
-| Hyperedge materialization | **MaterializeHyperedge** *(flag)* |
+| Concept               | Canonical Name                    |
+| --------------------- | --------------------------------- |
+| Traversal operator    | **Expand**                        |
+| Binary expand mode    | **BinaryExpand** *(mode)*         |
+| Role-qualified expand | **RoleExpand** *(mode)*           |
+| Hyperedge output      | **MaterializeHyperedge** *(flag)* |
+
+Binary traversal is an **optimization**, not a semantic distinction.
 
 ---
 
-## 6. Physical Planning & Execution
+## 8. Optimization Layer
 
-### 6.1 Plans
+```text
+Optimizer
+RuleOptimizer
+CostOptimizer
+RewriteRule
+CostModel
+```
+
+| Concept            | Canonical Name        |
+| ------------------ | --------------------- |
+| Predicate pushdown | **PredicatePushdown** |
+| Expand reorder     | **ExpandReorder**     |
+| Projection prune   | **ProjectionPrune**   |
+| Expand cost        | **ExpandCostModel**   |
+
+---
+
+## 9. Physical Planning & Execution
+
+### 9.1 Physical Plans
 
 ```text
 PhysicalPlan
-PhysicalOperator
+PhysicalOp
+ExecNode
+```
+
+### 9.2 Physical Operators
+
+| Operator       | Canonical Name          | Layer    |
+| -------------- | ----------------------- | -------- |
+| Node scan      | **NodeScanExec**        | Physical |
+| Hyperedge scan | **HyperedgeScanExec**   | Physical |
+| Binary expand  | **AdjacencyExpandExec** | Physical |
+| N-ary expand   | **RoleExpandExec**      | Physical |
+| Filter         | **FilterExec**          | Physical |
+| Project        | **ProjectExec**         | Physical |
+| Aggregate      | **AggregateExec**       | Physical |
+
+---
+
+## 10. Execution Backends
+
+| Backend     | Canonical Name    |
+| ----------- | ----------------- |
+| Local       | **LocalExecutor** |
+| Distributed | **RayExecutor**   |
+
+```text
+Runtime
+ExecutionContext
+Task
+Scheduler
 ```
 
 ---
 
-### 6.2 Physical Operators
+## 11. Storage Layer
 
-| Operator         | Canonical Name          |
-| ---------------- | ----------------------- |
-| Node scan        | **NodeScanExec**        |
-| Hyperedge scan   | **HyperedgeScanExec**   |
-| Adjacency expand | **AdjacencyExpandExec** |
-| Role join expand | **RoleExpandExec**      |
-| Filter           | **FilterExec**          |
-| Projection       | **ProjectExec**         |
+```text
+StorageEngine
+LanceStorage
+```
 
----
+### 11.1 Datasets
 
-## 7. Storage Layer
+```text
+nodes.lance
+hyperedges.lance
+properties.lance
+embeddings.lance
+```
 
-| Concept         | Canonical Name     | Notes              |
-| --------------- | ------------------ | ------------------ |
-| Storage engine  | **StorageEngine**  | Abstract interface |
-| Lance backend   | **LanceStorage**   | Default backend    |
-| Index           | **Index**          | Generic            |
-| Adjacency index | **AdjacencyIndex** | Binary hyperedges  |
-| Role index      | **RoleIndex**      | Hyperedge roles    |
+### 11.2 Indexes
 
----
+| Index            | Canonical Name     |
+| ---------------- | ------------------ |
+| Binary adjacency | **AdjacencyIndex** |
+| Role-based       | **RoleIndex**      |
+| Vector           | **VectorIndex**    |
 
-## 8. Query Language Layer
-
-| Layer             | Canonical Name               |
-| ----------------- | ---------------------------- |
-| Cypher-compatible | **Cypher**                   |
-| GQL-compatible    | **GQL**                      |
-| Native hypergraph | **GrismQL** *(working name)* |
+Indexes are **pure accelerators**.
 
 ---
 
-## 9. Reasoning & Neurosymbolic Layer
+## 12. Reasoning & Neurosymbolic Layer
 
 | Concept     | Canonical Name  |
 | ----------- | --------------- |
+| Ontology    | **Ontology**    |
 | Rule        | **Rule**        |
 | Inference   | **Inference**   |
 | Provenance  | **Provenance**  |
 | Explanation | **Explanation** |
 | Constraint  | **Constraint**  |
 
----
-
-## 10. Distributed & Runtime Layer
-
-| Concept           | Canonical Name       |
-| ----------------- | -------------------- |
-| Runtime           | **Runtime**          |
-| Scheduler         | **Scheduler**        |
-| Task              | **Task**             |
-| Execution context | **ExecutionContext** |
+Rules always derive **new hyperedges**.
 
 ---
 
-## 11. Explicitly Forbidden / Deprecated Names
+## 13. Interfaces & Frontends
 
-These names should **not** appear in new code or docs:
+| Interface | Canonical Name                   |
+| --------- | -------------------------------- |
+| Python    | **Python API** *(authoritative)* |
+| gRPC      | **GrpcService**                  |
+| Arrow     | **ArrowFlight**                  |
+| Cypher    | **CypherFrontend** *(optional)*  |
+| GQL       | **GqlFrontend** *(optional)*     |
+
+---
+
+## 14. Forbidden / Deprecated Names (Enforced)
 
 ```text
 GraphFrame
@@ -183,21 +280,12 @@ RelationEdge
 Triple
 Statement
 Fact
+Join
+SQL
 ```
 
-Use the canonical names instead.
+## 15. Final Invariant
 
----
+> **Every name in this document corresponds to exactly one semantic concept in the Grism architecture.**
 
-## 12. Naming Stability Policy
-
-1. Names in this document are **stable**
-2. Changes require an explicit RFC
-3. Aliases may exist at API boundaries only
-4. Internal code must use canonical names
-
----
-
-## 13. One-Line Summary
-
-> **Grism uses a hypergraph-first naming system: Nodes represent entities, Hyperedges represent all relations, and Frames expose logical views.**
+Any deviation requires an explicit RFC amendment.

@@ -6,31 +6,31 @@
 ### 0.1 Core Entry Point
 
 ```python
-class HyperGraph:
+class Hypergraph:
     @staticmethod
     def connect(
         uri: str,
         *,
         executor: "Executor | str" = "local",
         namespace: str | None = None,
-    ) -> "HyperGraph":
+    ) -> "Hypergraph":
         """
         Connect to a Grism hypergraph.
-        
+
         Args:
             uri: Connection URI (e.g., "grism://local", "grism://path/to/data")
             executor: Execution backend ("local" | "ray" | Executor instance)
             namespace: Optional namespace for logical graph isolation
-            
+
         Returns:
-            HyperGraph instance (immutable, lazy)
+            Hypergraph instance (immutable, lazy)
         """
         ...
 
     # namespace / logical graph
-    def with_namespace(self, name: str) -> "HyperGraph":
+    def with_namespace(self, name: str) -> "Hypergraph":
         """
-        Create a new HyperGraph scoped to a namespace.
+        Create a new Hypergraph scoped to a namespace.
         Returns a new instance; original unchanged.
         """
         ...
@@ -39,10 +39,10 @@ class HyperGraph:
     def nodes(self, label: str | None = None) -> "NodeFrame":
         """
         Get nodes, optionally filtered by label.
-        
+
         Args:
             label: Node label to filter by (None = all nodes)
-            
+
         Returns:
             NodeFrame (lazy, immutable)
         """
@@ -50,11 +50,11 @@ class HyperGraph:
 
     def edges(self, label: str | None = None) -> "EdgeFrame":
         """
-        Get edges, optionally filtered by label.
-        
+        Get edges (binary hyperedges), optionally filtered by label.
+
         Args:
             label: Edge label to filter by (None = all edges)
-            
+
         Returns:
             EdgeFrame (lazy, immutable)
         """
@@ -63,10 +63,10 @@ class HyperGraph:
     def hyperedges(self, label: str | None = None) -> "HyperedgeFrame":
         """
         Get hyperedges, optionally filtered by label.
-        
+
         Args:
             label: Hyperedge label to filter by (None = all hyperedges)
-            
+
         Returns:
             HyperedgeFrame (lazy, immutable)
         """
@@ -76,16 +76,16 @@ class HyperGraph:
     def collect(self, *, executor: "Executor | str | None" = None):
         """
         Execute the query and return results.
-        Not applicable on HyperGraph directly; use on frames.
+        Not applicable on Hypergraph directly; use on frames.
         """
-        raise TypeError("collect() must be called on a Frame, not HyperGraph")
+        raise TypeError("collect() must be called on a Frame, not Hypergraph")
 
     def explain(self, mode: str = "logical") -> str:
         """
         Explain the query plan.
-        Not applicable on HyperGraph directly; use on frames.
+        Not applicable on Hypergraph directly; use on frames.
         """
-        raise TypeError("explain() must be called on a Frame, not HyperGraph")
+        raise TypeError("explain() must be called on a Frame, not Hypergraph")
 ```
 
 ---
@@ -93,16 +93,17 @@ class HyperGraph:
 ### 0.2 Frame Base Class
 
 ```python
-class GraphFrame:
+class Frame:
     """
-    Base class for all graph frames (NodeFrame, EdgeFrame, HyperedgeFrame).
-    
+    Base class for all frames (NodeFrame, EdgeFrame, HyperedgeFrame).
+
     Properties:
         - Immutable: All operations return new frames
         - Lazy: No execution until .collect() or iteration
         - Typed: Schema information available via .schema property
+        - Composable: Frames can be chained and nested
     """
-    
+
     @property
     def schema(self) -> "Schema":
         """
@@ -110,18 +111,18 @@ class GraphFrame:
         May be partial if schema cannot be inferred statically.
         """
         ...
-    
+
     # structural ops
     def filter(self, predicate: "Expr") -> "Self":
         """
         Filter rows based on a predicate expression.
-        
+
         Args:
             predicate: Boolean expression (Expr that evaluates to bool)
-            
+
         Returns:
-            New GraphFrame with filtered rows
-            
+            New Frame with filtered rows
+
         Raises:
             TypeError: If predicate is not a boolean expression
             ColumnNotFoundError: If referenced columns don't exist
@@ -131,20 +132,20 @@ class GraphFrame:
     def select(self, *columns: str | "Expr", **aliases: "Expr") -> "Self":
         """
         Project columns (rename, compute expressions).
-        
+
         Args:
             *columns: Column names or expressions to select
             **aliases: Keyword arguments for aliased columns
                       (e.g., name=col("Author.name"))
-        
+
         Examples:
             .select("title", "year")
             .select(col("title"), col("year") * 2)
             .select(title=col("Paper.title"), author=col("Author.name"))
-        
+
         Returns:
-            New GraphFrame with selected columns only
-            
+            New Frame with selected columns only
+
         Note:
             After select(), only selected columns are available in subsequent operations.
         """
@@ -153,13 +154,13 @@ class GraphFrame:
     def limit(self, n: int) -> "Self":
         """
         Limit the number of rows returned.
-        
+
         Args:
             n: Maximum number of rows (must be positive)
-            
+
         Returns:
-            New GraphFrame with limit applied
-            
+            New Frame with limit applied
+
         Note:
             Limit is applied after all filtering and expansion.
             Ordering is not guaranteed unless explicitly sorted (future feature).
@@ -170,13 +171,13 @@ class GraphFrame:
     def groupby(self, *keys: str | "Expr") -> "GroupedFrame":
         """
         Group rows by key expressions.
-        
+
         Args:
             *keys: Column names or expressions to group by
-        
+
         Returns:
             GroupedFrame for aggregation
-            
+
         Examples:
             .groupby("author")
             .groupby(col("Author.name"), col("Author.affiliation"))
@@ -193,16 +194,16 @@ class GraphFrame:
     ) -> "DataFrame | pyarrow.Table | list[dict]":
         """
         Execute the query and return results.
-        
+
         Args:
             executor: Override executor for this query (None = use default)
             as_pandas: Return pandas DataFrame (requires pandas)
             as_arrow: Return PyArrow Table
             Default: Return list of dicts
-        
+
         Returns:
             Query results in requested format
-            
+
         Raises:
             ExecutionError: If query execution fails
         """
@@ -211,19 +212,17 @@ class GraphFrame:
     def explain(self, mode: str = "logical") -> str:
         """
         Explain the query plan.
-        
+
         Args:
             mode: Explanation format
                 - "logical": Logical plan tree
                 - "physical": Physical execution plan
-                - "gql": GraphQL-like representation
-                - "cypher": Cypher query representation
-                
+
         Returns:
             String representation of the plan
         """
         ...
-    
+
     def __iter__(self):
         """
         Iterate over results (triggers execution).
@@ -237,14 +236,14 @@ class GraphFrame:
 ### 0.3 NodeFrame
 
 ```python
-class NodeFrame(GraphFrame):
+class NodeFrame(Frame):
     """
     Frame representing nodes in the graph.
-    
+
     Properties:
         label: str | None - Node label filter (None = all labels)
     """
-    
+
     label: str | None
 
     def expand(
@@ -257,8 +256,8 @@ class NodeFrame(GraphFrame):
         as_: str | None = None,
     ) -> "NodeFrame":
         """
-        Expand to adjacent nodes via edges (graph traversal).
-        
+        Expand to adjacent nodes via hyperedges (graph traversal).
+
         Args:
             edge: Edge label to traverse (None = any edge)
             to: Target node label filter (None = any label)
@@ -268,29 +267,30 @@ class NodeFrame(GraphFrame):
                 - "both": Follow edges in both directions
             hops: Number of hops to traverse (default: 1)
             as_: Alias for the expanded node frame (for column references)
-        
+
         Returns:
             New NodeFrame representing the expanded nodes
-            
+
         Semantics:
-            - Expansion replaces SQL joins; no explicit join() method
+            - Expansion follows the Expand logical operator
+            - Binary edges (arity=2) use adjacency traversal
             - Multi-hop expansion (hops > 1) traverses paths of length N
             - After expansion, both original and expanded node columns are accessible
-            - Edge properties are accessible via edge label (e.g., col("AUTHORED_BY.year"))
-            - If multiple edges match, all are traversed (union semantics)
-            
+            - Hyperedge properties are accessible via edge label (e.g., col("AUTHORED_BY.year"))
+            - If multiple hyperedges match, all are traversed (union semantics)
+
         Examples:
             # Single hop, outgoing
             hg.nodes("Paper").expand("AUTHORED_BY", to="Author")
-            
+
             # Multi-hop
             hg.nodes("Person").expand("KNOWS", hops=2)
-            
+
             # With alias
             hg.nodes("Paper").expand("AUTHORED_BY", to="Author", as_="author")
                 .filter(col("author.name") == "Alice")
-            
-            # Access edge properties
+
+            # Access hyperedge properties
             hg.nodes("Paper").expand("CITES")
                 .filter(col("CITES.year") >= 2020)
         """
@@ -300,11 +300,12 @@ class NodeFrame(GraphFrame):
 **Expansion Semantics Details**:
 
 1. **Single-hop expansion** (`hops=1`):
-   - Traverses edges directly connected to source nodes
+   - Traverses hyperedges directly connected to source nodes
    - Returns target nodes (or source nodes for `direction="in"`)
+   - For binary hyperedges, uses adjacency traversal for performance
 
 2. **Multi-hop expansion** (`hops=N`):
-   - Traverses paths of exactly N edges
+   - Traverses paths of exactly N hyperedges
    - Intermediate nodes are not included in the result
    - Path properties are accessible via path expressions (future feature)
 
@@ -313,11 +314,11 @@ class NodeFrame(GraphFrame):
    - Expanded node columns accessible via:
      - Alias: `col("author.name")` if `as_="author"`
      - Label: `col("Author.name")` if label is unique
-     - Edge label: `col("AUTHORED_BY.year")` for edge properties
+     - Hyperedge label: `col("AUTHORED_BY.year")` for hyperedge properties
    - If label collision occurs, alias must be used
 
 4. **Direction semantics**:
-   - `"out"`: Source → Target (follow edges from source to target)
+   - `"out"`: Source → Target (follow hyperedges from source to target)
    - `"in"`: Target → Source (reverse traversal)
    - `"both"`: Union of both directions
 
@@ -326,38 +327,39 @@ class NodeFrame(GraphFrame):
 ### 0.4 EdgeFrame
 
 ```python
-class EdgeFrame(GraphFrame):
+class EdgeFrame(Frame):
     """
-    Frame representing edges in the graph.
-    
+    Frame representing binary hyperedges (edges) in the graph.
+
     Properties:
         label: str | None - Edge label filter (None = all labels)
     """
-    
+
     label: str | None
 
     def endpoints(self, which: str = "target") -> "NodeFrame":
         """
-        Get nodes connected by these edges.
-        
+        Get nodes connected by these binary hyperedges.
+
         Args:
             which: Which endpoint to return
                 - "source": Source nodes (for directed edges)
                 - "target": Target nodes (for directed edges)
                 - "both": All endpoints (union)
-                
+
         Returns:
             NodeFrame containing the endpoint nodes
-            
+
         Note:
-            For hyperedges, use HyperedgeFrame.where_role() instead.
+            EdgeFrame is a projection of HyperedgeFrame with arity=2.
+            For n-ary hyperedges, use HyperedgeFrame.where_role() instead.
         """
         ...
-    
+
     def source(self) -> "NodeFrame":
         """Convenience method for endpoints("source")."""
         ...
-    
+
     def target(self) -> "NodeFrame":
         """Convenience method for endpoints("target")."""
         ...
@@ -368,14 +370,14 @@ class EdgeFrame(GraphFrame):
 ### 0.5 HyperedgeFrame
 
 ```python
-class HyperedgeFrame(GraphFrame):
+class HyperedgeFrame(Frame):
     """
     Frame representing hyperedges (N-ary relationships).
-    
+
     Properties:
         label: str | None - Hyperedge label filter (None = all labels)
     """
-    
+
     label: str | None
 
     def where_role(
@@ -385,30 +387,47 @@ class HyperedgeFrame(GraphFrame):
     ) -> "HyperedgeFrame":
         """
         Filter hyperedges where a role matches a value.
-        
+
         Args:
             role: Role name to filter by
             value: Value to match (string, NodeFrame, or expression)
-            
+
         Returns:
             New HyperedgeFrame with filtered hyperedges
-            
+
         Examples:
             # Filter by role value (string)
             hg.hyperedges("Event").where_role("participant", "Alice")
-            
+
             # Filter by role value (node frame)
             hg.hyperedges("Event").where_role("participant", hg.nodes("Person"))
-            
+
             # Filter by role value (expression)
             hg.hyperedges("Event").where_role("participant", col("Person.name"))
         """
         ...
-    
+
     def roles(self) -> "list[str]":
         """
         Get all role names present in this hyperedge frame.
         Returns empty list if schema is unknown.
+        """
+        ...
+
+    def expand(self, role: str, *, as_: str | None = None) -> "NodeFrame":
+        """
+        Expand to nodes connected via a specific role.
+
+        Args:
+            role: Role name to follow
+            as_: Alias for the expanded node frame
+
+        Returns:
+            NodeFrame containing the nodes connected via the specified role
+
+        Examples:
+            hg.hyperedges("Event").expand("participant")
+            hg.hyperedges("AUTHORED_BY").expand("author", as_="writer")
         """
         ...
 ```
@@ -421,20 +440,20 @@ class HyperedgeFrame(GraphFrame):
 class GroupedFrame:
     """
     Frame representing grouped rows (result of groupby()).
-    
-    Cannot be used directly; must call agg() to produce a GraphFrame.
+
+    Cannot be used directly; must call agg() to produce a Frame.
     """
-    
-    def agg(self, **aggregations: "AggExpr") -> "GraphFrame":
+
+    def agg(self, **aggregations: "AggExpr") -> "Frame":
         """
         Apply aggregations to grouped rows.
-        
+
         Args:
             **aggregations: Aggregation expressions keyed by output column names
-            
+
         Returns:
-            GraphFrame with one row per group
-            
+            Frame with one row per group
+
         Examples:
             .groupby("author").agg(count=count(), total=sum(col("citations")))
             .groupby("year").agg(
@@ -444,8 +463,8 @@ class GroupedFrame:
             )
         """
         ...
-    
-    def count(self) -> "GraphFrame":
+
+    def count(self) -> "Frame":
         """
         Convenience method: count rows per group.
         Equivalent to .agg(count=count()).
@@ -738,73 +757,77 @@ def collect(expr: Expr) -> AggExpr:
 ### 0.9 Mutation API (Explicit)
 
 ```python
-class HyperGraph:
+class Hypergraph:
     """
     Mutation operations are explicit and return new graph states.
     """
-    
+
     def insert_node(
         self,
         label: str,
         properties: dict[str, Any] | None = None,
         *,
         id: int | None = None,
-    ) -> "HyperGraph":
+    ) -> "Hypergraph":
         """
         Insert a node.
-        
+
         Args:
             label: Node label
             properties: Node properties (dict)
             id: Optional node ID (auto-generated if None)
-            
+
         Returns:
-            New HyperGraph instance with node inserted
-            
+            New Hypergraph instance with node inserted
+
         Note:
             Mutations are not immediately visible in the same transaction
             until committed (future feature).
         """
         ...
-    
+
     def insert_edge(
         self,
         label: str,
         src: int | "NodeFrame",
         dst: int | "NodeFrame",
         properties: dict[str, Any] | None = None,
-    ) -> "HyperGraph":
+    ) -> "Hypergraph":
         """
-        Insert an edge.
-        
+        Insert a binary hyperedge (edge).
+
         Args:
             label: Edge label
             src: Source node ID or NodeFrame (must be single node)
             dst: Target node ID or NodeFrame (must be single node)
             properties: Edge properties (dict)
-            
+
         Returns:
-            New HyperGraph instance with edge inserted
+            New Hypergraph instance with edge inserted
+
+        Note:
+            This is a convenience method that creates a binary hyperedge
+            with roles {source, target}.
         """
         ...
-    
+
     def insert_hyperedge(
         self,
         label: str,
         roles: dict[str, int | "NodeFrame"],
         properties: dict[str, Any] | None = None,
-    ) -> "HyperGraph":
+    ) -> "Hypergraph":
         """
         Insert a hyperedge.
-        
+
         Args:
             label: Hyperedge label
             roles: Role-to-node mapping (dict[str, node_id | NodeFrame])
             properties: Hyperedge properties (dict)
-            
+
         Returns:
-            New HyperGraph instance with hyperedge inserted
-            
+            New Hypergraph instance with hyperedge inserted
+
         Examples:
             hg.insert_hyperedge(
                 "Event",
@@ -813,29 +836,33 @@ class HyperGraph:
             )
         """
         ...
-    
-    def delete_node(self, node_id: int) -> "HyperGraph":
-        """Delete a node (and all connected edges)."""
+
+    def delete_node(self, node_id: int) -> "Hypergraph":
+        """Delete a node (and all connected hyperedges)."""
         ...
-    
-    def delete_edge(self, edge_id: int) -> "HyperGraph":
-        """Delete an edge."""
+
+    def delete_edge(self, edge_id: int) -> "Hypergraph":
+        """Delete a binary hyperedge."""
         ...
-    
-    def commit(self) -> "HyperGraph":
+
+    def delete_hyperedge(self, hyperedge_id: int) -> "Hypergraph":
+        """Delete a hyperedge."""
+        ...
+
+    def commit(self) -> "Hypergraph":
         """
         Commit pending mutations.
-        Returns new HyperGraph instance with mutations applied.
+        Returns new Hypergraph instance with mutations applied.
         """
         ...
 ```
 
 **Mutation Semantics**:
 
-1. **Immutability**: All mutations return new `HyperGraph` instances
+1. **Immutability**: All mutations return new `Hypergraph` instances
 2. **Batching**: Multiple mutations can be chained before `commit()`
-3. **Validation**: Node/edge existence checked at commit time
-4. **Cascading**: Deleting a node deletes all connected edges
+3. **Validation**: Node/hyperedge existence checked at commit time
+4. **Cascading**: Deleting a node deletes all connected hyperedges
 
 ---
 
@@ -971,16 +998,17 @@ result = (
 * No execution logic in Python layer
 * Column scoping rules documented and tested
 * Type system semantics specified
+* Hypergraph-first model consistently applied
 
 ---
 
-## Phase 1.1 – Canonical Rust LogicalPlan (Frozen v0.1)
+## Phase 1 – Canonical Rust LogicalPlan (Frozen v0.1)
 
 > This section defines the **canonical Rust logical representation** for Grism. All execution backends (local, Ray, future engines) must consume this plan **without semantic loss**.
 
 ---
 
-### 1.1.1 Design Principles
+### 1.1 Design Principles
 
 * Execution-agnostic
 * Deterministic & replayable
@@ -991,7 +1019,7 @@ result = (
 
 ---
 
-### 1.1.2 Core Identifiers
+### 1.2 Core Identifiers
 
 ```rust
 pub type NodeId = u64;
@@ -1004,7 +1032,7 @@ pub type Alias = String;
 
 ---
 
-### 1.1.3 LogicalPlan Root
+### 1.3 LogicalPlan Root
 
 ```rust
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1016,7 +1044,7 @@ pub struct LogicalPlan {
 
 ---
 
-### 1.1.4 Logical Operators
+### 1.4 Logical Operators
 
 ```rust
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1039,7 +1067,7 @@ Each operator:
 
 ---
 
-### 1.1.5 ScanOp
+### 1.5 ScanOp
 
 ```rust
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1065,7 +1093,7 @@ Semantics:
 
 ---
 
-### 1.1.6 ExpandOp (Graph Primitive)
+### 1.6 ExpandOp (Hypergraph Primitive)
 
 ```rust
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1076,7 +1104,8 @@ pub struct ExpandOp {
     pub direction: Direction,
     pub hops: u32,
     pub alias: Option<Alias>, // Binding name for expanded nodes
-    pub edge_alias: Option<Alias>, // Binding name for edges (for edge properties)
+    pub edge_alias: Option<Alias>, // Binding name for hyperedges (for properties)
+    pub role: Option<Role>, // Role to follow for n-ary hyperedges
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1089,22 +1118,23 @@ pub enum Direction {
 
 Invariants:
 
-* `Expand` replaces joins
+* `Expand` is the single traversal primitive for all graph operations
 * Multi-hop is explicit (`hops` parameter)
 * Alias introduces a new binding scope
-* Edge alias allows accessing edge properties
+* Hyperedge alias allows accessing hyperedge properties
 * Schema after expand includes both input and expanded columns
+* For binary edges, adjacency traversal is used when possible
 
 **Column Binding After Expand**:
 
 After an `ExpandOp`, the output schema contains:
 1. All columns from `input` (with original qualifiers)
 2. Columns from expanded nodes (qualified by `alias` or `to_label`)
-3. Edge properties (qualified by `edge_alias` or `edge_label`)
+3. Hyperedge properties (qualified by `edge_alias` or `edge_label`)
 
 ---
 
-### 1.1.7 FilterOp
+### 1.7 FilterOp
 
 ```rust
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1122,7 +1152,7 @@ Semantics:
 
 ---
 
-### 1.1.8 ProjectOp
+### 1.8 ProjectOp
 
 ```rust
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1146,7 +1176,7 @@ Semantics:
 
 ---
 
-### 1.1.9 AggregateOp
+### 1.9 AggregateOp
 
 ```rust
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1165,7 +1195,7 @@ Semantics:
 
 ---
 
-### 1.1.10 LimitOp
+### 1.10 LimitOp
 
 ```rust
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1184,7 +1214,7 @@ Semantics:
 
 ---
 
-### 1.1.11 InferOp (Reasoning Placeholder)
+### 1.11 InferOp (Reasoning Placeholder)
 
 ```rust
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1203,7 +1233,7 @@ Semantics:
 
 ---
 
-### 1.1.12 Expression System
+### 1.12 Expression System
 
 ```rust
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1237,7 +1267,7 @@ pub enum UnaryOp {
 
 ---
 
-### 1.1.13 ColumnRef
+### 1.13 ColumnRef
 
 ```rust
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1268,7 +1298,7 @@ impl ColumnRef {
 
 ---
 
-### 1.1.14 BinaryOp
+### 1.14 BinaryOp
 
 ```rust
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1288,7 +1318,7 @@ pub enum BinaryOp {
 
 ---
 
-### 1.1.15 Function Expressions
+### 1.15 Function Expressions
 
 ```rust
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1315,7 +1345,7 @@ Examples:
 
 ---
 
-### 1.1.16 Aggregation Expressions
+### 1.16 Aggregation Expressions
 
 ```rust
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1339,7 +1369,7 @@ pub enum AggFunc {
 
 ---
 
-### 1.1.17 Schema System
+### 1.17 Schema System
 
 ```rust
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1373,7 +1403,7 @@ pub enum EntityKind {
 
 ---
 
-### 1.1.18 Type System
+### 1.18 Type System
 
 ```rust
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1401,7 +1431,7 @@ pub enum DataType {
 
 ---
 
-### 1.1.19 Serialization Guarantees
+### 1.19 Serialization Guarantees
 
 * `serde_json` for debugging and human-readable formats
 * `bincode` / Arrow IPC for execution (binary, efficient)
@@ -1410,7 +1440,7 @@ pub enum DataType {
 
 ---
 
-### 1.1.20 Example Lowering (Python → Rust)
+### 1.20 Example Lowering (Python → Rust)
 
 ```python
 hg.nodes("Paper") \
@@ -1439,8 +1469,10 @@ Limit(limit=10)
             edge_label="CITES",
             to_label="Paper",
             alias="cited",
+            edge_alias="CITES",
             direction=Out,
-            hops=1
+            hops=1,
+            role=None  # Binary edge traversal
           )
           └─ Filter(predicate=Binary(
                left=ColumnRef(qualifier=None, name="year"),
@@ -1461,6 +1493,8 @@ Limit(limit=10)
 * Column resolution algorithm specified
 * Type system and inference rules documented
 * Schema propagation through operators defined
+* Hypergraph-first model consistently applied in logical operators
+* Expand operator unified for all traversal types
 
 ---
 
@@ -1516,11 +1550,15 @@ hg.nodes("Paper").expand("AUTHORED_BY", to="Author")
 hg.nodes("Paper").expand("AUTHORED_BY", to="Author", as_="author")
   .filter(col("author.name") == "Alice")  # Resolves: author.name ✓
 
-# Example 5: Edge properties
+# Example 5: Hyperedge properties
 hg.nodes("Paper").expand("AUTHORED_BY", to="Author")
   .filter(col("AUTHORED_BY.year") >= 2020)  # Resolves: AUTHORED_BY.year ✓
 
-# Example 6: After select (only selected columns available)
+# Example 6: Role-qualified expansion from HyperedgeFrame
+hg.hyperedges("Event").expand("participant", as_="person")
+  .filter(col("person.name") == "Alice")  # Resolves: person.name ✓
+
+# Example 7: After select (only selected columns available)
 hg.nodes("Paper").expand("AUTHORED_BY", to="Author")
   .select("Paper.title", author_name=col("Author.name"))
   .filter(col("title") == "AI Paper")  # Resolves: Paper.title ✓
@@ -1561,3 +1599,5 @@ cast(col("score"), "string")  # Float64 → String
 * **Temporal Queries**: Time-travel and version queries
 * **Full-text Search**: `.search()` for text indexing
 * **Graph Algorithms**: Built-in algorithms (PageRank, etc.)
+* **Hyperedge Materialization**: `.materialize_hyperedges()` for meta-reasoning
+* **Role-based Aggregation**: Aggregations over specific hyperedge roles
