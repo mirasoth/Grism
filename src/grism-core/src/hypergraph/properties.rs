@@ -11,6 +11,7 @@ use crate::types::Value;
 pub type PropertyMap = HashMap<String, Value>;
 
 /// Trait for elements that have properties.
+#[allow(dead_code)]
 pub trait HasProperties {
     /// Get the property map.
     fn properties(&self) -> &PropertyMap;

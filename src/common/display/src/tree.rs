@@ -19,6 +19,7 @@ pub trait TreeNode {
 /// Helper for displaying tree structures.
 pub struct DisplayTree<'a> {
     root: &'a dyn TreeNode,
+    #[allow(dead_code)]
     indent: usize,
 }
 

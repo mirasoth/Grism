@@ -65,7 +65,7 @@ impl RayPlanner {
         current_stage_id: StageId,
     ) -> GrismResult<StageId> {
         match op {
-            LogicalOp::Scan(scan) => {
+            LogicalOp::Scan(_scan) => {
                 // Scan creates a new parallel stage
                 let stage = Stage::new(current_stage_id)
                     .with_partitions(self.config.num_partitions)

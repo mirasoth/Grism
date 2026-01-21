@@ -29,6 +29,7 @@ pub type BoxedExecNode = Box<dyn ExecNode>;
 
 /// Placeholder scan node implementation.
 pub struct ScanNode {
+    #[allow(dead_code)]
     label: Option<String>,
     exhausted: bool,
 }

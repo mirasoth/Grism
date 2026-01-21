@@ -1,6 +1,6 @@
 //! Worker task execution.
 
-use common_error::{GrismError, GrismResult};
+use common_error::GrismResult;
 
 use crate::planner::Stage;
 use crate::transport::ArrowTransport;
@@ -58,6 +58,7 @@ impl WorkerTask {
 
 /// Task result from a worker.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct TaskResult {
     /// Stage ID.
     pub stage_id: u64,
@@ -69,6 +70,7 @@ pub struct TaskResult {
     pub execution_time_ms: u64,
 }
 
+#[allow(dead_code)]
 impl TaskResult {
     /// Create a new task result.
     pub fn new(stage_id: u64, partition_id: usize, data: Vec<u8>, execution_time_ms: u64) -> Self {

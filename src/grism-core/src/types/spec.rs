@@ -67,6 +67,7 @@ pub fn check_vector_invariants(actual_dim: usize, expected_dim: usize) -> GrismR
 }
 
 /// Check that a data type is valid for aggregation.
+#[allow(dead_code)]
 pub fn check_aggregation_type(data_type: &DataType, agg_name: &str) -> GrismResult<()> {
     match agg_name {
         "sum" | "avg" => {
@@ -109,6 +110,7 @@ pub fn check_aggregation_type(data_type: &DataType, agg_name: &str) -> GrismResu
 }
 
 /// Check binary operation type compatibility.
+#[allow(dead_code)]
 pub fn check_binary_op_types(left: &DataType, right: &DataType, op: &str) -> GrismResult<DataType> {
     match op {
         // Comparison operators return Bool
