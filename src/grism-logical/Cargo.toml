@@ -1,0 +1,23 @@
+[package]
+name = "grism-logical"
+edition = { workspace = true }
+version = { workspace = true }
+description = "Logical planning and expression system for Grism hypergraph database"
+
+[dependencies]
+common-error = { workspace = true }
+grism-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+indexmap = { workspace = true }
+pyo3 = { workspace = true, optional = true }
+
+[dev-dependencies]
+proptest = "1.4"
+
+[features]
+default = []
+python = ["dep:pyo3", "grism-core/python"]
+
+[lints]
+workspace = true

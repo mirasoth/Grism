@@ -1,0 +1,22 @@
+[package]
+name = "grism-optimizer"
+edition = { workspace = true }
+version = { workspace = true }
+description = "Query optimizer and rewrite rules for Grism hypergraph database"
+
+[dependencies]
+common-error = { workspace = true }
+grism-core = { workspace = true }
+grism-logical = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+
+[dev-dependencies]
+proptest = "1.4"
+
+[features]
+default = []
+
+[lints]
+workspace = true
