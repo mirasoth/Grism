@@ -68,7 +68,10 @@ fn push_down_predicates(op: LogicalOp) -> (LogicalOp, bool) {
         // Filter on top of Expand: try to push through
         LogicalOp::Filter { input, filter } => {
             match *input {
-                LogicalOp::Expand { input: expand_input, expand } => {
+                LogicalOp::Expand {
+                    input: expand_input,
+                    expand,
+                } => {
                     // Check if predicate can be pushed past expand
                     if filter.is_deterministic() && !filter.column_refs().is_empty() {
                         // Push the filter below the expand
@@ -100,7 +103,10 @@ fn push_down_predicates(op: LogicalOp) -> (LogicalOp, bool) {
                 }
 
                 // Filter on top of Project: can push through if predicate uses only projected columns
-                LogicalOp::Project { input: project_input, project } => {
+                LogicalOp::Project {
+                    input: project_input,
+                    project,
+                } => {
                     let predicate_refs = filter.column_refs();
                     let projected_cols: std::collections::HashSet<_> =
                         project.output_names().into_iter().collect();
@@ -138,7 +144,10 @@ fn push_down_predicates(op: LogicalOp) -> (LogicalOp, bool) {
                 }
 
                 // Filter on top of Sort: can push through
-                LogicalOp::Sort { input: sort_input, sort } => {
+                LogicalOp::Sort {
+                    input: sort_input,
+                    sort,
+                } => {
                     if filter.is_deterministic() {
                         let (pushed_input, _) = push_down_predicates(*sort_input);
                         let new_input = LogicalOp::filter(pushed_input, filter);
@@ -167,7 +176,10 @@ fn push_down_predicates(op: LogicalOp) -> (LogicalOp, bool) {
                 }
 
                 // Filter on top of Limit: don't push through (changes semantics)
-                LogicalOp::Limit { input: limit_input, limit } => {
+                LogicalOp::Limit {
+                    input: limit_input,
+                    limit,
+                } => {
                     let (new_input, child_changed) = push_down_predicates(LogicalOp::Limit {
                         input: limit_input,
                         limit,
@@ -183,7 +195,10 @@ fn push_down_predicates(op: LogicalOp) -> (LogicalOp, bool) {
                 }
 
                 // Combine adjacent filters
-                LogicalOp::Filter { input: inner_input, filter: inner_filter } => {
+                LogicalOp::Filter {
+                    input: inner_input,
+                    filter: inner_filter,
+                } => {
                     let combined = FilterOp::new(inner_filter.predicate.and(filter.predicate));
                     let (new_input, _) = push_down_predicates(*inner_input);
 
@@ -303,7 +318,7 @@ fn push_down_predicates(op: LogicalOp) -> (LogicalOp, bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use grism_logical::{col, lit, PlanBuilder, ProjectOp, ScanOp};
+    use grism_logical::{PlanBuilder, ProjectOp, ScanOp, col, lit};
 
     #[test]
     fn test_push_filter_through_project() {
@@ -335,7 +350,11 @@ mod tests {
         assert!(result.changed);
         // Should have only one filter now
         fn count_filters(op: &LogicalOp) -> usize {
-            let self_count = if matches!(op, LogicalOp::Filter { .. }) { 1 } else { 0 };
+            let self_count = if matches!(op, LogicalOp::Filter { .. }) {
+                1
+            } else {
+                0
+            };
             self_count + op.inputs().iter().map(|i| count_filters(i)).sum::<usize>()
         }
         let filter_count = count_filters(result.plan.root());

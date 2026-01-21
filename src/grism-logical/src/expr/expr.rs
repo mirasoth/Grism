@@ -298,7 +298,11 @@ impl LogicalExpr {
             Self::Aggregate(agg) => {
                 agg.expr.collect_column_refs(refs);
             }
-            Self::Case { operand, when_clauses, else_result } => {
+            Self::Case {
+                operand,
+                when_clauses,
+                else_result,
+            } => {
                 if let Some(op) = operand {
                     op.collect_column_refs(refs);
                 }
@@ -316,7 +320,9 @@ impl LogicalExpr {
                     item.collect_column_refs(refs);
                 }
             }
-            Self::Between { expr, low, high, .. } => {
+            Self::Between {
+                expr, low, high, ..
+            } => {
                 expr.collect_column_refs(refs);
                 low.collect_column_refs(refs);
                 high.collect_column_refs(refs);
@@ -330,8 +336,12 @@ impl LogicalExpr {
             Self::QualifiedWildcard(qualifier) => {
                 refs.insert(format!("{}.*", qualifier));
             }
-            Self::Subquery(_) | Self::Exists { .. } | Self::Literal(_) 
-            | Self::TypeLiteral(_) | Self::Wildcard | Self::Placeholder { .. } => {}
+            Self::Subquery(_)
+            | Self::Exists { .. }
+            | Self::Literal(_)
+            | Self::TypeLiteral(_)
+            | Self::Wildcard
+            | Self::Placeholder { .. } => {}
         }
     }
 
@@ -344,9 +354,15 @@ impl LogicalExpr {
             }
             Self::Unary { expr, .. } => expr.contains_aggregate(),
             Self::Function(func) => func.args.iter().any(Self::contains_aggregate),
-            Self::Case { operand, when_clauses, else_result } => {
+            Self::Case {
+                operand,
+                when_clauses,
+                else_result,
+            } => {
                 operand.as_ref().is_some_and(|o| o.contains_aggregate())
-                    || when_clauses.iter().any(|(c, r)| c.contains_aggregate() || r.contains_aggregate())
+                    || when_clauses
+                        .iter()
+                        .any(|(c, r)| c.contains_aggregate() || r.contains_aggregate())
                     || else_result.as_ref().is_some_and(|e| e.contains_aggregate())
             }
             Self::Alias { expr, .. } => expr.contains_aggregate(),
@@ -357,12 +373,14 @@ impl LogicalExpr {
     /// Check if this expression is deterministic.
     pub fn is_deterministic(&self) -> bool {
         match self {
-            Self::Literal(_) | Self::TypeLiteral(_) | Self::Column(_)
-            | Self::QualifiedColumn { .. } | Self::Wildcard | Self::QualifiedWildcard(_) => true,
+            Self::Literal(_)
+            | Self::TypeLiteral(_)
+            | Self::Column(_)
+            | Self::QualifiedColumn { .. }
+            | Self::Wildcard
+            | Self::QualifiedWildcard(_) => true,
 
-            Self::Binary { left, right, .. } => {
-                left.is_deterministic() && right.is_deterministic()
-            }
+            Self::Binary { left, right, .. } => left.is_deterministic() && right.is_deterministic(),
             Self::Unary { expr, .. } => expr.is_deterministic(),
             Self::Function(func) => {
                 use super::func::Determinism;
@@ -370,17 +388,23 @@ impl LogicalExpr {
                     && func.args.iter().all(Self::is_deterministic)
             }
             Self::Aggregate(agg) => agg.expr.is_deterministic(),
-            Self::Case { operand, when_clauses, else_result } => {
+            Self::Case {
+                operand,
+                when_clauses,
+                else_result,
+            } => {
                 operand.as_ref().map_or(true, |o| o.is_deterministic())
-                    && when_clauses.iter().all(|(c, r)| c.is_deterministic() && r.is_deterministic())
+                    && when_clauses
+                        .iter()
+                        .all(|(c, r)| c.is_deterministic() && r.is_deterministic())
                     && else_result.as_ref().map_or(true, |e| e.is_deterministic())
             }
             Self::InList { expr, list, .. } => {
                 expr.is_deterministic() && list.iter().all(Self::is_deterministic)
             }
-            Self::Between { expr, low, high, .. } => {
-                expr.is_deterministic() && low.is_deterministic() && high.is_deterministic()
-            }
+            Self::Between {
+                expr, low, high, ..
+            } => expr.is_deterministic() && low.is_deterministic() && high.is_deterministic(),
             Self::Alias { expr, .. } => expr.is_deterministic(),
             Self::SortKey { expr, .. } => expr.is_deterministic(),
             Self::Placeholder { .. } => true,
@@ -428,16 +452,16 @@ impl LogicalExpr {
         match self {
             Self::Literal(v) => Some(value_to_data_type(v)),
             Self::TypeLiteral(dt) => Some(dt.clone()),
-            Self::Column(name) => {
-                schema.columns.iter()
-                    .find(|c| c.name == *name)
-                    .map(|c| c.data_type.clone())
-            }
-            Self::QualifiedColumn { qualifier, name } => {
-                schema.columns.iter()
-                    .find(|c| c.qualifier.as_deref() == Some(qualifier.as_str()) && c.name == *name)
-                    .map(|c| c.data_type.clone())
-            }
+            Self::Column(name) => schema
+                .columns
+                .iter()
+                .find(|c| c.name == *name)
+                .map(|c| c.data_type.clone()),
+            Self::QualifiedColumn { qualifier, name } => schema
+                .columns
+                .iter()
+                .find(|c| c.qualifier.as_deref() == Some(qualifier.as_str()) && c.name == *name)
+                .map(|c| c.data_type.clone()),
             Self::Binary { left, op, right } => {
                 let left_type = left.resolve_type(schema)?;
                 let right_type = right.resolve_type(schema)?;
@@ -452,18 +476,25 @@ impl LogicalExpr {
                 agg.result_type(&input_type)
             }
             Self::Alias { expr, .. } => expr.resolve_type(schema),
-            Self::Case { when_clauses, else_result, .. } => {
+            Self::Case {
+                when_clauses,
+                else_result,
+                ..
+            } => {
                 // Result type is the common type of all branches
-                let types: Vec<_> = when_clauses.iter()
+                let types: Vec<_> = when_clauses
+                    .iter()
                     .filter_map(|(_, result)| result.resolve_type(schema))
                     .chain(else_result.as_ref().and_then(|e| e.resolve_type(schema)))
                     .collect();
-                
+
                 if types.is_empty() {
                     return None;
                 }
-                
-                types.into_iter().reduce(|a, b| a.common_supertype(&b).unwrap_or(a))
+
+                types
+                    .into_iter()
+                    .reduce(|a, b| a.common_supertype(&b).unwrap_or(a))
             }
             Self::InList { .. } | Self::Between { .. } => Some(DataType::Bool),
             Self::Function(_) => None, // Would need function registry
@@ -516,7 +547,11 @@ impl std::fmt::Display for LogicalExpr {
             }
             Self::Function(func) => write!(f, "{}", func),
             Self::Aggregate(agg) => write!(f, "{}", agg),
-            Self::Case { operand, when_clauses, else_result } => {
+            Self::Case {
+                operand,
+                when_clauses,
+                else_result,
+            } => {
                 write!(f, "CASE")?;
                 if let Some(op) = operand {
                     write!(f, " {}", op)?;
@@ -529,12 +564,25 @@ impl std::fmt::Display for LogicalExpr {
                 }
                 write!(f, " END")
             }
-            Self::InList { expr, list, negated } => {
+            Self::InList {
+                expr,
+                list,
+                negated,
+            } => {
                 let not = if *negated { " NOT" } else { "" };
-                let items = list.iter().map(|e| e.to_string()).collect::<Vec<_>>().join(", ");
+                let items = list
+                    .iter()
+                    .map(|e| e.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 write!(f, "{}{} IN ({})", expr, not, items)
             }
-            Self::Between { expr, low, high, negated } => {
+            Self::Between {
+                expr,
+                low,
+                high,
+                negated,
+            } => {
                 let not = if *negated { " NOT" } else { "" };
                 write!(f, "{}{} BETWEEN {} AND {}", expr, not, low, high)
             }
@@ -547,9 +595,17 @@ impl std::fmt::Display for LogicalExpr {
                 write!(f, "{}EXISTS (subquery)", not)
             }
             Self::Placeholder { index, .. } => write!(f, "${}", index),
-            Self::SortKey { expr, ascending, nulls_first } => {
+            Self::SortKey {
+                expr,
+                ascending,
+                nulls_first,
+            } => {
                 let dir = if *ascending { "ASC" } else { "DESC" };
-                let nulls = if *nulls_first { "NULLS FIRST" } else { "NULLS LAST" };
+                let nulls = if *nulls_first {
+                    "NULLS FIRST"
+                } else {
+                    "NULLS LAST"
+                };
                 write!(f, "{} {} {}", expr, dir, nulls)
             }
         }
@@ -591,7 +647,10 @@ mod tests {
         let b = LogicalExpr::column("y").lt(LogicalExpr::literal(20i64));
         let combined = a.and(b);
 
-        assert_eq!(combined.to_string(), "((x > Int64(10)) AND (y < Int64(20)))");
+        assert_eq!(
+            combined.to_string(),
+            "((x > Int64(10)) AND (y < Int64(20)))"
+        );
     }
 
     #[test]

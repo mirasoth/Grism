@@ -146,10 +146,7 @@ mod tests {
 
     #[test]
     fn test_global_aggregate() {
-        let agg = AggregateOp::global(vec![
-            AggExpr::count_star(),
-            AggExpr::sum(col("amount")),
-        ]);
+        let agg = AggregateOp::global(vec![AggExpr::count_star(), AggExpr::sum(col("amount"))]);
 
         assert!(agg.is_global());
         assert_eq!(agg.aggregates.len(), 2);
@@ -157,8 +154,7 @@ mod tests {
 
     #[test]
     fn test_aggregate_column_refs() {
-        let agg = AggregateOp::group_by(["dept"])
-            .with_agg(AggExpr::sum(col("salary")));
+        let agg = AggregateOp::group_by(["dept"]).with_agg(AggExpr::sum(col("salary")));
 
         let refs = agg.column_refs();
         assert!(refs.contains("dept"));

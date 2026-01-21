@@ -51,9 +51,11 @@ impl AggFunc {
 
             // Min/Max: any orderable type, preserves input type
             Self::Min | Self::Max => match input {
-                DataType::Int64 | DataType::Float64 | DataType::String | DataType::Date | DataType::Timestamp => {
-                    Some(input.clone())
-                }
+                DataType::Int64
+                | DataType::Float64
+                | DataType::String
+                | DataType::Date
+                | DataType::Timestamp => Some(input.clone()),
                 _ => None,
             },
 
@@ -204,21 +206,39 @@ mod tests {
 
     #[test]
     fn test_count_type() {
-        assert_eq!(AggFunc::Count.result_type(&DataType::Int64), Some(DataType::Int64));
-        assert_eq!(AggFunc::Count.result_type(&DataType::String), Some(DataType::Int64));
+        assert_eq!(
+            AggFunc::Count.result_type(&DataType::Int64),
+            Some(DataType::Int64)
+        );
+        assert_eq!(
+            AggFunc::Count.result_type(&DataType::String),
+            Some(DataType::Int64)
+        );
     }
 
     #[test]
     fn test_sum_type() {
-        assert_eq!(AggFunc::Sum.result_type(&DataType::Int64), Some(DataType::Int64));
-        assert_eq!(AggFunc::Sum.result_type(&DataType::Float64), Some(DataType::Float64));
+        assert_eq!(
+            AggFunc::Sum.result_type(&DataType::Int64),
+            Some(DataType::Int64)
+        );
+        assert_eq!(
+            AggFunc::Sum.result_type(&DataType::Float64),
+            Some(DataType::Float64)
+        );
         assert_eq!(AggFunc::Sum.result_type(&DataType::String), None);
     }
 
     #[test]
     fn test_avg_type() {
-        assert_eq!(AggFunc::Avg.result_type(&DataType::Int64), Some(DataType::Float64));
-        assert_eq!(AggFunc::Avg.result_type(&DataType::Float64), Some(DataType::Float64));
+        assert_eq!(
+            AggFunc::Avg.result_type(&DataType::Int64),
+            Some(DataType::Float64)
+        );
+        assert_eq!(
+            AggFunc::Avg.result_type(&DataType::Float64),
+            Some(DataType::Float64)
+        );
     }
 
     #[test]
@@ -241,7 +261,8 @@ mod tests {
         let agg = AggExpr::sum(LogicalExpr::Column("amount".to_string()));
         assert_eq!(agg.to_string(), "SUM(amount)");
 
-        let distinct_agg = AggExpr::count(LogicalExpr::Column("id".to_string())).with_distinct(true);
+        let distinct_agg =
+            AggExpr::count(LogicalExpr::Column("id".to_string())).with_distinct(true);
         assert_eq!(distinct_agg.to_string(), "COUNT(DISTINCT id)");
     }
 }

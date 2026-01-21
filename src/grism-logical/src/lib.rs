@@ -61,8 +61,8 @@ pub use plan::{LogicalPlan, PlanBuilder};
 
 // Re-export operator types at crate root for convenience
 pub use ops::{
-    AggregateOp, Direction, ExpandMode, ExpandOp, FilterOp, HopRange, InferMode, InferOp,
-    LimitOp, LogicalOp, ProjectOp, RenameOp, ScanKind, ScanOp, SortKey, SortOp, UnionOp,
+    AggregateOp, Direction, ExpandMode, ExpandOp, FilterOp, HopRange, InferMode, InferOp, LimitOp,
+    LogicalOp, ProjectOp, RenameOp, ScanKind, ScanOp, SortKey, SortOp, UnionOp,
 };
 
 // Re-export expression types at crate root for convenience

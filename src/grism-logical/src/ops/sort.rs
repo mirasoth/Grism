@@ -54,7 +54,11 @@ impl SortKey {
 impl std::fmt::Display for SortKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let dir = if self.ascending { "ASC" } else { "DESC" };
-        let nulls = if self.nulls_first { "NULLS FIRST" } else { "NULLS LAST" };
+        let nulls = if self.nulls_first {
+            "NULLS FIRST"
+        } else {
+            "NULLS LAST"
+        };
         write!(f, "{} {} {}", self.expr.output_name(), dir, nulls)
     }
 }
@@ -138,8 +142,7 @@ mod tests {
 
     #[test]
     fn test_sort_creation() {
-        let sort = SortOp::asc(col("name"))
-            .then_desc(col("age"));
+        let sort = SortOp::asc(col("name")).then_desc(col("age"));
 
         assert_eq!(sort.keys.len(), 2);
         assert!(sort.keys[0].ascending);
@@ -148,8 +151,7 @@ mod tests {
 
     #[test]
     fn test_sort_column_refs() {
-        let sort = SortOp::asc(col("a"))
-            .then_desc(col("b"));
+        let sort = SortOp::asc(col("a")).then_desc(col("b"));
 
         let refs = sort.column_refs();
         assert!(refs.contains("a"));

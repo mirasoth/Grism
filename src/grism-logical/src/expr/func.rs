@@ -245,26 +245,53 @@ impl BuiltinFunc {
     /// Get function category.
     pub fn category(&self) -> FuncCategory {
         match self {
-            Self::Length | Self::Upper | Self::Lower | Self::Trim | Self::LTrim
-            | Self::RTrim | Self::Substring | Self::Replace | Self::Concat
-            | Self::StartsWith | Self::EndsWith | Self::Contains | Self::Split => FuncCategory::String,
+            Self::Length
+            | Self::Upper
+            | Self::Lower
+            | Self::Trim
+            | Self::LTrim
+            | Self::RTrim
+            | Self::Substring
+            | Self::Replace
+            | Self::Concat
+            | Self::StartsWith
+            | Self::EndsWith
+            | Self::Contains
+            | Self::Split => FuncCategory::String,
 
             Self::Like | Self::RegexMatch | Self::Exists => FuncCategory::Predicate,
 
-            Self::Abs | Self::Ceil | Self::Floor | Self::Round | Self::Sqrt
-            | Self::Ln | Self::Log10 | Self::Pow | Self::Exp | Self::Sign => FuncCategory::Math,
+            Self::Abs
+            | Self::Ceil
+            | Self::Floor
+            | Self::Round
+            | Self::Sqrt
+            | Self::Ln
+            | Self::Log10
+            | Self::Pow
+            | Self::Exp
+            | Self::Sign => FuncCategory::Math,
 
             Self::Cast | Self::TryCast | Self::TypeOf => FuncCategory::TypeCast,
 
             Self::Coalesce | Self::NullIf | Self::IfNull => FuncCategory::Scalar,
 
-            Self::CurrentDate | Self::CurrentTimestamp | Self::DatePart
-            | Self::DateDiff | Self::DateAdd | Self::DateTrunc => FuncCategory::DateTime,
+            Self::CurrentDate
+            | Self::CurrentTimestamp
+            | Self::DatePart
+            | Self::DateDiff
+            | Self::DateAdd
+            | Self::DateTrunc => FuncCategory::DateTime,
 
-            Self::CosineSimilarity | Self::EuclideanDistance | Self::InnerProduct
-            | Self::L2Norm | Self::VectorDim => FuncCategory::Vector,
+            Self::CosineSimilarity
+            | Self::EuclideanDistance
+            | Self::InnerProduct
+            | Self::L2Norm
+            | Self::VectorDim => FuncCategory::Vector,
 
-            Self::Id | Self::Labels | Self::Type | Self::Properties | Self::Size => FuncCategory::Utility,
+            Self::Id | Self::Labels | Self::Type | Self::Properties | Self::Size => {
+                FuncCategory::Utility
+            }
         }
     }
 
@@ -345,7 +372,9 @@ impl FuncExpr {
 
 impl std::fmt::Display for FuncExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let args = self.args.iter()
+        let args = self
+            .args
+            .iter()
             .map(|a| a.to_string())
             .collect::<Vec<_>>()
             .join(", ");
@@ -414,13 +443,22 @@ mod tests {
     fn test_builtin_func_categories() {
         assert_eq!(BuiltinFunc::Length.category(), FuncCategory::String);
         assert_eq!(BuiltinFunc::Abs.category(), FuncCategory::Math);
-        assert_eq!(BuiltinFunc::CosineSimilarity.category(), FuncCategory::Vector);
+        assert_eq!(
+            BuiltinFunc::CosineSimilarity.category(),
+            FuncCategory::Vector
+        );
     }
 
     #[test]
     fn test_builtin_func_determinism() {
-        assert_eq!(BuiltinFunc::Length.determinism(), Determinism::Deterministic);
-        assert_eq!(BuiltinFunc::CurrentTimestamp.determinism(), Determinism::Stable);
+        assert_eq!(
+            BuiltinFunc::Length.determinism(),
+            Determinism::Deterministic
+        );
+        assert_eq!(
+            BuiltinFunc::CurrentTimestamp.determinism(),
+            Determinism::Stable
+        );
     }
 
     #[test]

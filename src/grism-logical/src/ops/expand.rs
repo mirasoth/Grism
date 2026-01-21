@@ -337,8 +337,7 @@ mod tests {
 
     #[test]
     fn test_role_expand() {
-        let expand = ExpandOp::role("paper", "author")
-            .with_edge_label("AUTHORED_BY");
+        let expand = ExpandOp::role("paper", "author").with_edge_label("AUTHORED_BY");
 
         assert_eq!(expand.mode, ExpandMode::Role);
         assert_eq!(expand.from_role, Some("paper".to_string()));
@@ -364,6 +363,9 @@ mod tests {
             .with_edge_label("KNOWS")
             .with_target_alias("friend");
 
-        assert_eq!(expand.to_string(), "Expand(BINARY, OUT), edge=KNOWS AS friend");
+        assert_eq!(
+            expand.to_string(),
+            "Expand(BINARY, OUT), edge=KNOWS AS friend"
+        );
     }
 }

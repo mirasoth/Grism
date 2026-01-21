@@ -388,17 +388,10 @@ mod tests {
         assert_eq!(scan.input_count(), 0);
         assert!(scan.is_leaf());
 
-        let filter = LogicalOp::filter(
-            scan.clone(),
-            FilterOp::new(col("x").gt(lit(0i64))),
-        );
+        let filter = LogicalOp::filter(scan.clone(), FilterOp::new(col("x").gt(lit(0i64))));
         assert_eq!(filter.input_count(), 1);
 
-        let union = LogicalOp::union(
-            scan.clone(),
-            scan.clone(),
-            UnionOp::all(),
-        );
+        let union = LogicalOp::union(scan.clone(), scan.clone(), UnionOp::all());
         assert_eq!(union.input_count(), 2);
     }
 
@@ -422,9 +415,7 @@ mod tests {
         );
 
         // Add a limit to the child
-        let transformed = plan.map_children(|child| {
-            LogicalOp::limit(child, LimitOp::new(100))
-        });
+        let transformed = plan.map_children(|child| LogicalOp::limit(child, LimitOp::new(100)));
 
         // The transformed plan should have Limit as its input
         if let LogicalOp::Filter { input, .. } = transformed {

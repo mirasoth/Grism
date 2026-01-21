@@ -111,9 +111,15 @@ fn collect_used_columns(op: &LogicalOp) -> HashSet<String> {
 fn prune_projections(op: LogicalOp, used: &HashSet<String>) -> (LogicalOp, bool) {
     match op {
         // Remove redundant projections (project followed by project)
-        LogicalOp::Project { input, project: outer_project } => {
+        LogicalOp::Project {
+            input,
+            project: outer_project,
+        } => {
             match *input {
-                LogicalOp::Project { input: inner_input, project: inner_project } => {
+                LogicalOp::Project {
+                    input: inner_input,
+                    project: inner_project,
+                } => {
                     // Combine projects: only keep columns needed by outer
                     let outer_refs = outer_project.column_refs();
                     let needed_from_inner: Vec<_> = inner_project
@@ -286,7 +292,7 @@ fn prune_projections(op: LogicalOp, used: &HashSet<String>) -> (LogicalOp, bool)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use grism_logical::{col, lit, FilterOp, PlanBuilder, ScanOp};
+    use grism_logical::{FilterOp, PlanBuilder, ScanOp, col, lit};
 
     #[test]
     fn test_collect_used_columns() {

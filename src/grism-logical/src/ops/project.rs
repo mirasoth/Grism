@@ -60,15 +60,14 @@ impl ProjectOp {
 
     /// Get the output column names.
     pub fn output_names(&self) -> Vec<String> {
-        self.expressions
-            .iter()
-            .map(|e| e.output_name())
-            .collect()
+        self.expressions.iter().map(|e| e.output_name()).collect()
     }
 
     /// Check if this projection includes a wildcard.
     pub fn has_wildcard(&self) -> bool {
-        self.expressions.iter().any(|e| matches!(e, LogicalExpr::Wildcard | LogicalExpr::QualifiedWildcard(_)))
+        self.expressions
+            .iter()
+            .any(|e| matches!(e, LogicalExpr::Wildcard | LogicalExpr::QualifiedWildcard(_)))
     }
 
     /// Get all column references from projection expressions.

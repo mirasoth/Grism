@@ -86,7 +86,10 @@ pub fn optimize_with_trace(plan: LogicalPlan) -> GrismResult<OptimizedPlan> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use grism_logical::{col, lit, AggExpr, AggregateOp, FilterOp, LimitOp, LogicalOp, PlanBuilder, ProjectOp, ScanOp};
+    use grism_logical::{
+        AggExpr, AggregateOp, FilterOp, LimitOp, LogicalOp, PlanBuilder, ProjectOp, ScanOp, col,
+        lit,
+    };
 
     #[test]
     fn test_optimize_basic() {
@@ -124,23 +127,28 @@ mod tests {
         let result = optimize(plan).unwrap();
 
         // Filter should be removed
-        assert!(!result.plan.contains_op(|op| matches!(op, LogicalOp::Filter { .. })));
+        assert!(
+            !result
+                .plan
+                .contains_op(|op| matches!(op, LogicalOp::Filter { .. }))
+        );
     }
 
     #[test]
     fn test_optimize_aggregation() {
         let plan = PlanBuilder::scan(ScanOp::nodes_with_label("Order"))
-            .aggregate(
-                AggregateOp::group_by(["customer_id"])
-                    .with_agg(AggExpr::sum(col("amount")))
-            )
+            .aggregate(AggregateOp::group_by(["customer_id"]).with_agg(AggExpr::sum(col("amount"))))
             .limit(LimitOp::new(10))
             .build();
 
         let result = optimize(plan).unwrap();
 
         // Should preserve aggregation
-        assert!(result.plan.contains_op(|op| matches!(op, LogicalOp::Aggregate { .. })));
+        assert!(
+            result
+                .plan
+                .contains_op(|op| matches!(op, LogicalOp::Aggregate { .. }))
+        );
     }
 
     #[test]

@@ -78,11 +78,7 @@ impl UnaryOp {
     pub fn is_null_safe(&self) -> bool {
         matches!(
             self,
-            Self::IsNull
-                | Self::IsNotNull
-                | Self::IsTrue
-                | Self::IsFalse
-                | Self::IsUnknown
+            Self::IsNull | Self::IsNotNull | Self::IsTrue | Self::IsFalse | Self::IsUnknown
         )
     }
 }

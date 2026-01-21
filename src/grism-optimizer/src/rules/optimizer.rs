@@ -120,11 +120,7 @@ impl Optimizer {
                     changed_this_iteration = true;
                     total_rules_applied += 1;
 
-                    debug!(
-                        "Rule '{}' applied in iteration {}",
-                        rule.name(),
-                        iterations
-                    );
+                    debug!("Rule '{}' applied in iteration {}", rule.name(), iterations);
 
                     if self.config.enable_trace {
                         trace.push(RuleTrace::new(
@@ -210,7 +206,7 @@ impl Default for Optimizer {
 mod tests {
     use super::*;
     use crate::rules::rule::Transformed;
-    use grism_logical::{col, lit, FilterOp, LogicalOp, PlanBuilder, ScanOp};
+    use grism_logical::{FilterOp, LogicalOp, PlanBuilder, ScanOp, col, lit};
 
     struct AddLimitRule;
 
@@ -243,7 +239,11 @@ mod tests {
         let result = optimizer.optimize(plan).unwrap();
 
         assert!(result.rules_applied > 0);
-        assert!(result.plan.contains_op(|op| matches!(op, LogicalOp::Limit { .. })));
+        assert!(
+            result
+                .plan
+                .contains_op(|op| matches!(op, LogicalOp::Limit { .. }))
+        );
     }
 
     #[test]

@@ -121,9 +121,15 @@ impl RayPlanner {
             }
 
             LogicalOp::Sort { .. } => Err(GrismError::not_implemented("Distributed sort planning")),
-            LogicalOp::Union { .. } => Err(GrismError::not_implemented("Distributed union planning")),
-            LogicalOp::Rename { .. } => Err(GrismError::not_implemented("Distributed rename planning")),
-            LogicalOp::Infer { .. } => Err(GrismError::not_implemented("Distributed infer planning")),
+            LogicalOp::Union { .. } => {
+                Err(GrismError::not_implemented("Distributed union planning"))
+            }
+            LogicalOp::Rename { .. } => {
+                Err(GrismError::not_implemented("Distributed rename planning"))
+            }
+            LogicalOp::Infer { .. } => {
+                Err(GrismError::not_implemented("Distributed infer planning"))
+            }
             LogicalOp::Empty => Err(GrismError::not_implemented("Distributed empty planning")),
         }
     }
@@ -143,7 +149,7 @@ impl Default for RayPlanner {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use grism_logical::{col, lit, FilterOp, ScanOp};
+    use grism_logical::{FilterOp, ScanOp, col, lit};
 
     #[test]
     fn test_plan_simple_scan() {

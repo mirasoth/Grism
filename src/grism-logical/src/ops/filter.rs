@@ -88,9 +88,8 @@ mod tests {
 
     #[test]
     fn test_filter_display() {
-        let filter = FilterOp::new(
-            LogicalExpr::column("status").eq(LogicalExpr::literal("active")),
-        );
+        let filter =
+            FilterOp::new(LogicalExpr::column("status").eq(LogicalExpr::literal("active")));
 
         let display = filter.to_string();
         assert!(display.contains("Filter"));

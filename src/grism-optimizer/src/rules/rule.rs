@@ -131,7 +131,11 @@ impl OptimizedPlan {
             output.push_str("  (no trace available)\n");
         } else {
             for (i, entry) in self.trace.iter().filter(|t| t.changed).enumerate() {
-                output.push_str(&format!("\n--- Rule {} applied: {} ---\n", i + 1, entry.rule_name));
+                output.push_str(&format!(
+                    "\n--- Rule {} applied: {} ---\n",
+                    i + 1,
+                    entry.rule_name
+                ));
                 output.push_str("Before:\n");
                 output.push_str(&entry.before);
                 output.push_str("\nAfter:\n");

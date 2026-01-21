@@ -195,7 +195,8 @@ fn fold_constants(expr: LogicalExpr) -> (LogicalExpr, bool) {
             let (folded_right, right_changed) = fold_constants(*right);
 
             // Try to evaluate if both sides are literals
-            if let (LogicalExpr::Literal(l), LogicalExpr::Literal(r)) = (&folded_left, &folded_right)
+            if let (LogicalExpr::Literal(l), LogicalExpr::Literal(r)) =
+                (&folded_left, &folded_right)
             {
                 if let Some(result) = evaluate_binary(l, op, r) {
                     return (LogicalExpr::Literal(result), true);
@@ -405,7 +406,7 @@ fn evaluate_unary(op: grism_logical::UnaryOp, value: &Value) -> Option<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use grism_logical::{col, lit, PlanBuilder, ScanOp};
+    use grism_logical::{PlanBuilder, ScanOp, col, lit};
 
     #[test]
     fn test_fold_arithmetic() {
