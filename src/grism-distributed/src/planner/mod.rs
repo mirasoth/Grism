@@ -54,7 +54,7 @@ impl RayPlanner {
     /// Plan a logical plan into distributed stages.
     pub fn plan(&self, logical_plan: &LogicalPlan) -> GrismResult<Vec<Stage>> {
         let mut stages = Vec::new();
-        self.plan_recursive(&logical_plan.root, &mut stages, 0)?;
+        self.plan_recursive(logical_plan.root(), &mut stages, 0)?;
         Ok(stages)
     }
 
@@ -74,9 +74,9 @@ impl RayPlanner {
                 Ok(current_stage_id)
             }
 
-            LogicalOp::Filter(filter) => {
+            LogicalOp::Filter { input, filter: _ } => {
                 // Filter can be fused with input stage
-                let input_stage = self.plan_recursive(&filter.input, stages, current_stage_id)?;
+                let input_stage = self.plan_recursive(input, stages, current_stage_id)?;
 
                 if let Some(stage) = stages.iter_mut().find(|s| s.id == input_stage) {
                     stage.add_operator(op.clone());
@@ -84,14 +84,14 @@ impl RayPlanner {
                 Ok(input_stage)
             }
 
-            LogicalOp::Expand(_) => {
+            LogicalOp::Expand { .. } => {
                 // Expand may require shuffle
                 Err(GrismError::not_implemented("Distributed expand planning"))
             }
 
-            LogicalOp::Project(project) => {
+            LogicalOp::Project { input, project: _ } => {
                 // Project can be fused with input stage
-                let input_stage = self.plan_recursive(&project.input, stages, current_stage_id)?;
+                let input_stage = self.plan_recursive(input, stages, current_stage_id)?;
 
                 if let Some(stage) = stages.iter_mut().find(|s| s.id == input_stage) {
                     stage.add_operator(op.clone());
@@ -99,16 +99,16 @@ impl RayPlanner {
                 Ok(input_stage)
             }
 
-            LogicalOp::Aggregate(_) => {
+            LogicalOp::Aggregate { .. } => {
                 // Aggregate typically requires shuffle
                 Err(GrismError::not_implemented(
                     "Distributed aggregate planning",
                 ))
             }
 
-            LogicalOp::Limit(limit) => {
+            LogicalOp::Limit { input, limit: _ } => {
                 // Limit can be partially pushed down
-                let input_stage = self.plan_recursive(&limit.input, stages, current_stage_id)?;
+                let input_stage = self.plan_recursive(input, stages, current_stage_id)?;
 
                 // Create a new stage for final limit
                 let final_stage = Stage::new(current_stage_id + 1)
@@ -120,7 +120,17 @@ impl RayPlanner {
                 Ok(current_stage_id + 1)
             }
 
-            LogicalOp::Infer(_) => Err(GrismError::not_implemented("Distributed infer planning")),
+            LogicalOp::Sort { .. } => Err(GrismError::not_implemented("Distributed sort planning")),
+            LogicalOp::Union { .. } => {
+                Err(GrismError::not_implemented("Distributed union planning"))
+            }
+            LogicalOp::Rename { .. } => {
+                Err(GrismError::not_implemented("Distributed rename planning"))
+            }
+            LogicalOp::Infer { .. } => {
+                Err(GrismError::not_implemented("Distributed infer planning"))
+            }
+            LogicalOp::Empty => Err(GrismError::not_implemented("Distributed empty planning")),
         }
     }
 
@@ -139,12 +149,12 @@ impl Default for RayPlanner {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use grism_logical::{FilterOp, LogicalExpr, ScanOp};
+    use grism_logical::{FilterOp, ScanOp, col, lit};
 
     #[test]
     fn test_plan_simple_scan() {
         let planner = RayPlanner::new();
-        let scan = LogicalOp::Scan(ScanOp::nodes(Some("Person")));
+        let scan = LogicalOp::Scan(ScanOp::nodes_with_label("Person"));
         let plan = LogicalPlan::new(scan);
 
         let stages = planner.plan(&plan).unwrap();
@@ -155,11 +165,8 @@ mod tests {
     #[test]
     fn test_plan_scan_filter() {
         let planner = RayPlanner::new();
-        let scan = LogicalOp::Scan(ScanOp::nodes(Some("Person")));
-        let filter = LogicalOp::Filter(FilterOp::new(
-            scan,
-            LogicalExpr::column("age").gte(LogicalExpr::literal(18i64)),
-        ));
+        let scan = LogicalOp::Scan(ScanOp::nodes_with_label("Person"));
+        let filter = LogicalOp::filter(scan, FilterOp::new(col("age").gt_eq(lit(18i64))));
         let plan = LogicalPlan::new(filter);
 
         let stages = planner.plan(&plan).unwrap();

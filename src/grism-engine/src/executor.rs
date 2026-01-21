@@ -47,7 +47,7 @@ impl LocalExecutor {
 
     /// Execute a logical plan.
     pub async fn execute(&self, plan: LogicalPlan) -> GrismResult<QueryResult> {
-        let mut root = self.build_exec_tree(&plan.root)?;
+        let mut root = self.build_exec_tree(plan.root())?;
 
         let mut result = QueryResult::new();
         while let Some(batch) = root.next().await? {
@@ -66,21 +66,25 @@ impl LocalExecutor {
     fn build_exec_tree(&self, op: &LogicalOp) -> GrismResult<BoxedExecNode> {
         match op {
             LogicalOp::Scan(scan) => Ok(Box::new(ScanNode::new(scan.label.clone()))),
-            LogicalOp::Filter(filter) => {
-                let input = self.build_exec_tree(&filter.input)?;
-                Ok(Box::new(FilterNode::new(input)))
+            LogicalOp::Filter { input, filter: _ } => {
+                let input_node = self.build_exec_tree(input)?;
+                Ok(Box::new(FilterNode::new(input_node)))
             }
-            LogicalOp::Limit(limit) => {
-                let input = self.build_exec_tree(&limit.input)?;
-                Ok(Box::new(LimitNode::new(input, limit.limit)))
+            LogicalOp::Limit { input, limit } => {
+                let input_node = self.build_exec_tree(input)?;
+                Ok(Box::new(LimitNode::new(input_node, limit.limit)))
             }
-            LogicalOp::Project(_) => {
+            LogicalOp::Project { .. } => {
                 // Placeholder: would need ProjectNode
                 Err(GrismError::not_implemented("Project execution"))
             }
-            LogicalOp::Expand(_) => Err(GrismError::not_implemented("Expand execution")),
-            LogicalOp::Aggregate(_) => Err(GrismError::not_implemented("Aggregate execution")),
-            LogicalOp::Infer(_) => Err(GrismError::not_implemented("Infer execution")),
+            LogicalOp::Expand { .. } => Err(GrismError::not_implemented("Expand execution")),
+            LogicalOp::Aggregate { .. } => Err(GrismError::not_implemented("Aggregate execution")),
+            LogicalOp::Infer { .. } => Err(GrismError::not_implemented("Infer execution")),
+            LogicalOp::Sort { .. } => Err(GrismError::not_implemented("Sort execution")),
+            LogicalOp::Union { .. } => Err(GrismError::not_implemented("Union execution")),
+            LogicalOp::Rename { .. } => Err(GrismError::not_implemented("Rename execution")),
+            LogicalOp::Empty => Err(GrismError::not_implemented("Empty execution")),
         }
     }
 
@@ -99,12 +103,12 @@ impl Default for LocalExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use grism_logical::{ScanKind, ScanOp};
+    use grism_logical::ScanOp;
 
     #[tokio::test]
     async fn test_execute_scan() {
         let executor = LocalExecutor::new();
-        let scan = LogicalOp::Scan(ScanOp::nodes(Some("Person")));
+        let scan = LogicalOp::Scan(ScanOp::nodes_with_label("Person"));
         let plan = LogicalPlan::new(scan);
 
         let result = executor.execute(plan).await.unwrap();
@@ -114,7 +118,7 @@ mod tests {
     #[test]
     fn test_execute_sync() {
         let executor = LocalExecutor::new();
-        let scan = LogicalOp::Scan(ScanOp::nodes(Some("Person")));
+        let scan = LogicalOp::Scan(ScanOp::nodes_with_label("Person"));
         let plan = LogicalPlan::new(scan);
 
         let result = executor.execute_sync(plan).unwrap();
