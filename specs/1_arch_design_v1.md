@@ -28,12 +28,12 @@
 ```
 ┌──────────────────────────────────────────┐
 │          User / Agent Layer              │
-│  Python HyperFrame · LLMs · LangGraph   │
+│  Python HyperGraph · LLMs · LangGraph   │
 └───────────────▲─────────────────────────┘
                 │
 ┌───────────────┴─────────────────────────┐
 │        Graph Expression & Planning       │
-│  HyperFrame → Rust Logical Plan          │
+│  HyperGraph → Rust Logical Plan          │
 └───────────────▲─────────────────────────┘
                 │
 ┌───────────────┴─────────────────────────┐
@@ -94,11 +94,11 @@ enum Value {
 
 ---
 
-## 4. HyperFrame: Canonical Definition
+## 4. HyperGraph: Canonical Definition
 
 ### 4.1 Core Concept
 
-**`HyperFrame`**
+**`HyperGraph`**
 
 > A **hypergraph-backed, relationally-executable, AI-native graph container**, analogous to `DataFrame` for tables.
 
@@ -113,14 +113,14 @@ It is:
 
 | Layer             | Abstraction                       |
 | ----------------- | --------------------------------- |
-| User API (Python) | `HyperFrame`                      |
+| User API (Python) | `HyperGraph`                      |
 | Logical IR        | `HyperIR / RelSet`                |
 | Execution         | Lance + standalone / Ray          |
 | Query Views       | Cypher view, GQL view, AnkQL view |
 
 ### 4.3 Mental Model (DataFrame Analogy)
 
-| DataFrame | HyperFrame            |
+| DataFrame | HyperGraph            |
 | --------- | --------------------- |
 | row       | hyperedge             |
 | column    | role / attribute      |
@@ -133,12 +133,12 @@ This analogy will be **extremely powerful** for adoption.
 ### 4.4 Cypher Compatibility via Views
 
 ```python
-hf = HyperFrame.connect("grism://local")
+hg = HyperGraph.connect("grism://local")
 
-pg = hf.view("property")   # property graph view
-cg = hf.view("cypher")     # Cypher-compatible surface
+pg = hg.view("property")   # property graph view
+cg = hg.view("cypher")     # Cypher-compatible surface
 
-hf.query("""
+hg.query("""
 MATCH (a:Person)-[:WORKS_AT]->(c:Company)
 RETURN a, c
 """)
@@ -155,7 +155,7 @@ No semantic loss — only **projection**.
 ### 4.5 Minimal Python Skeleton (Locked Naming)
 
 ```python
-class HyperFrame:
+class HyperGraph:
     def __init__(self, storage, schema):
         self.storage = storage
         self.schema = schema
@@ -195,12 +195,12 @@ This will scale cleanly to:
 
 ---
 
-## 5. Python-First HyperFrame API
+## 5. Python-First HyperGraph API
 
 ### 5.1 Core Object
 
 ```python
-hf = HyperFrame.connect("grism://local")
+hg = HyperGraph.connect("grism://local")
 ```
 
 Properties:
@@ -212,9 +212,9 @@ Properties:
 ### 5.2 NodeFrame / EdgeFrame
 
 ```python
-papers = hf.nodes("Paper")  # Returns NodeFrame with label="Paper"
-authors = hf.nodes("Author")  # Returns NodeFrame with label="Author"
-all_nodes = hf.nodes()  # Returns NodeFrame with label=None (all nodes)
+papers = hg.nodes("Paper")  # Returns NodeFrame with label="Paper"
+authors = hg.nodes("Author")  # Returns NodeFrame with label="Author"
+all_nodes = hg.nodes()  # Returns NodeFrame with label=None (all nodes)
 ```
 
 **Frame Identity Semantics**:
@@ -226,7 +226,7 @@ all_nodes = hf.nodes()  # Returns NodeFrame with label=None (all nodes)
 
 ```python
 (
-  hf.nodes("Paper")
+  hg.nodes("Paper")
     .filter(col("year") >= 2022)
     .expand("AUTHORED_BY", to="Author")
     .filter(col("Author.affiliation") == "MIT")
@@ -275,7 +275,7 @@ sim(col("embedding"), query_emb) > 0.8
 
 3. **Scope after `expand()`**:
    ```python
-   hf.nodes("Paper")
+   hg.nodes("Paper")
      .expand("AUTHORED_BY", to="Author", as_="author")
      .filter(col("year") >= 2022)  # Resolves to Paper.year (original scope)
      .filter(col("author.name") == "Alice")  # Resolves via alias
@@ -494,8 +494,8 @@ Use cases:
 * Optional GQL / Cypher (debug / interop)
 
 ```python
-hf.explain(mode="logical")
-hf.explain(mode="gql")
+hg.explain(mode="logical")
+hg.explain(mode="gql")
 ```
 
 ---
@@ -549,14 +549,14 @@ grism/
 ### 0.1 Core Entry Point
 
 ```python
-class HyperFrame:
+class HyperGraph:
     @staticmethod
     def connect(
         uri: str,
         *,
         executor: "Executor | str" = "local",
         namespace: str | None = None,
-    ) -> "HyperFrame":
+    ) -> "HyperGraph":
         """
         Connect to a Grism hypergraph.
         
@@ -566,14 +566,14 @@ class HyperFrame:
             namespace: Optional namespace for logical graph isolation
             
         Returns:
-            HyperFrame instance (immutable, lazy)
+            HyperGraph instance (immutable, lazy)
         """
         ...
 
     # namespace / logical graph
-    def with_namespace(self, name: str) -> "HyperFrame":
+    def with_namespace(self, name: str) -> "HyperGraph":
         """
-        Create a new HyperFrame scoped to a namespace.
+        Create a new HyperGraph scoped to a namespace.
         Returns a new instance; original unchanged.
         """
         ...
@@ -619,16 +619,16 @@ class HyperFrame:
     def collect(self, *, executor: "Executor | str | None" = None):
         """
         Execute the query and return results.
-        Not applicable on HyperFrame directly; use on frames.
+        Not applicable on HyperGraph directly; use on frames.
         """
-        raise TypeError("collect() must be called on a Frame, not HyperFrame")
+        raise TypeError("collect() must be called on a Frame, not HyperGraph")
 
     def explain(self, mode: str = "logical") -> str:
         """
         Explain the query plan.
-        Not applicable on HyperFrame directly; use on frames.
+        Not applicable on HyperGraph directly; use on frames.
         """
-        raise TypeError("explain() must be called on a Frame, not HyperFrame")
+        raise TypeError("explain() must be called on a Frame, not HyperGraph")
 ```
 
 ---
@@ -824,17 +824,17 @@ class NodeFrame(GraphFrame):
             
         Examples:
             # Single hop, outgoing
-            hf.nodes("Paper").expand("AUTHORED_BY", to="Author")
+            hg.nodes("Paper").expand("AUTHORED_BY", to="Author")
             
             # Multi-hop
-            hf.nodes("Person").expand("KNOWS", hops=2)
+            hg.nodes("Person").expand("KNOWS", hops=2)
             
             # With alias
-            hf.nodes("Paper").expand("AUTHORED_BY", to="Author", as_="author")
+            hg.nodes("Paper").expand("AUTHORED_BY", to="Author", as_="author")
                 .filter(col("author.name") == "Alice")
             
             # Access edge properties
-            hf.nodes("Paper").expand("CITES")
+            hg.nodes("Paper").expand("CITES")
                 .filter(col("CITES.year") >= 2020)
         """
         ...
@@ -938,13 +938,13 @@ class HyperEdgeFrame(GraphFrame):
             
         Examples:
             # Filter by role value (string)
-            hf.hyperedges("Event").where_role("participant", "Alice")
+            hg.hyperedges("Event").where_role("participant", "Alice")
             
             # Filter by role value (node frame)
-            hf.hyperedges("Event").where_role("participant", hf.nodes("Person"))
+            hg.hyperedges("Event").where_role("participant", hg.nodes("Person"))
             
             # Filter by role value (expression)
-            hf.hyperedges("Event").where_role("participant", col("Person.name"))
+            hg.hyperedges("Event").where_role("participant", col("Person.name"))
         """
         ...
     
@@ -1281,7 +1281,7 @@ def collect(expr: Expr) -> AggExpr:
 ### 0.9 Mutation API (Explicit)
 
 ```python
-class HyperFrame:
+class HyperGraph:
     """
     Mutation operations are explicit and return new graph states.
     """
@@ -1292,7 +1292,7 @@ class HyperFrame:
         properties: dict[str, Any] | None = None,
         *,
         id: int | None = None,
-    ) -> "HyperFrame":
+    ) -> "HyperGraph":
         """
         Insert a node.
         
@@ -1302,7 +1302,7 @@ class HyperFrame:
             id: Optional node ID (auto-generated if None)
             
         Returns:
-            New HyperFrame instance with node inserted
+            New HyperGraph instance with node inserted
             
         Note:
             Mutations are not immediately visible in the same transaction
@@ -1316,7 +1316,7 @@ class HyperFrame:
         src: int | "NodeFrame",
         dst: int | "NodeFrame",
         properties: dict[str, Any] | None = None,
-    ) -> "HyperFrame":
+    ) -> "HyperGraph":
         """
         Insert an edge.
         
@@ -1327,7 +1327,7 @@ class HyperFrame:
             properties: Edge properties (dict)
             
         Returns:
-            New HyperFrame instance with edge inserted
+            New HyperGraph instance with edge inserted
         """
         ...
     
@@ -1336,7 +1336,7 @@ class HyperFrame:
         label: str,
         roles: dict[str, int | "NodeFrame"],
         properties: dict[str, Any] | None = None,
-    ) -> "HyperFrame":
+    ) -> "HyperGraph":
         """
         Insert a hyperedge.
         
@@ -1346,10 +1346,10 @@ class HyperFrame:
             properties: Hyperedge properties (dict)
             
         Returns:
-            New HyperFrame instance with hyperedge inserted
+            New HyperGraph instance with hyperedge inserted
             
         Examples:
-            hf.insert_hyperedge(
+            hg.insert_hyperedge(
                 "Event",
                 roles={"participant": alice_id, "location": mit_id},
                 properties={"date": "2024-01-01"}
@@ -1357,25 +1357,25 @@ class HyperFrame:
         """
         ...
     
-    def delete_node(self, node_id: int) -> "HyperFrame":
+    def delete_node(self, node_id: int) -> "HyperGraph":
         """Delete a node (and all connected edges)."""
         ...
     
-    def delete_edge(self, edge_id: int) -> "HyperFrame":
+    def delete_edge(self, edge_id: int) -> "HyperGraph":
         """Delete an edge."""
         ...
     
-    def commit(self) -> "HyperFrame":
+    def commit(self) -> "HyperGraph":
         """
         Commit pending mutations.
-        Returns new HyperFrame instance with mutations applied.
+        Returns new HyperGraph instance with mutations applied.
         """
         ...
 ```
 
 **Mutation Semantics**:
 
-1. **Immutability**: All mutations return new `HyperFrame` instances
+1. **Immutability**: All mutations return new `HyperGraph` instances
 2. **Batching**: Multiple mutations can be chained before `commit()`
 3. **Validation**: Node/edge existence checked at commit time
 4. **Cascading**: Deleting a node deletes all connected edges
@@ -1440,10 +1440,10 @@ class RayExecutor(Executor):
 
 ```python
 # Example 1: Basic query
-hf = HyperFrame.connect("grism://local")
+hg = HyperGraph.connect("grism://local")
 
 result = (
-    hf.nodes("Paper")
+    hg.nodes("Paper")
       .filter(col("year") >= 2022)
       .expand("CITES")
       .filter(sim(col("embedding"), query_emb) > 0.8)
@@ -1454,7 +1454,7 @@ result = (
 
 # Example 2: Multi-hop expansion with aliases
 result = (
-    hf.nodes("Person")
+    hg.nodes("Person")
       .expand("KNOWS", hops=2, as_="friend")
       .filter(col("friend.age") > 25)
       .select("name", friend_name=col("friend.name"))
@@ -1463,7 +1463,7 @@ result = (
 
 # Example 3: Aggregation
 result = (
-    hf.nodes("Paper")
+    hg.nodes("Paper")
       .expand("AUTHORED_BY", to="Author")
       .groupby("Author.name")
       .agg(
@@ -1476,8 +1476,8 @@ result = (
 
 # Example 4: Hyperedge query
 result = (
-    hf.hyperedges("Event")
-      .where_role("participant", hf.nodes("Person").filter(col("name") == "Alice"))
+    hg.hyperedges("Event")
+      .where_role("participant", hg.nodes("Person").filter(col("name") == "Alice"))
       .where_role("location", "MIT")
       .select("date", "description")
       .collect()
@@ -1485,7 +1485,7 @@ result = (
 
 # Example 5: Complex filtering
 result = (
-    hf.nodes("Paper")
+    hg.nodes("Paper")
       .filter(
           (col("year") >= 2020) &
           (col("year") <= 2023) &
@@ -1956,7 +1956,7 @@ pub enum DataType {
 ### 1.1.20 Example Lowering (Python → Rust)
 
 ```python
-hf.nodes("Paper") \
+hg.nodes("Paper") \
   .filter(col("year") >= 2022) \
   .expand("CITES", to="Paper", as_="cited") \
   .filter(col("cited.year") >= 2020) \
@@ -2054,7 +2054,7 @@ Limit(limit=10)
 
 **Optimization Hints** (future feature):
 ```python
-hf.nodes("Paper").hint(index="year_idx").filter(col("year") >= 2022)
+hg.nodes("Paper").hint(index="year_idx").filter(col("year") >= 2022)
 ```
 
 **Query Caching**:
@@ -2086,7 +2086,7 @@ hf.nodes("Paper").hint(index="year_idx").filter(col("year") >= 2022)
 
 ## 20. One-Sentence Summary
 
-> **Grism exposes hypergraphs as `HyperFrame`—a lazy, typed Python object model analogous to `DataFrame` for tables, whose only job is to express intent; all semantics live in the Rust logical engine.**
+> **Grism exposes hypergraphs as `HyperGraph`—a lazy, typed Python object model analogous to `DataFrame` for tables, whose only job is to express intent; all semantics live in the Rust logical engine.**
 
 ---
 
@@ -2094,9 +2094,9 @@ hf.nodes("Paper").hint(index="year_idx").filter(col("year") >= 2022)
 
 ```
 Frame := NodeFrame | EdgeFrame | HyperEdgeFrame
-NodeFrame := hf.nodes([label]) [.operation]*
-EdgeFrame := hf.edges([label]) [.operation]*
-HyperEdgeFrame := hf.hyperedges([label]) [.operation]*
+NodeFrame := hg.nodes([label]) [.operation]*
+EdgeFrame := hg.edges([label]) [.operation]*
+HyperEdgeFrame := hg.hyperedges([label]) [.operation]*
 
 operation := filter(expr)
            | select(*columns, **aliases)
@@ -2126,28 +2126,28 @@ agg := count([expr]) | sum(expr) | avg(expr) | min(expr) | max(expr) | ...
 
 ```python
 # Example 1: Unqualified name (unique)
-hf.nodes("Paper").filter(col("year") >= 2022)
+hg.nodes("Paper").filter(col("year") >= 2022)
 # Resolves: Paper.year ✓
 
 # Example 2: Unqualified name (ambiguous)
-hf.nodes("Paper").expand("AUTHORED_BY", to="Author")
+hg.nodes("Paper").expand("AUTHORED_BY", to="Author")
   .filter(col("name") == "Alice")  # Error: ambiguous (Paper.name? Author.name?)
 # Must use: col("Author.name")
 
 # Example 3: Qualified name (via label)
-hf.nodes("Paper").expand("AUTHORED_BY", to="Author")
+hg.nodes("Paper").expand("AUTHORED_BY", to="Author")
   .filter(col("Author.name") == "Alice")  # Resolves: Author.name ✓
 
 # Example 4: Qualified name (via alias)
-hf.nodes("Paper").expand("AUTHORED_BY", to="Author", as_="author")
+hg.nodes("Paper").expand("AUTHORED_BY", to="Author", as_="author")
   .filter(col("author.name") == "Alice")  # Resolves: author.name ✓
 
 # Example 5: Edge properties
-hf.nodes("Paper").expand("AUTHORED_BY", to="Author")
+hg.nodes("Paper").expand("AUTHORED_BY", to="Author")
   .filter(col("AUTHORED_BY.year") >= 2020)  # Resolves: AUTHORED_BY.year ✓
 
 # Example 6: After select (only selected columns available)
-hf.nodes("Paper").expand("AUTHORED_BY", to="Author")
+hg.nodes("Paper").expand("AUTHORED_BY", to="Author")
   .select("Paper.title", author_name=col("Author.name"))
   .filter(col("title") == "AI Paper")  # Resolves: Paper.title ✓
   .filter(col("author_name") == "Alice")  # Resolves: alias ✓
