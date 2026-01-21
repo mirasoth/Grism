@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use common_error::GrismResult;
-use grism_core::hypergraph::{Edge, EdgeId, HyperEdge, Node, NodeId};
+use grism_core::hypergraph::{Edge, EdgeId, Hyperedge, Node, NodeId};
 
 use crate::snapshot::Snapshot;
 
@@ -69,13 +69,13 @@ pub trait Storage: Send + Sync {
     // Hyperedge operations
 
     /// Get a hyperedge by ID.
-    async fn get_hyperedge(&self, id: EdgeId) -> GrismResult<Option<HyperEdge>>;
+    async fn get_hyperedge(&self, id: EdgeId) -> GrismResult<Option<Hyperedge>>;
 
     /// Get hyperedges by label.
-    async fn get_hyperedges_by_label(&self, label: &str) -> GrismResult<Vec<HyperEdge>>;
+    async fn get_hyperedges_by_label(&self, label: &str) -> GrismResult<Vec<Hyperedge>>;
 
     /// Insert a hyperedge.
-    async fn insert_hyperedge(&self, hyperedge: &HyperEdge) -> GrismResult<EdgeId>;
+    async fn insert_hyperedge(&self, hyperedge: &Hyperedge) -> GrismResult<EdgeId>;
 
     /// Delete a hyperedge.
     async fn delete_hyperedge(&self, id: EdgeId) -> GrismResult<bool>;
@@ -94,7 +94,7 @@ pub struct InMemoryStorage {
     config: StorageConfig,
     nodes: tokio::sync::RwLock<std::collections::HashMap<NodeId, Node>>,
     edges: tokio::sync::RwLock<std::collections::HashMap<EdgeId, Edge>>,
-    hyperedges: tokio::sync::RwLock<std::collections::HashMap<EdgeId, HyperEdge>>,
+    hyperedges: tokio::sync::RwLock<std::collections::HashMap<EdgeId, Hyperedge>>,
 }
 
 impl InMemoryStorage {
@@ -185,11 +185,11 @@ impl Storage for InMemoryStorage {
         Ok(self.edges.write().await.remove(&id).is_some())
     }
 
-    async fn get_hyperedge(&self, id: EdgeId) -> GrismResult<Option<HyperEdge>> {
+    async fn get_hyperedge(&self, id: EdgeId) -> GrismResult<Option<Hyperedge>> {
         Ok(self.hyperedges.read().await.get(&id).cloned())
     }
 
-    async fn get_hyperedges_by_label(&self, label: &str) -> GrismResult<Vec<HyperEdge>> {
+    async fn get_hyperedges_by_label(&self, label: &str) -> GrismResult<Vec<Hyperedge>> {
         Ok(self
             .hyperedges
             .read()
@@ -200,7 +200,7 @@ impl Storage for InMemoryStorage {
             .collect())
     }
 
-    async fn insert_hyperedge(&self, hyperedge: &HyperEdge) -> GrismResult<EdgeId> {
+    async fn insert_hyperedge(&self, hyperedge: &Hyperedge) -> GrismResult<EdgeId> {
         self.hyperedges
             .write()
             .await

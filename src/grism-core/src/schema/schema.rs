@@ -144,6 +144,16 @@ impl Schema {
             entities: Vec::new(), // Entities are not preserved after projection
         }
     }
+
+    /// Create an empty schema.
+    pub fn empty() -> Self {
+        Self::new()
+    }
+
+    /// Register an entity with the schema.
+    pub fn register_entity(&mut self, entity: EntityInfo) {
+        self.add_entity(entity);
+    }
 }
 
 impl std::fmt::Display for Schema {

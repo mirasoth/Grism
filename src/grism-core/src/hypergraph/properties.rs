@@ -1,8 +1,9 @@
 //! Property storage for graph elements.
+//!
+//! This module provides the `PropertyMap` type and `HasProperties` trait
+//! for managing key-value properties on graph entities (nodes, hyperedges).
 
 use std::collections::HashMap;
-
-use serde::{Deserialize, Serialize};
 
 use crate::types::Value;
 

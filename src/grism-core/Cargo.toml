@@ -12,6 +12,12 @@ hashbrown = { workspace = true }
 uuid = { workspace = true }
 pyo3 = { workspace = true, optional = true }
 
+# Arrow ecosystem for columnar data
+arrow = { workspace = true }
+arrow-array = { workspace = true }
+arrow-buffer = { workspace = true }
+arrow-schema = { workspace = true }
+
 [features]
 default = []
 python = ["dep:pyo3"]

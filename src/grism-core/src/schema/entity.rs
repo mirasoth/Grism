@@ -10,7 +10,7 @@ pub enum EntityKind {
     /// Binary edge entity.
     Edge,
     /// N-ary hyperedge entity.
-    HyperEdge,
+    Hyperedge,
 }
 
 impl std::fmt::Display for EntityKind {
@@ -18,7 +18,7 @@ impl std::fmt::Display for EntityKind {
         match self {
             Self::Node => write!(f, "Node"),
             Self::Edge => write!(f, "Edge"),
-            Self::HyperEdge => write!(f, "HyperEdge"),
+            Self::Hyperedge => write!(f, "Hyperedge"),
         }
     }
 }
@@ -61,7 +61,7 @@ impl EntityInfo {
     pub fn hyperedge(name: impl Into<String>, columns: Vec<String>) -> Self {
         Self {
             name: name.into(),
-            kind: EntityKind::HyperEdge,
+            kind: EntityKind::Hyperedge,
             columns,
             is_alias: false,
         }
