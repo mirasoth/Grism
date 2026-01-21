@@ -1,0 +1,13 @@
+[package]
+name = "grism-optimizer"
+edition = { workspace = true }
+version = { workspace = true }
+description = "Query optimizer for Grism logical plans"
+
+[dependencies]
+common-error = { workspace = true }
+grism-core = { workspace = true }
+grism-logical = { workspace = true }
+
+[lints]
+workspace = true

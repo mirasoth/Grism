@@ -1,0 +1,11 @@
+[package]
+name = "common-display"
+edition = { workspace = true }
+version = { workspace = true }
+description = "Display and visualization utilities for Grism"
+
+[dependencies]
+common-error = { workspace = true }
+
+[lints]
+workspace = true

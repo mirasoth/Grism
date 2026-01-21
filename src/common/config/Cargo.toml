@@ -1,0 +1,17 @@
+[package]
+name = "common-config"
+edition = { workspace = true }
+version = { workspace = true }
+description = "Configuration management for Grism"
+
+[dependencies]
+common-error = { workspace = true }
+serde = { workspace = true }
+pyo3 = { workspace = true, optional = true }
+
+[features]
+default = []
+python = ["dep:pyo3"]
+
+[lints]
+workspace = true

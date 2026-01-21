@@ -1,0 +1,13 @@
+[package]
+name = "common-runtime"
+edition = { workspace = true }
+version = { workspace = true }
+description = "Async runtime utilities for Grism"
+
+[dependencies]
+common-error = { workspace = true }
+tokio = { workspace = true }
+futures = { workspace = true }
+
+[lints]
+workspace = true
