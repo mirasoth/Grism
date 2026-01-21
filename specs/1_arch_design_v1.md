@@ -2,7 +2,6 @@
 
 > **Grism** is an **AI-native, neurosymbolic, hypergraph database system** designed for modern agentic and LLM-driven workflows. It treats graphs as **executable knowledge**, not just queryable data, and provides a **Python-first user experience** with a **Rust-native core** and **pluggable execution backends (local or Ray-distributed)**.
 
----
 
 ## 1. Design Goals
 
@@ -21,19 +20,18 @@
 * Row-oriented storage engine
 * SQL-first UX
 
----
 
 ## 2. High-Level Architecture
 
 ```
 ┌──────────────────────────────────────────┐
 │          User / Agent Layer              │
-│  Python HyperGraph · LLMs · LangGraph   │
+│  Python Hypergraph · LLMs · LangGraph   │
 └───────────────▲─────────────────────────┘
                 │
 ┌───────────────┴─────────────────────────┐
 │        Graph Expression & Planning       │
-│  HyperGraph → Rust Logical Plan          │
+│  Hypergraph → Rust Logical Plan          │
 └───────────────▲─────────────────────────┘
                 │
 ┌───────────────┴─────────────────────────┐
@@ -52,25 +50,187 @@
 └─────────────────────────────────────────┘
 ```
 
----
 
 ## 3. Data Model
 
-### 3.1 Unified Hypergraph Model
+## 3.1 Unified Hypergraph Data Model
+
+### 3.1.1 Design Principle
+
+Grism adopts a **single, canonical relational primitive: the *Hyperedge***. All relational structures—binary edges, n-ary relations, events, predicates, and meta-relations—are uniformly represented using this primitive.
+
+A **Hyperedge** models an arbitrary n-ary relation whose participants are explicitly bound through **named roles**. Traditional binary edges are treated as a special case of hyperedges with arity equal to two. This approach ensures a uniform logical foundation while enabling multiple projection views (e.g., property graph, Cypher-compatible graphs) without altering core semantics.
+
+This design establishes Grism as a **true hypergraph system**, while preserving efficient execution paths and compatibility with established graph query models.
+
+
+### 3.1.2 Conceptual Entities
+
+The Grism data model consists of exactly two first-class entity types:
+
+| Entity        | Description                                                    |
+| ------------- | -------------------------------------------------------------- |
+| **Node**      | Atomic entities with stable identity and associated properties |
+| **Hyperedge** | N-ary relations connecting entities via explicitly named roles |
+
+There is no independent logical `Edge` abstraction. Instead:
+
+> **Edge ≡ Hyperedge with arity = 2**, conventionally using the roles `source` and `target`.
+
+This guarantees that all relational constructs are represented uniformly and can participate in higher-order relations.
+
+
+### 3.1.3 Hyperedge Structure
+
+Formally, a hyperedge is defined as a labeled relation with role bindings and properties:
 
 ```rust
-struct HyperEdge {
+struct Hyperedge {
     id: EdgeId,
-    endpoints: Vec<NodeId>,
-    roles: HashMap<NodeId, Role>,
-    label: Symbol,
+    label: Label,
+    roles: Vec<RoleBinding>,
     properties: PropertyMap,
 }
 ```
 
-* Binary edges = property graph compatibility
-* N-ary edges = events, predicates, experiments
-* Reification is native
+Each role binding associates a semantic role with a target entity:
+
+```rust
+struct RoleBinding {
+    role: Role,
+    target: EntityRef,
+}
+```
+
+Targets may reference either nodes or other hyperedges:
+
+```rust
+enum EntityRef {
+    Node(NodeId),
+    Hyperedge(EdgeId),
+}
+```
+
+This recursive capability enables direct representation of reified relations, provenance chains, and inference traces.
+
+
+### 3.1.4 Roles and Arity Semantics
+
+Hyperedges must satisfy the following constraints:
+
+* **Arity ≥ 2** (at least two role bindings)
+* Roles are **explicitly named**, **unordered**, and **semantically meaningful**
+* Role identity is independent of position
+
+Example hyperedges:
+
+```text
+AUTHORED_BY(
+  author → Person#123,
+  paper  → Paper#456
+)
+
+EVENT(
+  subject → AUTHORED_BY#77,
+  time    → 2022-01-01,
+  agent   → Model#gpt4
+)
+```
+
+This structure natively supports:
+
+* N-ary relations and events
+* First-class reification
+* Statements about relations
+* Temporal, causal, and epistemic modeling
+
+
+### 3.1.5 Binary Edge Projection
+
+A binary edge is defined as a hyperedge that satisfies:
+
+```text
+|roles| = 2
+roles = { source, target }
+```
+
+Example:
+
+```text
+CITES(
+  source → Paper#1,
+  target → Paper#2
+)
+```
+
+Binary edges:
+
+* Are logically indistinguishable from hyperedges
+* May be physically optimized for adjacency traversal
+* Are exposed to users via property-graph or `EdgeFrame` views
+
+This separation of **logical semantics** and **physical layout** enables efficient traversal without compromising expressiveness.
+
+
+### 3.1.6 Hyperedge-to-Hyperedge Relations
+
+Because role targets are defined as `EntityRef`, hyperedges may directly reference other hyperedges. This allows the model to express higher-order and meta-relations such as:
+
+* Provenance and justification
+* Causal and temporal dependencies
+* Rule application and inference confidence
+* Planning and execution traces
+
+Examples:
+
+```text
+INFERRED_BY(
+  conclusion → Edge#42,
+  rule       → Rule#R3,
+  confidence → 0.91
+)
+
+CAUSES(
+  cause  → Edge#17,
+  effect → Edge#23
+)
+```
+
+This capability is foundational for neurosymbolic reasoning, explainability, and agent memory.
+
+
+### 3.1.7 Property Attachment Semantics
+
+Properties may be attached to the following entities:
+
+| Entity    | Property Semantics       |
+| --------- | ------------------------ |
+| Node      | Attributes of an entity  |
+| Hyperedge | Attributes of a relation |
+
+Properties are **not attached directly to roles**. Role-specific attributes must be modeled using:
+
+* Dedicated hyperedges, or
+* Structured property values (e.g., maps or nested objects)
+
+This design preserves:
+
+* Columnar storage efficiency
+* Relational executability
+* Clear separation between structure and metadata
+
+
+### 3.1.8 Global Invariants
+
+The following invariants are enforced across the system:
+
+1. All relations are represented as hyperedges
+2. Binary edges are a specialization, not a distinct primitive
+3. Roles are explicit, named, and unordered
+4. Hyperedges may reference other hyperedges
+5. Physical optimizations never alter logical semantics
+
+Together, these invariants provide a stable foundation for planning, optimization, reasoning, and distributed execution.
 
 ### 3.2 Values & Types
 
@@ -92,137 +252,412 @@ enum Value {
 * **Type coercion rules**: Explicit conversions via `cast()` function; implicit coercion only for safe cases (e.g., `Int` → `Float`)
 * **Null handling**: Three-valued logic (true, false, null) for comparisons; `is_null()` / `is_not_null()` predicates
 
----
+## 3.2 Frames and Logical Views
 
-## 4. HyperGraph: Canonical Definition
+### 3.2.1 Frame Abstraction
 
-### 4.1 Core Concept
+Grism exposes its data model to users through **Frames**, which are logical, immutable views over the underlying hypergraph. Frames provide a familiar, dataframe-like interface while preserving the full expressive power of the hyperedge model.
 
-**`HyperGraph`**
+Frames are **not storage structures**. They are:
 
-> A **hypergraph-backed, relationally-executable, AI-native graph container**, analogous to `DataFrame` for tables.
+* Declarative
+* Lazily evaluated
+* Composable
+* Backed by the logical planning system
 
-It is:
+All Frames ultimately compile into logical plans operating over Nodes and Hyperedges.
 
-* **Hypergraph-first** (n-ary relations are native)
-* **Property-graph–compatible** (via views)
-* **Language-agnostic at the core** (Cypher / GQL / AnkQL are projections)
-* **Storage-backed by Lance** (relational primitives)
 
-### 4.2 Conceptual Positioning
+### 3.2.2 Core Frame Types
 
-| Layer             | Abstraction                       |
-| ----------------- | --------------------------------- |
-| User API (Python) | `HyperGraph`                      |
-| Logical IR        | `HyperIR / RelSet`                |
-| Execution         | Lance + standalone / Ray          |
-| Query Views       | Cypher view, GQL view, AnkQL view |
+Grism defines the following canonical frame abstractions:
 
-### 4.3 Mental Model (DataFrame Analogy)
+| Frame              | Description                                      |
+| ------------------ | ------------------------------------------------ |
+| **NodeFrame**      | A view over nodes matching a label and predicate |
+| **HyperedgeFrame** | A view over hyperedges with arbitrary arity      |
+| **EdgeFrame**      | A binary projection of `HyperedgeFrame`          |
 
-| DataFrame | HyperGraph            |
-| --------- | --------------------- |
-| row       | hyperedge             |
-| column    | role / attribute      |
-| join      | hyperedge composition |
-| groupby   | hyperedge projection  |
-| filter    | sub-hypergraph        |
+Among these, **HyperedgeFrame is the primary relational view**. All other frame types are either projections or constrained specializations.
 
-This analogy will be **extremely powerful** for adoption.
 
-### 4.4 Cypher Compatibility via Views
+### 3.2.3 HyperedgeFrame
+
+`HyperedgeFrame` represents a set of hyperedges selected by:
+
+* Label
+* Role constraints
+* Property predicates
+* Structural constraints (e.g. arity)
+
+Conceptually, a HyperedgeFrame is equivalent to a relation with the following logical columns:
+
+```text
+(edge_id, label, role, entity_type, entity_id, properties...)
+```
+
+This representation is intentionally normalized to support:
+
+* Relational optimization
+* Predicate pushdown
+* Join reordering
+* Cost-based planning
+
+
+### 3.2.4 EdgeFrame as a Projection
+
+`EdgeFrame` is defined as a **restricted projection** of `HyperedgeFrame` satisfying:
+
+```text
+arity = 2
+roles = { source, target }
+```
+
+Semantically:
+
+> **EdgeFrame ≡ HyperedgeFrame WHERE arity = 2 AND roles ⊆ {source, target}**
+
+EdgeFrame exists to:
+
+* Preserve property-graph ergonomics
+* Enable Cypher / GQL-style traversal
+* Allow aggressive physical optimization
+
+EdgeFrame does **not** introduce new semantics and cannot express relations beyond what is representable in HyperedgeFrame.
+
+
+### 3.2.5 View Consistency Guarantees
+
+The following guarantees hold:
+
+1. Every EdgeFrame row corresponds to exactly one Hyperedge
+2. Every Hyperedge with arity = 2 is representable in EdgeFrame
+3. Transformations on EdgeFrame are lossless when lifted back to HyperedgeFrame
+
+Thus, EdgeFrame is a **compatibility view**, not a semantic restriction.
+
+
+## 3.3 Traversal and Expansion Semantics
+
+### 3.3.1 Expand as a Logical Operation
+
+Traversal in Grism is expressed via the **Expand** logical operator. Expand consumes a Frame and produces a new Frame by following role bindings in hyperedges.
+
+Expand is defined over Hyperedges, not Nodes or Edges alone.
+
+
+### 3.3.2 Binary Expansion (Property Graph Semantics)
+
+For EdgeFrame, Expand follows conventional property-graph semantics:
+
+```text
+(NodeFrame) --Expand--> (NodeFrame)
+```
+
+Where:
+
+* Expansion follows `source → target` or `target → source`
+* Directionality is explicit
+* Only binary hyperedges participate
+
+This mode enables efficient adjacency-based traversal and is the default for Cypher-compatible queries.
+
+
+### 3.3.3 Role-Qualified Expansion
+
+For HyperedgeFrame, Expand may be **role-qualified**:
+
+```text
+Entity --Expand(role = r)--> Entity
+```
+
+This allows traversal across arbitrary roles and supports:
+
+* N-ary relations
+* Event-centric navigation
+* Semantic joins
+
+Example:
+
+```text
+(Person)
+  --Expand(role = author)-->
+(Paper)
+```
+
+
+### 3.3.4 Hyperedge Materialization
+
+Expand may optionally materialize hyperedges as first-class outputs:
+
+```text
+Node --Expand(materialize = true)--> HyperedgeFrame
+```
+
+This enables:
+
+* Inspection of relations as data
+* Meta-reasoning over relations
+* Provenance and explanation queries
+
+Materialized hyperedges may subsequently participate in further expansions, including hyperedge-to-hyperedge traversal.
+
+
+### 3.3.5 Execution Constraints and Optimization
+
+To preserve performance and predictability:
+
+* Binary Expand operations are preferentially mapped to adjacency indexes
+* Role-qualified Expand operations may degrade to joins
+* The planner may rewrite hyperedge expansions into binary projections when safe
+
+These rewrites preserve logical semantics while selecting optimal physical execution strategies.
+
+
+### 3.3.6 Summary
+
+Traversal in Grism is unified under a single Expand abstraction operating over hyperedges. Property-graph traversal is a constrained, optimized case of this general mechanism, ensuring consistency between expressive power and execution efficiency.
+
+## 4. Hypergraph: Canonical Abstraction
+
+### 4.1 Definition and Scope
+
+**`Hypergraph`** is the **canonical user-facing container** in Grism. It represents a **logical, executable view over a persistent hypergraph**, analogous to how `DataFrame` represents a logical view over tabular data.
+
+Formally:
+
+> A **Hypergraph** is a *hypergraph-backed, relationally executable, AI-native graph container* that exposes declarative operations while deferring execution to the planning and runtime layers.
+
+The Hypergraph abstraction is:
+
+* **Hypergraph-first** — n-ary relations (hyperedges) are native
+* **Relation-centric** — operations compile to relational algebra over hyperedges
+* **View-based** — immutable, lazy, and composable
+* **Storage-agnostic** — backed by Lance via physical planning, not hard-wired
+
+`Hypergraph` is **not** a storage engine, query language, or execution runtime. It is a **logical façade** over the Grism core.
+
+
+### 4.2 Architectural Positioning
+
+The Hypergraph abstraction occupies a precise position in the system stack:
+
+| Layer           | Abstraction                                       |
+| --------------- | ------------------------------------------------- |
+| Python User API | `Hypergraph`                                      |
+| Logical IR      | `LogicalPlan` over Nodes and Hyperedges           |
+| Optimization    | Rule-based + Cost-based planners                  |
+| Execution       | Standalone Rust Engine or Ray-Orchestrated Engine |
+| Storage         | Lance / Arrow datasets and indexes                |
+
+This separation ensures that:
+
+* User-facing semantics remain stable
+* Execution strategies can evolve independently
+* Distributed and local execution share the same logical foundation
+
+
+### 4.3 Mental Model: DataFrame Analogy
+
+The Hypergraph API intentionally mirrors the **DataFrame mental model**, generalized from rows to relations:
+
+| DataFrame Concept | Hypergraph Concept       |
+| ----------------- | ------------------------ |
+| Row               | Hyperedge                |
+| Column            | Role or property         |
+| Filter            | Sub-hypergraph selection |
+| Join              | Hyperedge composition    |
+| GroupBy           | Hyperedge projection     |
+
+This analogy is conceptual rather than literal, but it provides a powerful intuition: **graphs are treated as executable relations**, not as pointer-based structures.
+
+
+### 4.4 Views and Surface Projections
+
+A Hypergraph may be projected into multiple **semantic views**, each exposing a constrained surface syntax while preserving the same underlying logical plan.
 
 ```python
-hg = HyperGraph.connect("grism://local")
+hg = Hypergraph.connect("grism://local")
 
-pg = hg.view("property")   # property graph view
+pg = hg.view("property")   # Property-graph projection
 cg = hg.view("cypher")     # Cypher-compatible surface
-
-hg.query("""
-MATCH (a:Person)-[:WORKS_AT]->(c:Company)
-RETURN a, c
-""")
+nq = hg.view("ankql")      # Native hypergraph query surface
 ```
 
-Internally:
+Key guarantees:
 
-* Binary edges = arity-2 hyperedges
-* Node/edge labels = hyperedge roles
-* Properties = attributes on nodes / hyperedges
+* Views are **pure projections**, not data copies
+* No semantic information is lost; only expressiveness may be restricted
+* All views compile into the same Hyperedge-based logical plans
 
-No semantic loss — only **projection**.
+Binary edges in property or Cypher views correspond to **arity-2 hyperedges** in the core model.
 
-### 4.5 Minimal Python Skeleton (Locked Naming)
+
+### 4.5 Core Hypergraph Operations
+
+The Hypergraph object exposes a minimal, orthogonal set of operations that construct logical plans:
 
 ```python
-class HyperGraph:
-    def __init__(self, storage, schema):
-        self.storage = storage
-        self.schema = schema
-
-    def match(self, pattern):
-        ...
-
-    def filter(self, predicate):
-        ...
-
-    def project(self, *roles):
-        ...
-
-    def view(self, mode: str):
-        """property | cypher | ankql"""
-        ...
-
-    def to_graphframe(self):
-        return self.view("property")
+class Hypergraph:
+    def match(self, pattern): ...
+    def nodes(self, label=None): ...
+    def hyperedges(self, label=None): ...
+    def filter(self, predicate): ...
+    def project(self, *roles): ...
+    def expand(self, *args, **kwargs): ...
+    def view(self, mode: str): ...
+    def collect(self): ...
 ```
 
-This will scale cleanly to:
+All operations:
 
-* lazy execution
-* distributed plans (Ray)
-* logical optimization
+* Are **immutable** (return new objects)
+* Are **lazy** (no execution on construction)
+* Produce Frames (`NodeFrame`, `HyperedgeFrame`, or projections)
 
-### 4.6 Naming Fallout (Everything Else Now Gets Clearer)
 
-| Old            | New                     |
-| -------------- | ----------------------- |
-| KnowledgeGraph | ❌ removed               |
-| GraphFrame     | property-view           |
-| HyperGraph     | storage / theory        |
-| AnkQL          | native hypergraph query |
-| Cypher         | compatibility layer     |
+### 4.6 Relationship to Frames
 
----
+Conceptually:
 
-## 5. Python-First HyperGraph API
+> **Hypergraph is the root context; Frames are scoped logical views derived from it.**
 
-### 5.1 Core Object
+* `Hypergraph` represents *what data exists*
+* `Frame` represents *which subgraph is currently addressed*
+
+Operations such as `nodes()`, `hyperedges()`, and `match()` return Frames, which then participate in traversal, filtering, and projection.
+
+Frames never outlive their Hypergraph context but may be freely composed and transformed within it.
+
+
+### 4.7 Python-First Interface and Query-Language Agnosticism
+
+Grism is designed as a **Python-first system**. The primary user interface for constructing, composing, and executing hypergraph queries is the **Python API**, not an embedded textual query language.
+
+The Hypergraph abstraction is therefore **query-language agnostic** by design:
+
+* All semantics are defined at the level of **Hypergraph, Frames, and Logical Plans**
+* No core capability depends on Cypher, GQL, or any specific surface syntax
+* Query languages, if supported, are treated strictly as **optional front-end projections**
+
+This ensures that the hypergraph model remains stable, extensible, and suitable for programmatic and agent-driven workloads.
+
+
+### 4.8 Property-Graph Semantics via Python Projections
+
+Property-graph semantics are expressed **directly in Python**, without requiring Cypher or GQL syntax. Binary graph traversal is modeled as a constrained case of hyperedge expansion.
+
+Mapping rules:
+
+* Nodes map to `Node`
+* Binary edges map to **arity-2 `Hyperedge`**
+* Labels map to node or hyperedge labels
+* Properties map to entity attributes
+
+Example (property-graph style traversal expressed in Python):
 
 ```python
-hg = HyperGraph.connect("grism://local")
+(
+  hg.nodes("Person")
+    .expand("WORKS_AT", to="Company")
+    .select("Person", "Company")
+)
 ```
 
-Properties:
+This query is semantically equivalent to a property-graph pattern match, but is:
 
-* **Immutable**: All operations return new frames; original `hf` unchanged
-* **Lazy**: No execution until `.collect()` or iteration
-* **Typed**: Type hints available via `__annotations__`; runtime validation deferred to execution
+* Composable as Python code
+* Type-aware and IDE-friendly
+* Directly integrated with control flow, functions, and agents
 
-### 5.2 NodeFrame / EdgeFrame
+
+### 4.9 Optional Query-Language Frontends
+
+While Grism is Python-first, the architecture does **not preclude** support for textual query languages in the future.
+
+Potential frontends include:
+
+* Cypher-compatible syntax
+* GQL-compatible syntax
+* A native declarative hypergraph language
+
+If enabled, such frontends:
+
+* Parse user queries into the **same Hypergraph logical plans**
+* Introduce no new semantics
+* Remain strictly optional and non-authoritative
+
+In all cases, Python remains the **reference interface** against which correctness and completeness are defined.
+
+
+### 4.8 Naming and Semantic Guarantees
+
+The following guarantees apply to the Hypergraph abstraction:
+
+1. Hypergraph semantics are invariant across views
+2. No operation bypasses the logical planning layer
+3. Physical optimizations do not alter observable results
+4. Hyperedge semantics always remain first-class
+
+These guarantees ensure that Section 4 remains fully consistent with the data model and traversal semantics defined in Section 3.
+
+
+### 4.9 Summary
+
+The **Hypergraph** abstraction unifies graph, relational, and knowledge representations into a single executable model. It provides a stable, expressive, and optimizable foundation for AI-native workloads while preserving compatibility with existing graph query paradigms.
+
+## 5. Python-First Hypergraph API
+
+### 5.1 Design Principles
+
+The Python API is the **authoritative user-facing interface** of Grism. All user interactions—whether programmatic, agent-driven, or generated by LLMs—are expressed in Python and compiled into the same canonical Rust logical plan.
+
+Design principles:
+
+* **Python-first semantics**: Python defines correctness; textual query languages are optional projections
+* **Declarative & lazy**: API calls describe *what* to compute, not *how* to execute
+* **Frame-centric**: All operations return immutable Frames (`NodeFrame`, `HyperedgeFrame`, or projections)
+* **Explainable by construction**: Every API call maps to a deterministic logical operator
+
+This ensures a stable, composable, and AI-friendly surface aligned with the hypergraph model defined in Sections 3–4.
+
+
+### 5.2 Hypergraph Root Object
 
 ```python
-papers = hg.nodes("Paper")  # Returns NodeFrame with label="Paper"
-authors = hg.nodes("Author")  # Returns NodeFrame with label="Author"
-all_nodes = hg.nodes()  # Returns NodeFrame with label=None (all nodes)
+hg = Hypergraph.connect("grism://local")
 ```
 
-**Frame Identity Semantics**:
-* Each frame operation creates a new frame object (structural sharing of logical plan)
-* Frames are **value objects**: equality based on logical plan structure, not object identity
-* Frames carry **schema information** (available columns, types) for IDE support
+The `Hypergraph` object represents a **logical handle to a versioned hypergraph state**. It is not a session, cursor, or transaction, but a *root planning context*.
 
-### 5.3 Core Operations
+Key properties:
+
+* **Immutable**: No in-place mutation; all methods return new logical objects
+* **Snapshot-bound**: Each Hypergraph is associated with a read snapshot (MVCC)
+* **Serializable**: Logical plans can be persisted, replayed, or shipped to workers
+* **Storage-agnostic**: No dependency on physical layout or execution backend
+
+
+### 5.3 Frames as First-Class Values
+
+All data access in Grism happens through **Frames**, which are immutable, typed logical views over the hypergraph.
+
+Canonical frame types:
+
+| Frame            | Semantics                                         |
+| ---------------- | ------------------------------------------------- |
+| `NodeFrame`      | A set of nodes with optional label and predicates |
+| `HyperedgeFrame` | A set of hyperedges of arbitrary arity            |
+| `EdgeFrame`      | A binary projection of `HyperedgeFrame`           |
+
+Frames are:
+
+* **Value objects**: Equality is based on logical plan structure
+* **Composable**: Frames can be freely chained and nested
+* **Schema-aware**: Carry column and type metadata when available
+
+
+### 5.4 Core Hypergraph Operations
 
 ```python
 (
@@ -234,150 +669,311 @@ all_nodes = hg.nodes()  # Returns NodeFrame with label=None (all nodes)
 )
 ```
 
-Graph primitives:
+The API exposes a minimal, orthogonal operator set:
 
-* `filter` - Predicate-based row filtering
-* `select` - Column projection (renaming, expressions)
-* `expand` - Graph traversal (replaces joins)
-* `groupby / agg` - Aggregation operations
-* `infer` - Rule-based reasoning
+| Operation                  | Logical Meaning                      |
+| -------------------------- | ------------------------------------ |
+| `nodes()` / `hyperedges()` | Base relation scan                   |
+| `filter()`                 | Predicate selection                  |
+| `expand()`                 | Hyperedge-based traversal            |
+| `select()`                 | Projection and expression evaluation |
+| `groupby()` / `agg()`      | Aggregation                          |
+| `infer()`                  | Rule-based reasoning                 |
 
----
+Each operation appends a node to the logical plan; no execution occurs at construction time.
+
+
+### 5.5 Traversal Semantics in the API
+
+Traversal is always expressed via `expand()`, which is a direct surface representation of the **Expand logical operator** defined in Section 3.3.
+
+Supported modes:
+
+* **Binary traversal** (property-graph compatible)
+* **Role-qualified traversal** over n-ary hyperedges
+* **Hyperedge materialization** for meta-reasoning
+
+This guarantees that Python traversal semantics are *identical* to the hypergraph traversal model.
+
 
 ## 6. Expression System
 
-### 6.1 Expression Composition
+### 6.1 Expression Model
 
-Expressions are **immutable, composable trees**:
+Expressions in Grism are **pure, immutable expression trees** that are attached to logical operators such as `filter`, `select`, `expand`, and `agg`.
 
 ```python
 sim(col("embedding"), query_emb) > 0.8
 ```
 
-**Expression Evaluation Model**:
-* Expressions are **pure functions** (no side effects)
-* Evaluation happens at execution time, not construction time
-* Expressions can reference columns from multiple scopes (via qualifiers)
+Key properties:
 
-### 6.2 Column References & Scoping
+* **Side-effect free**
+* **Lazily evaluated**
+* **Serializable** (part of the logical plan)
+* **Execution-backend agnostic**
 
-**Column Name Resolution Rules**:
+Expressions never access data directly; they describe computations to be applied during execution.
 
-1. **Qualified names** (`col("Author.name")`):
-   - `"Author"` is resolved to a label or alias in the current frame's scope
-   - If label/alias exists, `name` is resolved within that entity's properties
-   - If label/alias doesn't exist, raises `ColumnNotFoundError` at plan validation time
 
-2. **Unqualified names** (`col("name")`):
-   - Searched in **reverse order** of frame construction (most recent first)
-   - If multiple matches, raises `AmbiguousColumnError` (must use qualified name)
-   - If no match, raises `ColumnNotFoundError`
+### 6.2 Column References & Scope Resolution
 
-3. **Scope after `expand()`**:
-   ```python
-   hg.nodes("Paper")
-     .expand("AUTHORED_BY", to="Author", as_="author")
-     .filter(col("year") >= 2022)  # Resolves to Paper.year (original scope)
-     .filter(col("author.name") == "Alice")  # Resolves via alias
-     .filter(col("Author.affiliation") == "MIT")  # Resolves via label
-   ```
-   - Original frame columns remain accessible
-   - Expanded entity accessible via `as_` alias (if provided) or label
-   - Edge properties accessible via edge label (e.g., `col("AUTHORED_BY.year")`)
+Column references are expressed via `col(name)` and resolved against the **frame scope stack**.
 
-4. **Scope after `select()`**:
-   ```python
-   .select("Paper.title", author_name=col("Author.name"))
-   ```
-   - Only selected columns are available in subsequent operations
-   - Column names can be aliased via keyword arguments
-   - Original column names are **not** accessible after select (unless re-selected)
+Resolution rules:
 
-### 6.3 Expression Types
+1. **Qualified references** (`col("Author.name")`)
 
-**Comparison Expressions**:
+   * Resolved against explicit labels or aliases
+   * Deterministic and unambiguous
+
+2. **Unqualified references** (`col("name")`)
+
+   * Resolved by most-recent scope first
+   * Ambiguity results in a validation error
+
+3. **Post-expand scope**
+
+   * Original frame columns remain visible
+   * Expanded entities are accessible via label or `as_` alias
+   * Hyperedge properties are accessible via hyperedge label
+
+4. **Post-select scope**
+
+   * Only projected columns remain visible
+   * Original columns are no longer addressable unless re-selected
+
+These rules mirror relational scoping while respecting hypergraph expansion semantics.
+
+
+### 6.3 Expression Categories
+
+**Comparison & Logical**:
+
 ```python
-col("age") > 18
-col("name") == "Alice"
-col("score") >= 0.8
+(col("age") > 18) & (col("status") == "active")
 ```
 
-**Logical Expressions**:
+**Function & Vector**:
+
 ```python
-(col("age") > 18) & (col("status") == "active")  # AND
-(col("role") == "admin") | (col("role") == "moderator")  # OR
+sim(col("embedding"), qvec)
+contains(col("text"), "graph")
 ```
 
-**Function Expressions**:
-```python
-sim(col("embedding"), query_vector)  # Returns float similarity score
-contains(col("text"), "keyword")
-len(col("tags"))  # Array length
-cast(col("age"), "float")  # Type conversion
-```
+**Type & Null Handling**:
 
-**Null Handling**:
 ```python
+cast(col("age"), "float")
 col("email").is_null()
-col("name").is_not_null()
-col("score").coalesce(0.0)  # Returns first non-null value
+col("score").coalesce(0.0)
 ```
 
-### 6.4 Expression Validation
+All functions are mapped to typed logical expressions and validated before execution.
 
-* **Early validation**: Column existence checked at frame construction time (if schema available)
-* **Late validation**: Full validation at logical plan construction
-* **Type checking**: Type mismatches detected at plan validation (e.g., comparing string to int)
-* **Error messages**: Include frame lineage and column suggestions for typos
 
----
+### 6.4 Validation & Type Semantics
 
-## 7. Logical Plan Layer (Rust Canonical)
+Validation occurs in two stages:
+
+* **Plan construction**: Column existence, scoping, arity checks
+* **Plan validation**: Type compatibility, null semantics, aggregation legality
+
+Errors include full frame lineage and column suggestions, ensuring debuggability for both humans and agents.
+
+
+## 7. Logical Plan Layer (Rust Canonical IR)
+
+### 7.1 Role of the Logical Plan
+
+The logical plan is the **single source of truth** for execution semantics in Grism. All frontends—Python DSL, Cypher, GQL, or agents—compile into this representation.
+
+Logical plans are:
+
+* **Deterministic**
+* **Purely declarative**
+* **Execution-backend independent**
+* **Serializable and replayable**
+
+
+### 7.2 Core Logical Operators
 
 ```rust
 enum LogicalOp {
-    Scan,
-    Expand,
-    Filter,
-    Project,
-    Aggregate,
-    Infer,
+    Scan,        // Node / Hyperedge scan
+    Expand,      // Hyperedge-based traversal
+    Filter,      // Predicate selection
+    Project,     // Projection & expressions
+    Aggregate,   // Grouping & aggregation
+    Infer,       // Rule-based derivation
 }
 ```
 
-Properties:
+Each operator consumes one or more input relations and produces a new relation over Nodes or Hyperedges.
 
-* Execution-agnostic
-* Deterministic
-* Serializable
 
----
+### 7.3 Logical Operator Semantics
+
+* **Scan**: Binds a base relation (nodes or hyperedges)
+* **Expand**: Follows role bindings; may materialize hyperedges
+* **Filter**: Applies boolean expressions with three-valued logic
+* **Project**: Computes expressions and column aliases
+* **Aggregate**: Groups by keys and applies aggregations
+* **Infer**: Applies declarative rules to derive new hyperedges
+
+All operators are **side-effect free** and composable.
+
+
+### 7.4 Plan Construction & Lineage
+
+Logical plans are constructed incrementally as a DAG:
+
+* Each API call appends a new logical node
+* Nodes reference their parent(s)
+* Full lineage is retained for explanation and optimization
+
+```text
+Scan → Expand → Filter → Project → Aggregate
+```
+
+This lineage is surfaced via `hg.explain()` and drives both optimization and distributed execution.
+
+
+### 7.5 Stability Guarantees
+
+The logical plan layer guarantees that:
+
+1. Hyperedge semantics are preserved across all rewrites
+2. Physical optimizations cannot change observable results
+3. Distributed and local execution share identical semantics
+
+This makes the logical plan the cornerstone that unifies Grism’s hypergraph model, Python API, and execution engines.
+
 
 ## 8. Optimization
 
-### 8.1 Rule-Based
+Optimization in Grism operates **entirely on the hyperedge-native logical plan**. Unlike traditional relational or property-graph engines, optimization decisions are driven primarily by **Expand semantics, hyperedge arity, and role selectivity**, rather than generic join heuristics.
 
-* Predicate pushdown
-* Expand reordering
-* Projection pruning
+The optimizer is deliberately split into **rule-based** and **cost-based** phases, both of which preserve the logical guarantees defined in Sections 3–7.
 
-### 8.2 Cost-Based
 
-* Cardinality estimates
-* Vector selectivity
-* Ray shuffle cost
+### 8.1 Optimization Objectives
 
----
+The optimizer aims to:
+
+* Minimize hyperedge materialization
+* Prefer adjacency-based execution for binary expansions
+* Delay or avoid n-ary joins when possible
+* Reduce intermediate cardinality early
+* Preserve explainability and determinism
+
+Crucially, **no optimization may alter hyperedge semantics** or observable results.
+
+
+### 8.2 Rule-Based Optimization (Logical Rewrites)
+
+Rule-based optimization applies **semantics-preserving rewrites** to the logical plan DAG.
+
+#### 8.2.1 Predicate Pushdown Across Expand
+
+Filters that reference only pre-expand scope are pushed *before* Expand:
+
+```text
+Scan → Expand → Filter  ⟶  Scan → Filter → Expand
+```
+
+This is especially important for hypergraphs, as it reduces the number of hyperedges considered during expansion.
+
+Constraints:
+
+* Predicates referencing expanded roles or hyperedge properties cannot be pushed below Expand
+
+
+#### 8.2.2 Expand Reordering
+
+When multiple Expand operators are chained, the optimizer may reorder them if semantics permit.
+
+Heuristics:
+
+* Binary expands before n-ary expands
+* High-selectivity roles before low-selectivity roles
+
+Reordering is allowed only when role bindings are independent and hyperedge materialization semantics are unchanged.
+
+
+#### 8.2.3 Projection Pruning
+
+Unused roles, properties, and hyperedge columns are pruned early to reduce join width and memory pressure.
+
+
+### 8.3 Cost-Based Optimization (Hyperedge-Aware)
+
+Cost-based optimization selects physical execution strategies using estimates derived from hyperedge structure.
+
+#### Core Cost Dimensions
+
+* Hyperedge arity
+* Role selectivity
+* Expand execution mode (binary vs n-ary)
+* Hyperedge materialization cost
+* Cardinality growth
+* Distributed shuffle cost (Ray)
+
+
+#### 8.3.1 Expand Cost Model
+
+Expand is the **dominant cost driver** in Grism.
+
+**Binary Expand (Adjacency-Based)**
+
+* Arity = 2 with `{source, target}` roles
+* O(deg(node)) traversal
+* Uses adjacency or role indexes
+
+**N-ary Expand (Relational Join)**
+
+* Arity > 2 or role-qualified traversal
+* Join-like execution over role bindings
+* Cost grows with arity and fan-out
+
+The optimizer aggressively rewrites n-ary expands into binary projections when semantics allow.
+
+
+### 8.4 Distributed Cost Modeling (Ray)
+
+For Ray execution, the optimizer additionally considers:
+
+* Data locality of Lance fragments
+* Shuffle volume induced by Expand and Aggregate
+* Stage fusion opportunities
+
+
+### 8.5 Optimization Guarantees
+
+The optimizer guarantees that:
+
+1. Expand semantics are never violated
+2. Hyperedge arity and role meaning are preserved
+3. All rewrites are explainable via `hg.explain()`
+4. Cost-based decisions do not affect correctness
+
 
 ## 9. Execution Backends
 
+Grism supports multiple execution backends that share the **same logical plan semantics**. Execution backends differ only in *how* logical operators are executed, never in *what* they compute.
+
+All backends execute **hyperedge-native logical plans**, with `Expand` as the dominant physical operator.
+
+
 ### 9.1 Standalone Rust Engine
 
-**Model**:
+The standalone engine is the **reference execution backend** for Grism. It executes logical plans locally with maximal performance and minimal orchestration overhead.
 
-* Vectorized
-* Async (Tokio)
-* Arrow RecordBatch
+**Execution model**:
+
+* Vectorized, columnar execution
+* Async execution using Tokio
+* Arrow `RecordBatch` as the physical data unit
 
 ```rust
 trait ExecNode {
@@ -385,24 +981,50 @@ trait ExecNode {
 }
 ```
 
-Parallelism:
+Each logical operator is compiled into a corresponding physical operator implementing `ExecNode`.
 
-* Rayon (CPU)
-* Arrow kernels
+**Parallelism**:
+
+* CPU parallelism via Rayon
+* SIMD-optimized Arrow kernels
+* Operator-level pipelining for streaming execution
+
+**Expand execution**:
+
+* Binary expands preferentially use adjacency or role indexes
+* N-ary expands execute as role-binding joins
+* Hyperedge materialization is performed only when required by the logical plan
+
+The standalone engine prioritizes **low latency, predictable performance**, and serves as the semantic baseline for all other backends.
+
 
 ### 9.2 Ray Distributed Engine
 
-**Principle**: Ray orchestrates, Rust executes.
+The Ray backend enables **distributed execution** of the same logical plans across a cluster.
 
-#### Ray Flow
+**Principle**:
+
+> **Ray orchestrates; Rust executes.**
+
+Ray is responsible for task scheduling, data movement, and fault tolerance, while Rust workers perform actual query execution.
+
+
+#### Ray Execution Flow
 
 ```
 Logical Plan
- → Ray Physical Planner
+ → Physical Plan (Ray-aware)
  → Ray DAG (stages)
- → Rust Workers
+ → Rust Worker Tasks
  → Arrow Results
 ```
+
+The physical planner partitions the logical plan into **execution stages**, typically aligned with:
+
+* Expand boundaries
+* Aggregation boundaries
+* Materialization points
+
 
 #### Ray Tasks
 
@@ -412,1778 +1034,203 @@ def execute_stage(fragment, inputs):
     return rust_worker.execute(fragment, inputs)
 ```
 
-Data transport:
+Each task executes a fragment of the physical plan using the same Rust engine as the standalone backend.
 
-* Arrow IPC
-* Ray Plasma store
+**Data transport**:
 
----
+* Arrow IPC for batch serialization
+* Ray Plasma store for zero-copy sharing when possible
+
+**Distributed considerations**:
+
+* Expand-induced fan-out is the primary source of shuffle cost
+* High-selectivity filters are pushed to workers early
+* Hyperedge materialization across stage boundaries is avoided when possible
+
+The Ray backend preserves **identical semantics** to local execution while enabling scale-out execution for large graphs and agent workloads.
+
 
 ## 10. Storage Layer
 
-### 9.1 Lance Datasets
+Grism’s storage layer is built on **Lance**, providing columnar, versioned persistence optimized for analytical and AI workloads.
+
+
+### 10.1 Lance Dataset Layout
 
 ```
 /datasets/
   nodes.lance
-  edges.lance
   hyperedges.lance
   properties.lance
   embeddings.lance
 ```
 
-Features:
+Logical separation is maintained between:
 
-* Append-only
-* Snapshot isolation
-* Time travel
+* **Structural data** (nodes, hyperedges, roles)
+* **Attribute data** (properties)
+* **Vector data** (embeddings)
 
----
+This separation aligns with the hyperedge model and supports independent optimization of structure and content.
+
+
+### 10.2 Storage Properties
+
+* Append-only writes
+* Snapshot isolation (MVCC)
+* Time travel and reproducible queries
+* Arrow-native zero-copy reads
+
+Storage layout is **not exposed** to users or logical planning and may evolve without affecting semantics.
+
 
 ## 11. Indexing
 
-### 10.1 Structural
+Indexes are **physical accelerators** that do not change logical semantics. They exist solely to optimize Expand, Filter, and Scan operations.
 
-* Adjacency lists
-* Role-based indexes
-* Label bitmaps
 
-### 10.2 Vector
+### 11.1 Structural Indexes
 
-* Lance ANN
-* HNSW
+* Adjacency indexes for binary hyperedges
+* Role-based indexes for n-ary hyperedges
+* Label and type bitmaps for fast filtering
 
----
+These indexes primarily accelerate **Expand execution**, especially in adjacency-based traversal.
+
+
+### 11.2 Vector Indexes
+
+* Lance ANN indexes
+* HNSW or equivalent structures
+
+Vector indexes integrate directly with expression evaluation (e.g. `sim()`), enabling hybrid symbolic–vector queries.
+
 
 ## 12. Reasoning & Neurosymbolic Layer
 
-### 11.1 Ontologies
+The reasoning layer treats the hypergraph as **executable knowledge**, not static data.
 
-* OWL / RDFS via `horned-owl`
-* Type inference
 
-### 11.2 Rule Engine
+### 12.1 Ontologies & Typing
 
-* Datalog-style rules
-* Fixpoint execution
-* Graph materialization
+* OWL / RDFS support via `horned-owl`
+* Type inference over nodes and hyperedges
+* Ontological constraints enforced during validation and inference
 
----
+Types participate directly in logical planning and optimization.
 
-## 13. AI & Agent Integration
 
-```rust
-trait CognitiveStore {
-    fn remember(&self, event: Thought);
-    fn recall(&self, intent: Query) -> Subgraph;
-}
-```
+### 12.2 Rule Engine
 
-Use cases:
+* Datalog-style declarative rules
+* Fixpoint evaluation semantics
+* Rules derive **new hyperedges**, not side effects
 
-* Long-term agent memory
-* Planning state
-* Tool grounding
+Rule execution is compiled into logical plans using the `Infer` operator, making reasoning explainable and replayable.
 
----
 
 ## 14. APIs & Interfaces
 
-* Python SDK (primary)
-* gRPC / Arrow Flight
-* Optional GQL / Cypher (debug / interop)
+Grism is **Python-first**, but exposes multiple interfaces for interoperability.
+
+* Python SDK (authoritative)
+* gRPC / Arrow Flight (service integration)
+* Optional GQL / Cypher frontends (debugging / interop only)
 
 ```python
 hg.explain(mode="logical")
-hg.explain(mode="gql")
+hg.explain(mode="physical")
 ```
 
----
+All interfaces compile into the same logical plan representation.
+
 
 ## 15. Transactions & Versioning
 
 * MVCC via Lance snapshots
-* Branchable graph states
-* Deterministic replay
+* Branchable hypergraph states
+* Deterministic replay of logical plans
 
----
+Each query executes against a **stable snapshot**, ensuring consistency across distributed and concurrent execution.
+
 
 ## 16. Security & Governance
 
-* Label-based access control
-* Subgraph isolation
-* Provenance tracking
+* Label- and role-based access control
+* Subgraph-level isolation
+* Provenance tracking via hyperedge-to-hyperedge relations
 
----
+Security is enforced at the **logical plan level**, not as an afterthought in execution.
+
 
 ## 17. Rust & Python Crate Layout
 
 ```
 grism/
-├── grism-core        # graph model, values
-├── grism-logical     # logical plan & algebra
-├── grism-optimizer
-├── grism-engine     # local execution
-├── grism-ray        # Ray planner & workers
+├── grism-core        # hypergraph model, values, roles
+├── grism-logical     # logical plan & operators
+├── grism-optimizer  # rule-based & cost-based optimization
+├── grism-engine     # standalone Rust execution engine
+├── grism-ray        # Ray physical planner & workers
 ├── grism-storage    # Lance integration
-├── grism-reasoning  # logic & ontology
-├── grism-python     # Python DSL (pyo3)
+├── grism-reasoning  # ontology & rule engine
+├── grism-python     # Python DSL (pyo3 bindings)
 ```
 
----
+Crate boundaries reflect **semantic layers**, not implementation convenience.
 
-## 18. Roadmap
 
-1. Hypergraph core + Python DSL
-2. Local execution engine
-3. Ray backend
-4. Reasoning & inference
-5. Agent-native memory
-
----
-
-## Phase 0 – Python API Contract (Frozen v0.1)
-
-> This section defines the **exact Python class and method surface** for Grism. This API is considered the **user contract** and should remain backward-compatible within v0.x.
-
-### 0.1 Core Entry Point
-
-```python
-class HyperGraph:
-    @staticmethod
-    def connect(
-        uri: str,
-        *,
-        executor: "Executor | str" = "local",
-        namespace: str | None = None,
-    ) -> "HyperGraph":
-        """
-        Connect to a Grism hypergraph.
-        
-        Args:
-            uri: Connection URI (e.g., "grism://local", "grism://path/to/data")
-            executor: Execution backend ("local" | "ray" | Executor instance)
-            namespace: Optional namespace for logical graph isolation
-            
-        Returns:
-            HyperGraph instance (immutable, lazy)
-        """
-        ...
-
-    # namespace / logical graph
-    def with_namespace(self, name: str) -> "HyperGraph":
-        """
-        Create a new HyperGraph scoped to a namespace.
-        Returns a new instance; original unchanged.
-        """
-        ...
-
-    # graph views
-    def nodes(self, label: str | None = None) -> "NodeFrame":
-        """
-        Get nodes, optionally filtered by label.
-        
-        Args:
-            label: Node label to filter by (None = all nodes)
-            
-        Returns:
-            NodeFrame (lazy, immutable)
-        """
-        ...
-
-    def edges(self, label: str | None = None) -> "EdgeFrame":
-        """
-        Get edges, optionally filtered by label.
-        
-        Args:
-            label: Edge label to filter by (None = all edges)
-            
-        Returns:
-            EdgeFrame (lazy, immutable)
-        """
-        ...
-
-    def hyperedges(self, label: str | None = None) -> "HyperEdgeFrame":
-        """
-        Get hyperedges, optionally filtered by label.
-        
-        Args:
-            label: Hyperedge label to filter by (None = all hyperedges)
-            
-        Returns:
-            HyperEdgeFrame (lazy, immutable)
-        """
-        ...
-
-    # execution
-    def collect(self, *, executor: "Executor | str | None" = None):
-        """
-        Execute the query and return results.
-        Not applicable on HyperGraph directly; use on frames.
-        """
-        raise TypeError("collect() must be called on a Frame, not HyperGraph")
-
-    def explain(self, mode: str = "logical") -> str:
-        """
-        Explain the query plan.
-        Not applicable on HyperGraph directly; use on frames.
-        """
-        raise TypeError("explain() must be called on a Frame, not HyperGraph")
-```
-
----
-
-### 0.2 Frame Base Class
-
-```python
-class GraphFrame:
-    """
-    Base class for all graph frames (NodeFrame, EdgeFrame, HyperEdgeFrame).
-    
-    Properties:
-        - Immutable: All operations return new frames
-        - Lazy: No execution until .collect() or iteration
-        - Typed: Schema information available via .schema property
-    """
-    
-    @property
-    def schema(self) -> "Schema":
-        """
-        Get the schema of this frame (available columns and types).
-        May be partial if schema cannot be inferred statically.
-        """
-        ...
-    
-    # structural ops
-    def filter(self, predicate: "Expr") -> "Self":
-        """
-        Filter rows based on a predicate expression.
-        
-        Args:
-            predicate: Boolean expression (Expr that evaluates to bool)
-            
-        Returns:
-            New GraphFrame with filtered rows
-            
-        Raises:
-            TypeError: If predicate is not a boolean expression
-            ColumnNotFoundError: If referenced columns don't exist
-        """
-        ...
-
-    def select(self, *columns: str | "Expr", **aliases: "Expr") -> "Self":
-        """
-        Project columns (rename, compute expressions).
-        
-        Args:
-            *columns: Column names or expressions to select
-            **aliases: Keyword arguments for aliased columns
-                      (e.g., name=col("Author.name"))
-        
-        Examples:
-            .select("title", "year")
-            .select(col("title"), col("year") * 2)
-            .select(title=col("Paper.title"), author=col("Author.name"))
-        
-        Returns:
-            New GraphFrame with selected columns only
-            
-        Note:
-            After select(), only selected columns are available in subsequent operations.
-        """
-        ...
-
-    def limit(self, n: int) -> "Self":
-        """
-        Limit the number of rows returned.
-        
-        Args:
-            n: Maximum number of rows (must be positive)
-            
-        Returns:
-            New GraphFrame with limit applied
-            
-        Note:
-            Limit is applied after all filtering and expansion.
-            Ordering is not guaranteed unless explicitly sorted (future feature).
-        """
-        ...
-
-    # grouping
-    def groupby(self, *keys: str | "Expr") -> "GroupedFrame":
-        """
-        Group rows by key expressions.
-        
-        Args:
-            *keys: Column names or expressions to group by
-        
-        Returns:
-            GroupedFrame for aggregation
-            
-        Examples:
-            .groupby("author")
-            .groupby(col("Author.name"), col("Author.affiliation"))
-        """
-        ...
-
-    # execution
-    def collect(
-        self,
-        *,
-        executor: "Executor | str | None" = None,
-        as_pandas: bool = False,
-        as_arrow: bool = False,
-    ) -> "DataFrame | pyarrow.Table | list[dict]":
-        """
-        Execute the query and return results.
-        
-        Args:
-            executor: Override executor for this query (None = use default)
-            as_pandas: Return pandas DataFrame (requires pandas)
-            as_arrow: Return PyArrow Table
-            Default: Return list of dicts
-        
-        Returns:
-            Query results in requested format
-            
-        Raises:
-            ExecutionError: If query execution fails
-        """
-        ...
-
-    def explain(self, mode: str = "logical") -> str:
-        """
-        Explain the query plan.
-        
-        Args:
-            mode: Explanation format
-                - "logical": Logical plan tree
-                - "physical": Physical execution plan
-                - "gql": GraphQL-like representation
-                - "cypher": Cypher query representation
-                
-        Returns:
-            String representation of the plan
-        """
-        ...
-    
-    def __iter__(self):
-        """
-        Iterate over results (triggers execution).
-        Equivalent to iter(collect()).
-        """
-        ...
-```
-
----
-
-### 0.3 NodeFrame
-
-```python
-class NodeFrame(GraphFrame):
-    """
-    Frame representing nodes in the graph.
-    
-    Properties:
-        label: str | None - Node label filter (None = all labels)
-    """
-    
-    label: str | None
-
-    def expand(
-        self,
-        edge: str | None = None,
-        *,
-        to: str | None = None,
-        direction: str = "out",  # "in" | "out" | "both"
-        hops: int = 1,
-        as_: str | None = None,
-    ) -> "NodeFrame":
-        """
-        Expand to adjacent nodes via edges (graph traversal).
-        
-        Args:
-            edge: Edge label to traverse (None = any edge)
-            to: Target node label filter (None = any label)
-            direction: Traversal direction
-                - "out": Follow outgoing edges (default)
-                - "in": Follow incoming edges
-                - "both": Follow edges in both directions
-            hops: Number of hops to traverse (default: 1)
-            as_: Alias for the expanded node frame (for column references)
-        
-        Returns:
-            New NodeFrame representing the expanded nodes
-            
-        Semantics:
-            - Expansion replaces SQL joins; no explicit join() method
-            - Multi-hop expansion (hops > 1) traverses paths of length N
-            - After expansion, both original and expanded node columns are accessible
-            - Edge properties are accessible via edge label (e.g., col("AUTHORED_BY.year"))
-            - If multiple edges match, all are traversed (union semantics)
-            
-        Examples:
-            # Single hop, outgoing
-            hg.nodes("Paper").expand("AUTHORED_BY", to="Author")
-            
-            # Multi-hop
-            hg.nodes("Person").expand("KNOWS", hops=2)
-            
-            # With alias
-            hg.nodes("Paper").expand("AUTHORED_BY", to="Author", as_="author")
-                .filter(col("author.name") == "Alice")
-            
-            # Access edge properties
-            hg.nodes("Paper").expand("CITES")
-                .filter(col("CITES.year") >= 2020)
-        """
-        ...
-```
-
-**Expansion Semantics Details**:
-
-1. **Single-hop expansion** (`hops=1`):
-   - Traverses edges directly connected to source nodes
-   - Returns target nodes (or source nodes for `direction="in"`)
-
-2. **Multi-hop expansion** (`hops=N`):
-   - Traverses paths of exactly N edges
-   - Intermediate nodes are not included in the result
-   - Path properties are accessible via path expressions (future feature)
-
-3. **Column scoping after expansion**:
-   - Original frame columns remain accessible (e.g., `col("Paper.title")`)
-   - Expanded node columns accessible via:
-     - Alias: `col("author.name")` if `as_="author"`
-     - Label: `col("Author.name")` if label is unique
-     - Edge label: `col("AUTHORED_BY.year")` for edge properties
-   - If label collision occurs, alias must be used
-
-4. **Direction semantics**:
-   - `"out"`: Source → Target (follow edges from source to target)
-   - `"in"`: Target → Source (reverse traversal)
-   - `"both"`: Union of both directions
-
----
-
-### 0.4 EdgeFrame
-
-```python
-class EdgeFrame(GraphFrame):
-    """
-    Frame representing edges in the graph.
-    
-    Properties:
-        label: str | None - Edge label filter (None = all labels)
-    """
-    
-    label: str | None
-
-    def endpoints(self, which: str = "target") -> "NodeFrame":
-        """
-        Get nodes connected by these edges.
-        
-        Args:
-            which: Which endpoint to return
-                - "source": Source nodes (for directed edges)
-                - "target": Target nodes (for directed edges)
-                - "both": All endpoints (union)
-                
-        Returns:
-            NodeFrame containing the endpoint nodes
-            
-        Note:
-            For hyperedges, use HyperEdgeFrame.where_role() instead.
-        """
-        ...
-    
-    def source(self) -> "NodeFrame":
-        """Convenience method for endpoints("source")."""
-        ...
-    
-    def target(self) -> "NodeFrame":
-        """Convenience method for endpoints("target")."""
-        ...
-```
-
----
-
-### 0.5 HyperEdgeFrame
-
-```python
-class HyperEdgeFrame(GraphFrame):
-    """
-    Frame representing hyperedges (N-ary relationships).
-    
-    Properties:
-        label: str | None - Hyperedge label filter (None = all labels)
-    """
-    
-    label: str | None
-
-    def where_role(
-        self,
-        role: str,
-        value: str | "NodeFrame" | "Expr",
-    ) -> "HyperEdgeFrame":
-        """
-        Filter hyperedges where a role matches a value.
-        
-        Args:
-            role: Role name to filter by
-            value: Value to match (string, NodeFrame, or expression)
-            
-        Returns:
-            New HyperEdgeFrame with filtered hyperedges
-            
-        Examples:
-            # Filter by role value (string)
-            hg.hyperedges("Event").where_role("participant", "Alice")
-            
-            # Filter by role value (node frame)
-            hg.hyperedges("Event").where_role("participant", hg.nodes("Person"))
-            
-            # Filter by role value (expression)
-            hg.hyperedges("Event").where_role("participant", col("Person.name"))
-        """
-        ...
-    
-    def roles(self) -> "list[str]":
-        """
-        Get all role names present in this hyperedge frame.
-        Returns empty list if schema is unknown.
-        """
-        ...
-```
-
----
-
-### 0.6 GroupedFrame
-
-```python
-class GroupedFrame:
-    """
-    Frame representing grouped rows (result of groupby()).
-    
-    Cannot be used directly; must call agg() to produce a GraphFrame.
-    """
-    
-    def agg(self, **aggregations: "AggExpr") -> "GraphFrame":
-        """
-        Apply aggregations to grouped rows.
-        
-        Args:
-            **aggregations: Aggregation expressions keyed by output column names
-            
-        Returns:
-            GraphFrame with one row per group
-            
-        Examples:
-            .groupby("author").agg(count=count(), total=sum(col("citations")))
-            .groupby("year").agg(
-                papers=count(),
-                avg_citations=avg(col("citations")),
-                top_paper=max(col("title"))
-            )
-        """
-        ...
-    
-    def count(self) -> "GraphFrame":
-        """
-        Convenience method: count rows per group.
-        Equivalent to .agg(count=count()).
-        """
-        ...
-```
-
-**Aggregation Semantics**:
-
-1. **Grouping keys**: All grouping expressions become columns in the output
-2. **Aggregation functions**: Applied per group, produce scalar values
-3. **Null handling**: `NULL` values are ignored in aggregations (except `count(*)`)
-4. **Empty groups**: Groups with no rows produce `NULL` for all aggregations
-
----
-
-### 0.7 Expression System (Public API)
-
-```python
-class Expr:
-    """
-    Base class for all expressions.
-    
-    Expressions are immutable and composable.
-    Evaluation happens at execution time.
-    """
-    
-    def __and__(self, other: "Expr") -> "Expr":
-        """Logical AND: self & other"""
-        ...
-    
-    def __or__(self, other: "Expr") -> "Expr":
-        """Logical OR: self | other"""
-        ...
-    
-    def __invert__(self) -> "Expr":
-        """Logical NOT: ~self"""
-        ...
-    
-    def __eq__(self, other) -> "Expr":
-        """Equality: self == other"""
-        ...
-    
-    def __ne__(self, other) -> "Expr":
-        """Inequality: self != other"""
-        ...
-    
-    def __gt__(self, other) -> "Expr":
-        """Greater than: self > other"""
-        ...
-    
-    def __ge__(self, other) -> "Expr":
-        """Greater than or equal: self >= other"""
-        ...
-    
-    def __lt__(self, other) -> "Expr":
-        """Less than: self < other"""
-        ...
-    
-    def __le__(self, other) -> "Expr":
-        """Less than or equal: self <= other"""
-        ...
-    
-    def __add__(self, other) -> "Expr":
-        """Addition: self + other"""
-        ...
-    
-    def __sub__(self, other) -> "Expr":
-        """Subtraction: self - other"""
-        ...
-    
-    def __mul__(self, other) -> "Expr":
-        """Multiplication: self * other"""
-        ...
-    
-    def __truediv__(self, other) -> "Expr":
-        """Division: self / other"""
-        ...
-    
-    def __mod__(self, other) -> "Expr":
-        """Modulo: self % other"""
-        ...
-    
-    def is_null(self) -> "Expr":
-        """Check if expression is NULL"""
-        ...
-    
-    def is_not_null(self) -> "Expr":
-        """Check if expression is not NULL"""
-        ...
-    
-    def coalesce(self, *values) -> "Expr":
-        """Return first non-NULL value"""
-        ...
-
-
-# Expression construction helpers
-
-def col(name: str) -> Expr:
-    """
-    Reference a column by name.
-    
-    Args:
-        name: Column name (qualified: "Label.column" or unqualified: "column")
-        
-    Returns:
-        Column reference expression
-        
-    Examples:
-        col("name")
-        col("Author.name")
-        col("Paper.title")
-    """
-    ...
-
-
-def lit(value: Any) -> Expr:
-    """
-    Create a literal value expression.
-    
-    Args:
-        value: Python value (int, float, str, bool, None, list, etc.)
-        
-    Returns:
-        Literal expression
-        
-    Examples:
-        lit(42)
-        lit("Alice")
-        lit([1, 2, 3])
-    """
-    ...
-
-
-def sim(left: Expr, right: Expr | "np.ndarray") -> Expr:
-    """
-    Compute similarity between two vectors (cosine similarity).
-    
-    Args:
-        left: Expression evaluating to a vector
-        right: Expression or numpy array
-        
-    Returns:
-        Expression evaluating to similarity score (0.0 to 1.0)
-        
-    Examples:
-        sim(col("embedding"), query_vector)
-        sim(col("Paper.embedding"), col("Query.embedding"))
-    """
-    ...
-
-
-def contains(expr: Expr, substring: str) -> Expr:
-    """
-    Check if string contains substring.
-    
-    Args:
-        expr: Expression evaluating to a string
-        substring: Substring to search for
-        
-    Returns:
-        Boolean expression
-    """
-    ...
-
-
-def cast(expr: Expr, target_type: str) -> Expr:
-    """
-    Cast expression to target type.
-    
-    Args:
-        expr: Expression to cast
-        target_type: Target type ("int", "float", "string", "bool", etc.)
-        
-    Returns:
-        Cast expression
-    """
-    ...
-
-
-def len_(expr: Expr) -> Expr:
-    """
-    Get length of array or string.
-    
-    Args:
-        expr: Expression evaluating to array or string
-        
-    Returns:
-        Integer expression
-    """
-    ...
-```
-
----
-
-### 0.8 Aggregations
-
-```python
-class AggExpr:
-    """
-    Aggregation expression (used in groupby().agg()).
-    """
-    ...
-
-
-def count(expr: Expr | None = None) -> AggExpr:
-    """
-    Count rows (or non-NULL values if expr provided).
-    
-    Args:
-        expr: Optional expression to count non-NULL values of
-        
-    Returns:
-        Aggregation expression
-        
-    Examples:
-        count()  # Count all rows
-        count(col("author"))  # Count non-NULL authors
-    """
-    ...
-
-
-def sum(expr: Expr) -> AggExpr:
-    """
-    Sum values.
-    
-    Args:
-        expr: Numeric expression
-        
-    Returns:
-        Aggregation expression
-    """
-    ...
-
-
-def avg(expr: Expr) -> AggExpr:
-    """
-    Average values.
-    
-    Args:
-        expr: Numeric expression
-        
-    Returns:
-        Aggregation expression
-    """
-    ...
-
-
-def min(expr: Expr) -> AggExpr:
-    """
-    Minimum value.
-    
-    Args:
-        expr: Comparable expression
-        
-    Returns:
-        Aggregation expression
-    """
-    ...
-
-
-def max(expr: Expr) -> AggExpr:
-    """
-    Maximum value.
-    
-    Args:
-        expr: Comparable expression
-        
-    Returns:
-        Aggregation expression
-    """
-    ...
-
-
-def collect(expr: Expr) -> AggExpr:
-    """
-    Collect values into an array.
-    
-    Args:
-        expr: Expression to collect
-        
-    Returns:
-        Aggregation expression (returns array of values)
-    """
-    ...
-```
-
----
-
-### 0.9 Mutation API (Explicit)
-
-```python
-class HyperGraph:
-    """
-    Mutation operations are explicit and return new graph states.
-    """
-    
-    def insert_node(
-        self,
-        label: str,
-        properties: dict[str, Any] | None = None,
-        *,
-        id: int | None = None,
-    ) -> "HyperGraph":
-        """
-        Insert a node.
-        
-        Args:
-            label: Node label
-            properties: Node properties (dict)
-            id: Optional node ID (auto-generated if None)
-            
-        Returns:
-            New HyperGraph instance with node inserted
-            
-        Note:
-            Mutations are not immediately visible in the same transaction
-            until committed (future feature).
-        """
-        ...
-    
-    def insert_edge(
-        self,
-        label: str,
-        src: int | "NodeFrame",
-        dst: int | "NodeFrame",
-        properties: dict[str, Any] | None = None,
-    ) -> "HyperGraph":
-        """
-        Insert an edge.
-        
-        Args:
-            label: Edge label
-            src: Source node ID or NodeFrame (must be single node)
-            dst: Target node ID or NodeFrame (must be single node)
-            properties: Edge properties (dict)
-            
-        Returns:
-            New HyperGraph instance with edge inserted
-        """
-        ...
-    
-    def insert_hyperedge(
-        self,
-        label: str,
-        roles: dict[str, int | "NodeFrame"],
-        properties: dict[str, Any] | None = None,
-    ) -> "HyperGraph":
-        """
-        Insert a hyperedge.
-        
-        Args:
-            label: Hyperedge label
-            roles: Role-to-node mapping (dict[str, node_id | NodeFrame])
-            properties: Hyperedge properties (dict)
-            
-        Returns:
-            New HyperGraph instance with hyperedge inserted
-            
-        Examples:
-            hg.insert_hyperedge(
-                "Event",
-                roles={"participant": alice_id, "location": mit_id},
-                properties={"date": "2024-01-01"}
-            )
-        """
-        ...
-    
-    def delete_node(self, node_id: int) -> "HyperGraph":
-        """Delete a node (and all connected edges)."""
-        ...
-    
-    def delete_edge(self, edge_id: int) -> "HyperGraph":
-        """Delete an edge."""
-        ...
-    
-    def commit(self) -> "HyperGraph":
-        """
-        Commit pending mutations.
-        Returns new HyperGraph instance with mutations applied.
-        """
-        ...
-```
-
-**Mutation Semantics**:
-
-1. **Immutability**: All mutations return new `HyperGraph` instances
-2. **Batching**: Multiple mutations can be chained before `commit()`
-3. **Validation**: Node/edge existence checked at commit time
-4. **Cascading**: Deleting a node deletes all connected edges
-
----
-
-### 0.10 Execution Backends
-
-```python
-class Executor:
-    """
-    Base class for execution backends.
-    """
-    name: str
-    
-    def execute(self, plan: "LogicalPlan") -> "Result":
-        """Execute a logical plan."""
-        ...
-
-
-class LocalExecutor(Executor):
-    """
-    Local single-machine executor.
-    """
-    def __init__(
-        self,
-        *,
-        parallelism: int | None = None,  # None = auto-detect
-        memory_limit: int | None = None,  # bytes
-    ):
-        """
-        Args:
-            parallelism: Number of parallel threads (None = CPU count)
-            memory_limit: Memory limit in bytes (None = no limit)
-        """
-        ...
-
-
-class RayExecutor(Executor):
-    """
-    Ray-distributed executor.
-    """
-    def __init__(
-        self,
-        *,
-        num_workers: int | None = None,
-        resources: dict[str, float] | None = None,
-        **ray_config,
-    ):
-        """
-        Args:
-            num_workers: Number of Ray workers (None = auto-scale)
-            resources: Resource requirements per task
-            **ray_config: Additional Ray configuration
-        """
-        ...
-```
-
----
-
-### 0.11 Canonical Usage Examples
-
-```python
-# Example 1: Basic query
-hg = HyperGraph.connect("grism://local")
-
-result = (
-    hg.nodes("Paper")
-      .filter(col("year") >= 2022)
-      .expand("CITES")
-      .filter(sim(col("embedding"), query_emb) > 0.8)
-      .select("title")
-      .limit(10)
-      .collect()
-)
-
-# Example 2: Multi-hop expansion with aliases
-result = (
-    hg.nodes("Person")
-      .expand("KNOWS", hops=2, as_="friend")
-      .filter(col("friend.age") > 25)
-      .select("name", friend_name=col("friend.name"))
-      .collect()
-)
-
-# Example 3: Aggregation
-result = (
-    hg.nodes("Paper")
-      .expand("AUTHORED_BY", to="Author")
-      .groupby("Author.name")
-      .agg(
-          paper_count=count(),
-          avg_citations=avg(col("Paper.citations")),
-          top_paper=max(col("Paper.title"))
-      )
-      .collect()
-)
-
-# Example 4: Hyperedge query
-result = (
-    hg.hyperedges("Event")
-      .where_role("participant", hg.nodes("Person").filter(col("name") == "Alice"))
-      .where_role("location", "MIT")
-      .select("date", "description")
-      .collect()
-)
-
-# Example 5: Complex filtering
-result = (
-    hg.nodes("Paper")
-      .filter(
-          (col("year") >= 2020) &
-          (col("year") <= 2023) &
-          (col("citations") > 10) &
-          col("title").is_not_null()
-      )
-      .expand("AUTHORED_BY", to="Author", as_="author")
-      .filter(col("author.affiliation") == "MIT")
-      .select(
-          title=col("Paper.title"),
-          author=col("author.name"),
-          year=col("Paper.year")
-      )
-      .limit(100)
-      .collect()
-)
-```
-
----
-
-### Phase 0 Completion Criteria
-
-* Python API frozen
-* 10 reference examples
-* LogicalPlan lowering validated
-* No execution logic in Python layer
-* Column scoping rules documented and tested
-* Type system semantics specified
-
----
-
-## Phase 1.1 – Canonical Rust LogicalPlan (Frozen v0.1)
-
-> This section defines the **canonical Rust logical representation** for Grism. All execution backends (local, Ray, future engines) must consume this plan **without semantic loss**.
-
----
-
-### 1.1.1 Design Principles
-
-* Execution-agnostic
-* Deterministic & replayable
-* Serializable (Serde)
-* Graph-native (no SQL bias)
-* Expression trees are immutable
-* Type information preserved through plan
-
----
-
-### 1.1.2 Core Identifiers
-
-```rust
-pub type NodeId = u64;
-pub type EdgeId = u64;
-pub type Label = String;
-pub type Role = String;
-pub type Column = String;
-pub type Alias = String;
-```
-
----
-
-### 1.1.3 LogicalPlan Root
-
-```rust
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct LogicalPlan {
-    pub root: LogicalOp,
-    pub schema: Option<Schema>, // Output schema (if known)
-}
-```
-
----
-
-### 1.1.4 Logical Operators
-
-```rust
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum LogicalOp {
-    Scan(ScanOp),
-    Expand(ExpandOp),
-    Filter(FilterOp),
-    Project(ProjectOp),
-    Aggregate(AggregateOp),
-    Limit(LimitOp),
-    Infer(InferOp),
-}
-```
-
-Each operator:
-
-* Has exactly **one input** (except Scan)
-* Forms a strict DAG (tree in v0.1)
-* Carries schema information (input and output)
-
----
-
-### 1.1.5 ScanOp
-
-```rust
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ScanOp {
-    pub kind: ScanKind,
-    pub label: Option<Label>,
-    pub namespace: Option<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum ScanKind {
-    Node,
-    Edge,
-    HyperEdge,
-}
-```
-
-Semantics:
-
-* Entry point of all plans
-* No filtering here (pushdown happens later)
-* Namespace scoping for multi-tenant scenarios
-
----
-
-### 1.1.6 ExpandOp (Graph Primitive)
-
-```rust
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ExpandOp {
-    pub input: Box<LogicalOp>,
-    pub edge_label: Option<Label>,
-    pub to_label: Option<Label>,
-    pub direction: Direction,
-    pub hops: u32,
-    pub alias: Option<Alias>, // Binding name for expanded nodes
-    pub edge_alias: Option<Alias>, // Binding name for edges (for edge properties)
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Direction {
-    In,
-    Out,
-    Both,
-}
-```
-
-Invariants:
-
-* `Expand` replaces joins
-* Multi-hop is explicit (`hops` parameter)
-* Alias introduces a new binding scope
-* Edge alias allows accessing edge properties
-* Schema after expand includes both input and expanded columns
-
-**Column Binding After Expand**:
-
-After an `ExpandOp`, the output schema contains:
-1. All columns from `input` (with original qualifiers)
-2. Columns from expanded nodes (qualified by `alias` or `to_label`)
-3. Edge properties (qualified by `edge_alias` or `edge_label`)
-
----
-
-### 1.1.7 FilterOp
-
-```rust
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FilterOp {
-    pub input: Box<LogicalOp>,
-    pub predicate: LogicalExpr, // Must evaluate to bool
-}
-```
-
-Semantics:
-
-* Predicate must be a boolean expression
-* Three-valued logic: `true`, `false`, `NULL`
-* Rows where predicate is `NULL` are filtered out (SQL-style)
-
----
-
-### 1.1.8 ProjectOp
-
-```rust
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ProjectOp {
-    pub input: Box<LogicalOp>,
-    pub columns: Vec<Projection>, // Named expressions
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Projection {
-    pub expr: LogicalExpr,
-    pub alias: Option<String>, // Output column name
-}
-```
-
-Semantics:
-
-* Only projected columns are available after Project
-* Column names can be aliased
-* Expressions can reference any column from input schema
-
----
-
-### 1.1.9 AggregateOp
-
-```rust
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct AggregateOp {
-    pub input: Box<LogicalOp>,
-    pub keys: Vec<LogicalExpr>, // Grouping keys
-    pub aggs: Vec<AggExpr>, // Aggregations
-}
-```
-
-Semantics:
-
-* Grouping keys become columns in output
-* One row per unique combination of grouping keys
-* Aggregations applied per group
-
----
-
-### 1.1.10 LimitOp
-
-```rust
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct LimitOp {
-    pub input: Box<LogicalOp>,
-    pub limit: usize,
-    pub offset: Option<usize>, // For pagination (future)
-}
-```
-
-Semantics:
-
-* Limits number of rows returned
-* Ordering not guaranteed (unless explicitly sorted - future feature)
-* Applied after all filtering and expansion
-
----
-
-### 1.1.11 InferOp (Reasoning Placeholder)
-
-```rust
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct InferOp {
-    pub input: Box<LogicalOp>,
-    pub rule_set: String, // Identifier for rule set
-    pub materialize: bool, // Whether to materialize inferred edges
-}
-```
-
-Semantics:
-
-* Applies rule-based inference to input
-* Can materialize inferred edges back into graph
-* Rule sets defined separately (Datalog-style)
-
----
-
-### 1.1.12 Expression System
-
-```rust
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum LogicalExpr {
-    Column(ColumnRef),
-    Literal(Value),
-    Binary {
-        left: Box<LogicalExpr>,
-        op: BinaryOp,
-        right: Box<LogicalExpr>,
-    },
-    Unary {
-        op: UnaryOp,
-        expr: Box<LogicalExpr>,
-    },
-    Func(FuncExpr),
-    Cast {
-        expr: Box<LogicalExpr>,
-        target_type: DataType,
-    },
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum UnaryOp {
-    Not, // Logical NOT
-    Neg, // Numeric negation
-    IsNull,
-    IsNotNull,
-}
-```
-
----
-
-### 1.1.13 ColumnRef
-
-```rust
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ColumnRef {
-    pub qualifier: Option<String>, // Label, alias, or edge label
-    pub name: String, // Column/property name
-}
-
-impl ColumnRef {
-    pub fn resolve(&self, schema: &Schema) -> Result<ColumnId, ResolutionError> {
-        // Resolution logic: check qualifier, then unqualified search
-    }
-}
-```
-
-**Resolution Algorithm**:
-
-1. If `qualifier` is present:
-   - Search for entity (label/alias) matching qualifier in schema
-   - If found, resolve `name` within that entity's properties
-   - If not found, return `ResolutionError::QualifierNotFound`
-
-2. If `qualifier` is absent:
-   - Search all entities in schema (reverse order of addition)
-   - If exactly one match, return it
-   - If multiple matches, return `ResolutionError::Ambiguous`
-   - If no match, return `ResolutionError::NotFound`
-
----
-
-### 1.1.14 BinaryOp
-
-```rust
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum BinaryOp {
-    // Comparison
-    Eq, Neq, Gt, Gte, Lt, Lte,
-    // Logical
-    And, Or,
-    // Arithmetic
-    Add, Sub, Mul, Div, Mod,
-    // String
-    Like, // Pattern matching (future)
-    // Vector
-    Similarity, // Special handling for vector similarity
-}
-```
-
----
-
-### 1.1.15 Function Expressions
-
-```rust
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FuncExpr {
-    pub name: String,
-    pub args: Vec<LogicalExpr>,
-    pub return_type: Option<DataType>, // Inferred or explicit
-}
-
-// Built-in functions
-pub enum BuiltinFunc {
-    Sim, // Similarity
-    Contains,
-    Len,
-    Coalesce,
-    // ... more
-}
-```
-
-Examples:
-
-* `sim(a, b)` → `FuncExpr { name: "sim", args: [a, b] }`
-* `contains(text, "LLM")` → `FuncExpr { name: "contains", args: [text, lit("LLM")] }`
-
----
-
-### 1.1.16 Aggregation Expressions
-
-```rust
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct AggExpr {
-    pub func: AggFunc,
-    pub expr: Option<LogicalExpr>, // None for count(*)
-    pub alias: Option<String>, // Output column name
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum AggFunc {
-    Count,
-    Sum,
-    Avg,
-    Min,
-    Max,
-    Collect, // Array aggregation
-    // ... more
-}
-```
-
----
-
-### 1.1.17 Schema System
-
-```rust
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Schema {
-    pub columns: Vec<ColumnInfo>,
-    pub entities: Vec<EntityInfo>, // Labels/aliases in scope
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ColumnInfo {
-    pub name: String,
-    pub qualifier: Option<String>, // Entity qualifier
-    pub data_type: DataType,
-    pub nullable: bool,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct EntityInfo {
-    pub name: String, // Label or alias
-    pub kind: EntityKind, // Node, Edge, HyperEdge
-    pub columns: Vec<String>, // Available properties
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum EntityKind {
-    Node,
-    Edge,
-    HyperEdge,
-}
-```
-
----
-
-### 1.1.18 Type System
-
-```rust
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum DataType {
-    Int64,
-    Float64,
-    Bool,
-    String,
-    Binary,
-    Vector(usize), // Dimension
-    Timestamp,
-    Date,
-    Array(Box<DataType>), // Nested arrays
-    Null, // Unknown type
-}
-```
-
-**Type Inference Rules**:
-
-1. **Literals**: Type inferred from Python value
-2. **Columns**: Type from schema (if available)
-3. **Binary ops**: Type promotion rules (e.g., `Int + Float → Float`)
-4. **Functions**: Return type from function signature
-5. **Aggregations**: Return type from aggregation function
-
----
-
-### 1.1.19 Serialization Guarantees
-
-* `serde_json` for debugging and human-readable formats
-* `bincode` / Arrow IPC for execution (binary, efficient)
-* Hash-stable for caching (deterministic serialization)
-* Versioned schema for forward/backward compatibility
-
----
-
-### 1.1.20 Example Lowering (Python → Rust)
-
-```python
-hg.nodes("Paper") \
-  .filter(col("year") >= 2022) \
-  .expand("CITES", to="Paper", as_="cited") \
-  .filter(col("cited.year") >= 2020) \
-  .select("Paper.title", cited_title=col("cited.title")) \
-  .limit(10)
-```
-
-Lowered to:
-
-```text
-Limit(limit=10)
- └─ Project(columns=[
-      Projection(expr=ColumnRef(qualifier="Paper", name="title"), alias=None),
-      Projection(expr=ColumnRef(qualifier="cited", name="title"), alias="cited_title")
-    ])
-    └─ Filter(predicate=Binary(
-         left=ColumnRef(qualifier="cited", name="year"),
-         op=Gte,
-         right=Literal(Int64(2020))
-       ))
-       └─ Expand(
-            input=...,
-            edge_label="CITES",
-            to_label="Paper",
-            alias="cited",
-            direction=Out,
-            hops=1
-          )
-          └─ Filter(predicate=Binary(
-               left=ColumnRef(qualifier=None, name="year"),
-               op=Gte,
-               right=Literal(Int64(2022))
-             ))
-             └─ Scan(kind=Node, label="Paper")
-```
-
----
-
-### Phase 1.1 Completion Criteria
-
-* LogicalPlan fully specified
-* Python lowering produces this plan
-* Optimizer consumes this plan
-* No backend-specific logic present
-* Column resolution algorithm specified
-* Type system and inference rules documented
-* Schema propagation through operators defined
-
----
-
-## 19. Design Details & Semantics
+## 18. Design Details & Semantics
 
 ### 18.1 Lazy Evaluation Guarantees
 
-**Frame Immutability**:
-* All frame operations return new frame instances
-* Original frames are never modified
-* Structural sharing of logical plans for memory efficiency
+**Frame immutability**:
 
-**Execution Triggering**:
-* Execution only happens on `.collect()` or iteration
-* Multiple `.collect()` calls on the same frame may re-execute (no caching by default)
-* `.explain()` does not trigger execution
+* All operations return new Frames
+* Original Frames are never modified
+* Logical plans use structural sharing
 
-**Plan Construction**:
-* Plans are built incrementally as operations are chained
-* No validation until execution (or explicit `.validate()` call)
-* Plans can be serialized and deserialized
+**Execution triggering**:
+
+* Execution occurs only on `.collect()` or iteration
+* `.explain()` never triggers execution
+* No implicit caching by default
+
 
 ### 18.2 Error Handling
 
-**Error Categories**:
+Errors are categorized by phase:
 
-1. **Construction Errors** (raised at frame creation):
-   - Invalid parameters (e.g., negative limit)
-   - Type errors in expressions (if types can be inferred)
+1. **Construction errors**: invalid API usage
+2. **Validation errors**: semantic or type violations
+3. **Execution errors**: runtime or system failures
 
-2. **Validation Errors** (raised at plan validation):
-   - Column not found
-   - Ambiguous column reference
-   - Type mismatch in expressions
-   - Invalid aggregation (e.g., aggregating non-numeric)
+All errors include **logical plan lineage** for explainability.
 
-3. **Execution Errors** (raised at runtime):
-   - Storage errors (file not found, permission denied)
-   - Out of memory
-   - Network errors (for distributed execution)
-
-**Error Messages**:
-* Include frame lineage (which operations led to error)
-* Suggest similar column names for typos
-* Provide context (e.g., "Column 'name' not found. Did you mean 'Name'?")
 
 ### 18.3 Performance Considerations
 
-**Optimization Hints** (future feature):
-```python
-hg.nodes("Paper").hint(index="year_idx").filter(col("year") >= 2022)
-```
-
-**Query Caching**:
-* Plans can be hashed for caching
-* User-controlled cache invalidation
-* Cache key includes data version/snapshot
-
-**Memory Management**:
 * Streaming execution for large results
-* Arrow RecordBatch batching
-* Memory limits enforced per executor
+* Arrow `RecordBatch` batching
+* Per-executor memory limits
+
+Future features may include explicit optimization hints and plan caching.
+
 
 ### 18.4 Concurrency Model
 
-**Read Operations**:
-* Multiple concurrent reads supported (MVCC)
+**Reads**:
+
+* Fully concurrent
 * Snapshot isolation per query
 
-**Write Operations**:
-* Writes are serialized (single writer)
-* Optimistic concurrency control (conflict detection at commit)
+**Writes**:
 
-**Distributed Execution**:
-* Ray executor handles task distribution
-* Data locality considered in physical planning
-* Shuffle operations for distributed joins/aggregations
+* Serialized commits
+* Optimistic conflict detection
 
----
+**Distributed execution**:
 
-## 20. One-Sentence Summary
-
-> **Grism exposes hypergraphs as `HyperGraph`—a lazy, typed Python object model analogous to `DataFrame` for tables, whose only job is to express intent; all semantics live in the Rust logical engine.**
-
----
-
-## Appendix A: Python DSL Grammar (Informal)
-
-```
-Frame := NodeFrame | EdgeFrame | HyperEdgeFrame
-NodeFrame := hg.nodes([label]) [.operation]*
-EdgeFrame := hg.edges([label]) [.operation]*
-HyperEdgeFrame := hg.hyperedges([label]) [.operation]*
-
-operation := filter(expr)
-           | select(*columns, **aliases)
-           | expand(edge, to=label, direction=direction, hops=n, as_=alias)
-           | groupby(*keys)
-           | limit(n)
-           | collect([executor])
-           | explain([mode])
-
-expr := col(name)
-      | lit(value)
-      | expr op expr
-      | func(expr, ...)
-      | expr.is_null()
-      | expr.is_not_null()
-
-op := == | != | > | >= | < | <= | & | | | + | - | * | /
-
-func := sim | contains | cast | len | coalesce | ...
-
-agg := count([expr]) | sum(expr) | avg(expr) | min(expr) | max(expr) | ...
-```
-
----
-
-## Appendix B: Column Resolution Examples
-
-```python
-# Example 1: Unqualified name (unique)
-hg.nodes("Paper").filter(col("year") >= 2022)
-# Resolves: Paper.year ✓
-
-# Example 2: Unqualified name (ambiguous)
-hg.nodes("Paper").expand("AUTHORED_BY", to="Author")
-  .filter(col("name") == "Alice")  # Error: ambiguous (Paper.name? Author.name?)
-# Must use: col("Author.name")
-
-# Example 3: Qualified name (via label)
-hg.nodes("Paper").expand("AUTHORED_BY", to="Author")
-  .filter(col("Author.name") == "Alice")  # Resolves: Author.name ✓
-
-# Example 4: Qualified name (via alias)
-hg.nodes("Paper").expand("AUTHORED_BY", to="Author", as_="author")
-  .filter(col("author.name") == "Alice")  # Resolves: author.name ✓
-
-# Example 5: Edge properties
-hg.nodes("Paper").expand("AUTHORED_BY", to="Author")
-  .filter(col("AUTHORED_BY.year") >= 2020)  # Resolves: AUTHORED_BY.year ✓
-
-# Example 6: After select (only selected columns available)
-hg.nodes("Paper").expand("AUTHORED_BY", to="Author")
-  .select("Paper.title", author_name=col("Author.name"))
-  .filter(col("title") == "AI Paper")  # Resolves: Paper.title ✓
-  .filter(col("author_name") == "Alice")  # Resolves: alias ✓
-  .filter(col("Author.name") == "Alice")  # Error: not in schema after select
-```
-
----
-
-## Appendix C: Type Coercion Rules
-
-| Left Type | Right Type | Coercion | Result |
-|-----------|------------|----------|--------|
-| Int64 | Float64 | Int → Float | Float64 |
-| Float64 | Int64 | Int → Float | Float64 |
-| String | Int64 | None | Error |
-| Int64 | String | None | Error |
-| Any | Null | Keep left | Left type |
-| Null | Any | Keep right | Right type |
-
-**Explicit Coercion**:
-```python
-cast(col("age"), "float")  # Int64 → Float64
-cast(col("score"), "string")  # Float64 → String
-```
-
----
-
-## Appendix D: Future Extensions (Not in v0.1)
-
-* **Ordering**: `.orderby()` for deterministic sorting
-* **Deduplication**: `.distinct()` for removing duplicates
-* **Union/Intersection**: Set operations on frames
-* **Subqueries**: Nested queries in expressions
-* **Window Functions**: `.over()` for analytical functions
-* **Recursive Expansion**: `.expand_recursive()` for graph algorithms
-* **Path Queries**: Path expressions and pattern matching
-* **Temporal Queries**: Time-travel and version queries
-* **Full-text Search**: `.search()` for text indexing
-* **Graph Algorithms**: Built-in algorithms (PageRank, etc.)
+* Ray handles task scheduling and retries
+* Physical planning considers data locality and Expand fan-out
+* Shuffle is treated as a first-class cost
