@@ -1,0 +1,200 @@
+MATCH (f:Filing)-[:BENEFITS]->(e:Entity)-[:COUNTRY]->(c:Country) WITH c.name AS country, COUNT(e) AS entityCount ORDER BY entityCount DESC LIMIT 3 RETURN country, entityCount
+MATCH (o:Organization)-[:HAS_CEO]->(ceo:Person) WHERE o.isPublic = false RETURN o.name AS OrganizationName, ceo.name AS CEOName LIMIT 3
+MATCH (s:Stream)-[:PLAYS]->(g:Game) WHERE s.total_view_count > 50000000 RETURN DISTINCT g.name
+MATCH (n:Article) -[:HAS_KEY]->(m:Keyword) WITH DISTINCT n, m RETURN n.abstract AS abstract, count(m) AS count ORDER BY count DESC LIMIT 7
+MATCH (n:Author) WHERE n.first_name STARTS WITH 'Jea' RETURN n
+MATCH (b:Business)-[:IN_CATEGORY]->(c:Category) WHERE b.city = 'San Mateo' RETURN DISTINCT c.name AS category
+MATCH (a:Article{title:'Maslov class and minimality in Calabi-Yau manifolds'})-[*3]->(n) RETURN labels(n) AS FarNodes
+MATCH (m:Movie) WHERE m.released >= 1990 AND m.released <= 2000   AND m.votes > 5000 RETURN m.title, m.released, m.votes
+MATCH (n:Article) -[:HAS_KEY]->(m:Keyword) WITH DISTINCT n, m RETURN n.title AS title, count(m) AS count LIMIT 20
+MATCH (m:Movie) RETURN m ORDER BY m.budget DESC LIMIT 1
+MATCH p=shortestPath((a:Categories{category_id:'978aee6db23fc939cec71ac05eb15b7a'})-[*]-(e:Article{comments:'18 pages, latex2e with amsfonts. Final version, accepted for   publication'})) RETURN nodes(p)
+MATCH (n:Journal), (:Topic {description: 'Collection of terms related to polynomials, including their coefficients, bases, preservation, trends, and orthogonalities, as well as concepts such as Grobner bases, resultants, and Verblunsky coefficients, with applications in various fields such as reliability, physics, and algebraic geometry.'}) WHERE NOT (n) --> (:Topic) RETURN n.name
+MATCH (a:DOI{doi_id:'fe8768ee88f2d27ed51861639e63a4ff'})-[*3]->(n) RETURN labels(n) AS FarNodes
+MATCH (d:Author)-[r]->(n) WHERE d.first_name CONTAINS 'R.' RETURN n, TYPE(r)
+MATCH (a:Actor)-[r:ACTED_IN]->(m:Movie) WHERE m.year < 1980 RETURN a.name, count(r) AS roles ORDER BY roles DESC LIMIT 5
+MATCH (a:Article {prodName: 'S.Skinny L.W Epic'})-[:FROM_DEPARTMENT]->(d:Department) RETURN d.departmentName
+MATCH (target:Character { name: 'Aemon-Targaryen-(Maester-Aemon)' }) MATCH (target)-[*1..1]-(c:Character) WHERE c.community > 700 RETURN c.name, c.book1PageRank ORDER BY c.book1PageRank ASC LIMIT 1
+MATCH (n:Journal) WHERE n.name =~'Iz.*' RETURN n
+MATCH (a:UpdateDate{update_date:'2009-10-31'})-[r]->(n) RETURN AVG(SIZE(keys(n))) AS AvgProps
+MATCH (a1:Address {address: 'given address'})-[:same_as]->(a2:Address) RETURN a1, a2
+MATCH (d:Driver) RETURN COUNT(d)
+MATCH (a:DOI{doi_id:'abce5ed79c520bdb8fd79a61a852648d'})-[*]->(n) RETURN DISTINCT properties(n) AS Properties
+MATCH (rack:Rack {name: 'DC1-RCK-1-1'})-[:HOLDS]->(switch:Switch) RETURN COUNT(DISTINCT switch.ip) AS numberOfSwitchTypes
+MATCH (b:Business)<-[:REVIEWS]-(r:Review) WHERE r.text CONTAINS 'library' RETURN b.name, b.address, b.city, b.state LIMIT 3
+MATCH (u:User)-[r:RATED]->(m:Movie) WHERE r.rating = 5.0 RETURN DISTINCT m.title AS MovieTitle
+MATCH (a:Article {title:'Notes for a Quantum Index Theorem'})-[r:PUBLISHED_IN]->(b:Journal) WHERE ANY(key IN keys(a) WHERE a[key] = b[key]) RETURN b
+MATCH (s:Service {name: 'java'})<-[:DEPENDS_ON]-(a:Application) RETURN a.name AS application_name
+MATCH (singer:singer) RETURN singer.Citizenship ORDER BY singer.Citizenship DESC LIMIT 1
+MATCH (p:Person {gender: 1})-[:CAST_FOR]->(m:Movie) RETURN m LIMIT 5
+MATCH (p:Person)-[:ACTED_IN]->(m:Movie)<-[:DIRECTED]-(p) RETURN m.title LIMIT 3
+MATCH (a:Article)-[:MENTIONS]->(o:Organization) WHERE a.sentiment < 0.5 RETURN o.name LIMIT 3
+MATCH (n:Article) WHERE EXISTS { MATCH (n)-[r:PUBLISHED_IN]->(:Journal) WHERE r.meta < '217'} RETURN n.title AS title
+MATCH (s:Stream) WHERE s.followers >= 200000 AND s.followers <= 500000 RETURN s LIMIT 5
+MATCH (u:User)-[:POSTS]->(t:Tweet)-[:MENTIONS]->(m:Me {screen_name: 'neo4j'}) RETURN u.name, u.followers ORDER BY u.followers DESC LIMIT 3
+MATCH (c:Character) RETURN c.louvain AS community, count(c) AS communitySize ORDER BY communitySize DESC LIMIT 5
+MATCH (u:User {name: 'Neo4j'})-[:POSTS]->(t:Tweet)-[:MENTIONS]->(m:User) WHERE m.followers >= 5000 RETURN t
+MATCH (r:Rack {zone: 2})-[:HOLDS]->(m:Machine) RETURN count(m)
+MATCH (n:UpdateDate) WHERE n.update_date <> '2016-11-23' RETURN DISTINCT n.update_date AS update_date
+MATCH (n:Categories) WHERE n.category_id STARTS WITH 'f' WITH n.category_id AS category_id SKIP 2 LIMIT 2 RETURN category_id
+MATCH (p:Product) RETURN DISTINCT p.product_size
+MATCH (n:Article) WHERE n.article_id <> '1013' RETURN DISTINCT n.abstract AS abstract
+MATCH (n:Topic) WHERE n.description CONTAINS 'Studi' RETURN n
+MATCH (n:Author) WHERE n.author_id = 'd83c43e5b1cf398c4e549843f497694b' OR n.affiliation IS NOT NULL RETURN DISTINCT n.affiliation AS affiliation
+MATCH (m:Movie) RETURN m.title, m.imdbVotes ORDER BY m.imdbVotes DESC LIMIT 5
+MATCH (q:Question) WHERE q.score > 0 RETURN q
+MATCH (a:Actor)-[:ACTED_IN]->(m:Movie)<-[:DIRECTED]-(a) RETURN a.name LIMIT 3
+MATCH (m:Movie) WHERE m.average_vote < 5 RETURN m.title, m.average_vote ORDER BY m.average_vote LIMIT 3
+MATCH (c:Author)<-[r]-(n) WHERE c.first_name = 'A.' RETURN properties(n) AS props, r
+MATCH (c1:Character)-[r:INTERACTS2]->(c2:Character) WHERE r.weight = 92 RETURN c1.name AS character1, c2.name AS character2
+MATCH (n:Article) WHERE n.title = 'Free Field Construction for the ABF Models in Regime II' RETURN n
+MATCH (u:User)-[:MODERATOR]->(s:Stream) WITH u, count(s) AS num_moderated_streams WHERE num_moderated_streams > 1 RETURN u.name, u.id ORDER BY num_moderated_streams DESC LIMIT 3
+MATCH p=(a:Categories{specifications:'math.CA'})-[*]->(n) RETURN p, nodes(p) ORDER BY LENGTH(p) DESC LIMIT 1
+MATCH (s:Stream) RETURN s.name, s.followers, s.total_view_count ORDER BY s.followers DESC, s.total_view_count ASC LIMIT 3
+MATCH (o:Order)-[r:ORDERS]->(p:Product) WITH o, count(DISTINCT p) AS numProducts ORDER BY numProducts DESC LIMIT 5 RETURN o.orderID, numProducts
+MATCH (a:Article {title:'Solutions to congruences using sets with the property of Baire'})-[r:HAS_DOI]->(b:DOI) WHERE ANY(key IN keys(a) WHERE a[key] = b[key]) RETURN b
+MATCH (:City {name: "피닉스"})<-[:IN_CITY]-(org:Organization) RETURN COUNT(org)
+MATCH (n:Article) -[:PUBLISHED_IN]->(m:Journal) WITH DISTINCT n, m RETURN n.title AS title, count(m) AS count ORDER BY count DESC LIMIT 7
+MATCH (a:Answer) WITH max(a.score) AS max_score MATCH (a:Answer {score: max_score}) MATCH (u:User)-[:PROVIDED]->(a) RETURN u.display_name
+MATCH p=(a:Author{last_name:'Dunajski'})-[*]->(d:Report{report_id:'3fa3ec8100d88908b00d139dacdedb6a'}) RETURN count(p)
+MATCH (n:Article) -[pu:PUBLISHED_IN {pages : '303-348'}]->(m) WHERE n.title='Generating Functional in CFT on Riemann Surfaces II: Homological Aspects' RETURN m.journal_id
+MATCH (m:Movie) WHERE m.runtime < 90 WITH m ORDER BY m.imdbRating DESC LIMIT 1 RETURN m.title
+MATCH (p:Policy) RETURN p.Policy_Type_Code, COUNT(*)
+MATCH (i:Intermediary) WHERE i.status = 'ACTIVE' RETURN i.name AS intermediary_name, i.countries AS countries, i.address AS address
+MATCH (t:Team) WHERE NOT (t)-[:PARTICIPATES_IN]-(:MatchSeason) RETURN t.Name
+MATCH (pc:ProductionCompany)<-[:PRODUCED_BY]-(m:Movie) MATCH (pc)<-[:PRODUCED_BY]-(v:Video) RETURN DISTINCT pc.name
+MATCH (a:Categories{category_id:'eea477d68b70c3a05be12567240033ef'})-[*2]->(n) RETURN DISTINCT properties(n) AS props
+MATCH (v:VideoGame) RETURN DISTINCT v.GType
+MATCH p=shortestPath((a:Article{title:'Open sets satisfying systems of congruences'})-[*]-(e:Report{report_id:'5049b80a2935f95cc95cf14dbfb8c610'})) RETURN nodes(p)
+MATCH (n:DOI), (:Author {first_name: 'A.'}) WHERE NOT (n) --> (:Author) RETURN n.name
+MATCH (c:Character {name: "Stevron-Frey"}) OPTIONAL MATCH (c)-[:INTERACTS]-(other) RETURN DISTINCT other.name
+MATCH (o:Officer)-[:officer_of]->(e:Entity) WHERE e.jurisdiction_description = 'Samoa' RETURN o
+MATCH (a:Journal{name:'Math. Ann'})-[r]->() RETURN COUNT(DISTINCT TYPE(r)) AS rels, TYPE(r)
+MATCH (c:Customer)-[:PURCHASED]->(o:Order) WHERE o.requiredDate STARTS WITH '1998' RETURN c.companyName AS customerName, c.contactName AS contactName, c.customerID AS customerID
+MATCH (o:Organization)-[:IN_CITY]->(c:City {name: "Paris"}) WHERE exists{ (o)-[:HAS_SUBSIDIARY]->(:Organization) } RETURN o
+MATCH p=(a:Topic{description:'Encompasses techniques for reconstructing images from blurred or incomplete data using regularizers, sparsity, and phase retrieval algorithms, with applications in compressive sensing, neural networks, and optical imaging. Focuses on understanding small-time behavior, limiting transitions, and phase transitions in signal processing and optics, as well as the role of status-dependent behavior and spiking neurons in neural networks. Emphasizes the importance of regularization, penalization, and lasso techniques in image reconstruction and phase retrieval'})-[*]->(n) RETURN p, nodes(p) ORDER BY LENGTH(p) DESC LIMIT 1
+MATCH (a:Apartment) WHERE NOT (:ApartmentFacility)-[:IS_LOCATED_IN]->(a) RETURN count(*)
+MATCH (v:Video)-[:PRODUCED_BY]->(pc:ProductionCompany {name: 'Pixar Animation Studios'}) RETURN v.title LIMIT 3
+MATCH (q:Question)-[:TAGGED]->(t:Tag) WHERE q.answer_count > 0 WITH t, q ORDER BY q.creation_date DESC RETURN t.name AS tag, q.creation_date AS question_creation_date LIMIT 3
+MATCH (f:Filing) WHERE f.number > 10 MATCH (f)-[:BENEFITS]->(e:Entity) RETURN DISTINCT e.name
+MATCH (p:Package)-[:PROVIDES_ACCESS_TO]->(:Genre)<-[:IN_GENRE]-(m:Movie) RETURN p.name, p.duration ORDER BY p.duration DESC LIMIT 3
+MATCH (s:Stream)-[:VIP]->(u:User) WHERE s.total_view_count > 10000000 RETURN u.name AS vip_name ORDER BY s.total_view_count DESC LIMIT 3
+MATCH (s:Stream)-[:HAS_TEAM]->(:Team) WHERE s.total_view_count IS NOT NULL RETURN s ORDER BY s.total_view_count DESC LIMIT 5
+MATCH (s:Stream)-[:PLAYS]->(g:Game) WHERE exists{(s)-[:HAS_TEAM]->(:Team)} RETURN g.name AS Game, sum(s.total_view_count) AS TotalViews ORDER BY TotalViews DESC LIMIT 3
+MATCH (n:Article {abstract: '  The main result of this paper is the proof of the "transversal part" of the homological mirror symmetry conjecture for an elliptic curve which states an equivalence of two $A_{\infty}$-structures on the category of vector bundles on an elliptic curves. The proof is based on the study of $A_{\infty}$-structures on the category of line bundles over an elliptic curve satisfying some natural restrictions (in particular, $m_1$ should be zero, $m_2$ should coincide with the usual composition). The key observation is that such a structure is uniquely determined up to homotopy by certain triple products. '}) -[r:PUBLISHED_IN]- (m:Journal) WHERE m.name STARTS WITH 'J' AND r.pages IS NOT NULL RETURN n.name
+MATCH (a:Keyword{name:'log-balanced'})-[*]->(d:Topic{label:'Dynamical Systems_10'})-[*]->(n) RETURN n
+MATCH (u:User)-[r:MODERATOR]->(otherUser:User) RETURN u.name AS user, count(r) AS num_moderator_relationships ORDER BY num_moderator_relationships DESC LIMIT 3
+MATCH (p:Person)-[:DIRECTED]->(:Movie) WHERE p.born >= 1960 AND p.born < 1970 RETURN p.name AS director, p.born AS birthYear
+MATCH (m:Movie) WHERE m.budget IS NOT NULL RETURN m.title, m.budget ORDER BY m.budget DESC LIMIT 5
+MATCH (u:User {name: 'Jenny'})-[:WROTE]->(r:Review)-[:REVIEWS]->(b:Business) RETURN b.name AS business, r.stars AS rating ORDER BY r.stars ASC LIMIT 1
+MATCH (f:Filing)-[:CONCERNS]->(e:Entity) WITH f, COUNT(DISTINCT e) AS entityCount ORDER BY entityCount DESC LIMIT 5 MATCH (f)-[:CONCERNS]->(e:Entity) RETURN f.sar_id AS FilingID, f.begin AS BeginDate, f.end AS EndDate, f.amount AS Amount, COLLECT(e.name) AS ConcernedEntities
+MATCH (a:Author{last_name:'Leoni'})-[r]->(n), (n)-[s]->(m) RETURN labels(n) AS Interim, labels(m) AS Target
+MATCH (a:Article)-[:HAS_CHUNK]->(c:Chunk) WHERE c.text CONTAINS 'cybersecurity' MATCH (a)-[:MENTIONS]->(o:Organization) RETURN o
+MATCH (n:Author) RETURN n.affiliation AS Records UNION ALL MATCH (m:Article) RETURN m.title AS Records
+MATCH p=(t:Tweet)-[:REPLY_TO*]->(:Tweet) RETURN length(p) AS longestThread ORDER BY longestThread DESC LIMIT 1
+MATCH (o1:Organization)-[:HAS_SUPPLIER]->(o2:Organization), (o1)-[:IN_CITY]->(c:City), (o2)-[:IN_CITY]->(c) WITH c, count(DISTINCT o1) AS orgCount ORDER BY orgCount DESC LIMIT 1 RETURN c.name
+MATCH (n:Topic) RETURN n.cluster AS Records UNION ALL MATCH (m:Topic) RETURN m.label AS Records
+MATCH p=shortestPath((a:Categories{category_id:'33657234da1dc070ea09e7c31bb86abb'})-[*]-(e:Author{affiliation:'unspecified'})) RETURN nodes(p)
+MATCH (a:Article{title:'Hyper-K{\"a}hler Hierarchies and their twistor theory'})-[:HAS_DOI]->(c:DOI)-[r]->(n) RETURN n
+MATCH (s:Stream) WHERE s.total_view_count > 500000000 RETURN s.name, s.url, s.total_view_count
+MATCH (m:Movie)-[:IN_GENRE]->(g:Genre {name: 'Adventure'}) RETURN sum(m.revenue) AS totalRevenue
+MATCH (a:Author{affiliation:'unspecified'})-[*]->(d:Keyword{name:'tree (optimality criteria: minimum mean-squared error)  alternative keyword suggestions: - multiscale superpopulation models - independent innovations trees - water-'})-[*]->(n) RETURN n
+MATCH (m:Movie) WHERE m.released = 1999 RETURN m.tagline
+MATCH (n:Topic) WHERE n.cluster <> '7' RETURN DISTINCT n.cluster AS cluster
+MATCH (a:Article)-[:MENTIONS]->(o:Organization) WHERE a.sentiment < 0 RETURN a.author AS Author ORDER BY a.date ASC LIMIT 3
+MATCH (u:User {name: 'Angie'})-[:WROTE]->(r:Review)-[:REVIEWS]->(b:Business) RETURN DISTINCT b.name
+MATCH (n:Article) -[r:PUBLISHED_IN]->(m:Journal) WHERE r.meta = '248' WITH DISTINCT n, m RETURN n.title AS title, count(m) AS count ORDER BY count
+MATCH (c1:Character)-[r:INTERACTS45]->(c2:Character) RETURN c1.name AS Character1, c2.name AS Character2, r.weight AS Weight ORDER BY r.weight DESC LIMIT 3
+MATCH (a:Journal{name:'Geom. Topol'})-[r]->(n) RETURN properties(n), r
+MATCH (q:Question)<-[:COMMENTED_ON]-(c:Comment) WITH q, COUNT(c) AS comment_count ORDER BY comment_count DESC LIMIT 5 RETURN q.title AS question_title, q.link AS question_link, comment_count
+MATCH (a:Article)-[:MENTIONS]->(o:Organization) WHERE a.date.year = 2022 AND o.nbrEmployees > 100 RETURN a
+MATCH (n:Journal) WHERE n.journal_id IS NOT NULL RETURN n.journal_id LIMIT 10
+MATCH (a:Keyword{name:'uncountably many different asymptotic growth rates'})-[r]->(n) RETURN n, TYPE(r) AS Relations, COUNT(r) AS Counts
+MATCH (a:Article{title:'Fast matrix multiplication is stable'})-[:HAS_CATEGORY]->(c:Categories)-[r]->(n) RETURN n
+MATCH (n:UpdateDate) RETURN n.update_date AS Records UNION MATCH (m:Author) RETURN m.author_id AS Records
+MATCH (a:Report{report_no:'Swansea preprint 99-14'})-[r]->(n), (n)-[s]->(m) RETURN labels(n) AS Interim, labels(m) AS Target
+MATCH (n:Article) WHERE n.title = '$A_{\infty}$-structures on an elliptic curve' OR n.comments IS NOT NULL RETURN DISTINCT n.comments AS comments
+MATCH p=(a:Journal{name:'Math. Nachr'})-[*]->(d:Author{first_name:'S. O.'}) RETURN count(p)
+MATCH (n:UpdateDate) WHERE n.update_date = date('2011-11-10') RETURN n
+MATCH p=(a:Keyword{name:'population dynamics'})-[*]->(n) RETURN p, nodes(p) ORDER BY LENGTH(p) DESC LIMIT 1
+MATCH (n:Article) MATCH (m:Categories) RETURN n.abstract, m.category_id LIMIT 8
+MATCH (u:User)-[r:RATED]->(m:Movie) WITH u, count(r) AS numRatings ORDER BY numRatings DESC LIMIT 5 RETURN u.name AS user, numRatings
+MATCH (o:Organization) RETURN o.name AS organization, o.nbrEmployees AS numberOfEmployees ORDER BY o.nbrEmployees DESC LIMIT 5
+MATCH (n:Author) WHERE n.last_name = 'Chakrabarti' OR n.last_name IS NOT NULL RETURN DISTINCT n.last_name AS last_name
+MATCH (p:Person)-[:ACTED_IN]->(m:Movie) WITH p, count(m) AS numMovies ORDER BY numMovies DESC LIMIT 5 RETURN p.name AS actor, numMovies
+MATCH (b:Article)-[r]->(n) WHERE b.title = 'Subexponential groups in 4-manifold topology' RETURN properties(b) AS Article_props, properties(n) AS props
+MATCH (a:Keyword{name:'uncountably many different asymptotic growth rates'}), (b:Keyword{name:'layer-by-layer growth'}) RETURN EXISTS((a)-[*]-(b)) AS pathExists
+MATCH (n:Author) WHERE n.last_name STARTS WITH 'K' RETURN n.last_name AS last_name, n.affiliation AS affiliation
+MATCH (a:Topic{cluster:'8'})-[r]->(n), (d:Article{title:'The Gervais-Neveu-Felder equation for the Jordanian quasi-Hopf   U_{h;y}(sl(2)) algebra'}) WHERE ANY(key in keys(n) WHERE n[key] = d[key]) RETURN n
+MATCH p=(a:Report{report_id:'dd0a54fea06e7b7a384741aac9313d65'})-[*]->(d:Article{article_id:'1048'}) RETURN count(p)
+MATCH (o:Organization)-[:HAS_COMPETITOR]->(c:Organization) WITH o, COUNT(c) AS competitorCount ORDER BY competitorCount DESC LIMIT 3 RETURN o.name AS organizationName, competitorCount
+MATCH (n:Article), (:Author {first_name: 'R.'}) WHERE NOT (n) --> (:Author) RETURN n.article_id
+MATCH (source:Character)-[r:INTERACTS45]->(target:Character) WHERE source.louvain = 0 AND target.louvain = 0 WITH r.weight AS weight RETURN max(weight)
+MATCH (c1:Character {name: "John Snow"})-[:INTERACTS|:INTERACTS1|:INTERACTS2|:INTERACTS3|:INTERACTS45]-(c2:Character) RETURN c2.name AS RelatedCharacter
+MATCH (n:Article) -[r:PUBLISHED_IN]->(m:Journal) WHERE r.pages <> '293-299' WITH DISTINCT n, m RETURN n.abstract AS abstract, count(m) AS count ORDER BY count DESC LIMIT 7
+MATCH (u:User)-[:ASKED]->(:Question) RETURN u.display_name, u.reputation ORDER BY u.reputation ASC LIMIT 3
+MATCH (u:User) WHERE u.image IS NOT NULL RETURN u.image, u.display_name, u.reputation ORDER BY u.reputation DESC LIMIT 5
+MATCH (n:Author) MATCH (m:Report) RETURN n.affiliation, m.report_no LIMIT 8
+MATCH (m:Movie) WHERE date(m.release_date).month = 12 RETURN m.title
+MATCH (o:Organization)-[:HAS_SUBSIDIARY]->(:Organization) WHERE exists{ (o)-[:HAS_INVESTOR]->() } RETURN o LIMIT 3
+MATCH (s:Stream)-[:VIP]->(u:User) WHERE s.followers > 1000000 RETURN u.name AS vip_user, s.name AS stream
+MATCH (o:Order) RETURN o ORDER BY o.freight DESC LIMIT 5
+MATCH (c:Category {categoryName: 'Condiments'})<-[:PART_OF]-(p:Product)<-[:ORDERS]-(o:Order) RETURN p.productName, SUM(o.quantity) AS totalQuantity ORDER BY totalQuantity DESC LIMIT 5
+MATCH (p:Person)-[:DIRECTED]->(m:Movie)<-[:WROTE]-(p) RETURN p.name AS person LIMIT 3
+MATCH (a:DOI{name:'10.1142/S0219061301000077'})-[*2]->(n) RETURN DISTINCT properties(n) AS props
+MATCH (u:User)-[:WROTE]->(r:Review)-[:REVIEWS]->(b:Business {name: 'Imagine Nation Brewing'}) WITH u, count(r) AS reviewsCount ORDER BY reviewsCount DESC LIMIT 3 RETURN u.name, reviewsCount
+MATCH (a:Keyword{name:'exponentially growing'})-[r]->() RETURN COUNT(DISTINCT TYPE(r)) AS rels, TYPE(r)
+MATCH (a:Article)-[:MENTIONS]->(o:Organization) WHERE a.sentiment = 0.5 RETURN o
+MATCH (n:Article) -[r:PUBLISHED_IN]->(m:Journal) WHERE r.meta = '248' WITH DISTINCT n, m RETURN n.comments AS comments, count(m) AS count ORDER BY count
+MATCH (s:Stream)-[:HAS_LANGUAGE]->(l:Language) WHERE s.total_view_count > 10000000 RETURN DISTINCT l.name
+MATCH (a:Actor {bornIn: "France"}) RETURN a.name
+MATCH (p:Product) WHERE p.product_type_code = 'Hardware' RETURN p.product_name ORDER BY p.product_price DESC LIMIT 1
+MATCH (m:Movie) WHERE m.released < 1985 RETURN m.title, m.released ORDER BY m.released LIMIT 5
+MATCH (n:Categories) WHERE n.category_id STARTS WITH '4' RETURN n.category_id AS category_id, n.specifications AS specifications
+MATCH (b:Business)-[:REVIEWS]->(r:Review)<-[:WROTE]-(u:User) WHERE b.city = 'Burlingame' RETURN b.address, r.text
+MATCH (o:Officer)-[r:officer_of]->(e:Entity) WHERE o.icij_id STARTS WITH 'CFE' AND e.jurisdiction = 'NIUE' RETURN o.name
+MATCH (m:Movie {title: 'Toy Story'})-[:SPOKEN_IN_LANGUAGE]->(l:Language) RETURN l.name AS language
+MATCH (n:Article) -[r:PUBLISHED_IN]->(m:Journal) WHERE r.pages='521-554' WITH DISTINCT n, m RETURN n.abstract AS abstract, count(m) AS count LIMIT 20
+MATCH (ceo:Person)-[:HAS_CEO]-(org:Organization) WHERE ceo.summary CONTAINS 'Accenture' RETURN org.name
+MATCH (n:Article) -[pu:PUBLISHED_IN {pages : '641-672'}]->(m) WHERE n.article_id='1008' RETURN m.name
+MATCH (m:Movie) RETURN m ORDER BY m.released ASC LIMIT 3
+MATCH (a:Author{last_name:'Keller'})-[r]->() RETURN TYPE(r) AS Relations, COUNT(r) AS Counts
+MATCH (a:Author{last_name:'Polishchuk'})-[r]->(n), (n)-[s]->(m) RETURN labels(n) AS Interim, labels(m) AS Target
+MATCH (n:Author) WHERE n.last_name <> 'Chakrabarti' RETURN DISTINCT n.affiliation AS affiliation
+MATCH (d:Director)-[:DIRECTED]->(m:Movie) WHERE m.budget > 200000000 WITH d, count(m) AS moviesDirected ORDER BY moviesDirected DESC LIMIT 3 RETURN d.name, moviesDirected
+MATCH (a:Article)-[:MENTIONS]->(o:Organization) WHERE a.sentiment = 0.5 RETURN o.name
+MATCH (a:Report{report_no:'ITF-99-42'})-[*]->(n) RETURN DISTINCT properties(n) AS Properties
+MATCH (a:Article{title:'An adelic causality problem related to abelian L-functions'})-[*]->(d:Article{comments:'16 pages To be published in Journal of Geometry and Physics'})-[*]->(n) RETURN n
+MATCH (p:Person)-[:ACTED_IN]->(:Movie) RETURN p.name AS name ORDER BY size(p.name) DESC LIMIT 1
+MATCH (n:Report) WHERE n.report_no <> 'none provided' RETURN DISTINCT n.report_no AS report_no
+MATCH (n:Officer)-[r:INVESTIGATED_BY]->(m:Crime) RETURN n, r, m
+MATCH (u:User)-[:RATED]->(m:Movie)-[:IN_GENRE]->(g:Genre) WITH u, COUNT(DISTINCT g) AS genreCount ORDER BY genreCount DESC LIMIT 3 RETURN u, genreCount
+MATCH (q:Question) WHERE date(q.createdAt) = date('2020-01-01') RETURN q LIMIT 3
+MATCH (a:Article{abstract:'  The Wakimoto construction for the quantum affine algebra U_q(\hat{sl}_2) admits a reduction to the q-deformed parafermion algebras. We interpret the latter theory as a free field realization of the Andrews-Baxter-Forrester models in regime II. We give multi-particle form factors of some local operators on the lattice and compute their scaling limit, where the models are described by a massive field theory with Z_k symmetric minimal scattering matrices. '})-[r]->() RETURN TYPE(r) AS Relations, COUNT(r) AS Counts
+MATCH (c1:Character)-[r:INTERACTS]->(c2:Character) WHERE c1.louvain = 1 AND c2.louvain = 1 RETURN max(r.weight)
+MATCH p=shortestPath((a:Topic{label:'Linear Algebra_1'})-[*]-(e:DOI{name:'10.1142/S0219061301000077'})) RETURN nodes(p)
+MATCH (p:Person)-[:ACTED_IN]->(m:Movie) WITH p, count(DISTINCT m) AS movieCount ORDER BY movieCount DESC LIMIT 3 RETURN p.name AS actor, movieCount
+MATCH (g:Genre)<-[:IN_GENRE]-(m:Movie) RETURN g.name AS Genre, count(m) AS MovieCount ORDER BY MovieCount DESC LIMIT 3
+MATCH (teacher:teacher) RETURN teacher.Hometown ORDER BY teacher.Age ASC LIMIT 1
+MATCH (t:Tweet)-[:TAGS]->(h:Hashtag) RETURN h.name AS hashtag, count(*) AS count ORDER BY count DESC LIMIT 3
+MATCH (q:Question)-[:TAGGED]->(t:Tag {name: 'react-apollo'}) WITH avg(q.score) AS average_score RETURN average_score
+MATCH (a:Report{report_id:'d4a4409b7e8a77f4894c998a04162257'})-[r]->() RETURN COUNT(DISTINCT TYPE(r)) AS rels, TYPE(r)
+MATCH (n:Article) WHERE n.abstract IS NULL RETURN count(n)
+MATCH (n:Article) -[r:PUBLISHED_IN]->(m:Journal) WHERE r.pages = '263-281' RETURN n.article_id AS article_id, count(m) AS count
+MATCH (p:Person)-[r:REVIEWED]->(m:Movie) WHERE r.summary CONTAINS 'A solid romp' RETURN p.name
+MATCH (b:DOI)-[r]->(n) WHERE b.doi_id = '3cee0a24d271bd40a0fb03d70f70dcc7' RETURN properties(b) AS DOI_props, properties(n) AS props
+MATCH (n:Article {abstract: '  In this paper we study the smallest Mealy automaton of intermediate growth, first considered by the last two authors. We describe the automatic transformation monoid it defines, give a formula for the generating series for its (ball volume) growth function, and give sharp asymptotics for its growth function, namely [ F(n) \sim 2^{5/2} 3^{3/4} \pi^{-2} n^{1/4} \exp{\pi\sqrt{n/6}} ] with the ratios of left- to right-hand side tending to 1 as $n \to \infty$. '}) -[:HAS_KEY]- (m:Keyword) WHERE m.key_id STARTS WITH 'k' RETURN m
+MATCH (a:Author{affiliation:'unspecified'})-[*]->(d:Author{affiliation:'unspecified'})-[*]->(n) RETURN n
+MATCH (m:Movie) WHERE m.languages IS NOT NULL UNWIND m.languages AS language RETURN language, count(m) AS num_movies ORDER BY num_movies DESC LIMIT 5
+MATCH (a:Author{last_name:'Neeman'})-[*2]->(n) RETURN DISTINCT properties(n) AS props
+MATCH (a:Author)-[r]->(n), (d:DOI)-[s]->(m) WHERE TYPE(r) = TYPE(s) RETURN labels(n), labels(m)
+MATCH (m:Medicine)-[:INTERACTS_WITH]->(e:Enzyme) RETURN count(distinct m.FDA_approved) as count
+MATCH (n:Topic) WHERE n.description CONTAINS 'udy of mathematical structures called categories, characterized by objects and morphisms that relate them, with emphasis on reductions and indecomposability concepts.' RETURN n.description AS description, n.cluster AS cluster
+MATCH p=(a:Author{first_name:'J. Daniel'})-[*]->(n) RETURN p, nodes(p) ORDER BY LENGTH(p) DESC LIMIT 1
+MATCH (v:Video) WHERE v.revenue IS NOT NULL RETURN v.title, v.revenue ORDER BY v.revenue ASC LIMIT 5
+MATCH (parentOrg:Organization)-[:HAS_SUBSIDIARY]->(subsidiary:Organization) WITH parentOrg, subsidiary MATCH (parentOrg)-[:IN_CITY]->(parentCity:City) MATCH (subsidiary)-[:IN_CITY]->(subsidiaryCity:City) WHERE parentCity.id <> subsidiaryCity.id RETURN DISTINCT parentOrg.name
+MATCH (o:Organization)-[:IN_CITY]->(c:City {name: "Seattle"}) RETURN o.name AS BusinessName, o.revenue AS Revenue ORDER BY o.revenue DESC LIMIT 1
+MATCH (p:Person {gender: 2})-[:CREW_FOR {job: 'Director'}]-(m:Movie) WHERE m.average_vote > 8.0 WITH p, count(m) AS movieCount ORDER BY movieCount DESC RETURN p.name, movieCount LIMIT 10
+MATCH (m:Movie) RETURN m.runtime, m.average_vote ORDER BY m.average_vote DESC LIMIT 1
+MATCH (r:Rack {zone: 2})-[:HOLDS]->(m:Machine)-[:RUNS]->(a:Application) RETURN a.name
+MATCH (s:Student) RETURN s.Advisor, COUNT(*)
