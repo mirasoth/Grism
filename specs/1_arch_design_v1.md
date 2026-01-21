@@ -33,7 +33,7 @@
                 │
 ┌───────────────┴─────────────────────────┐
 │        Graph Expression & Planning       │
-│  HyperFrame → Rust Logical Plan          │
+│  HyperFrame → HyperGraph Logical Plan    │
 └───────────────▲─────────────────────────┘
                 │
 ┌───────────────┴─────────────────────────┐
@@ -94,11 +94,11 @@ enum Value {
 
 ---
 
-## 4. HyperFrame: Canonical Definition
+## 4. HyperGraph: Canonical Definition
 
 ### 4.1 Core Concept
 
-**`HyperFrame`**
+**`HyperGraph`**
 
 > A **hypergraph-backed, relationally-executable, AI-native graph container**, analogous to `DataFrame` for tables.
 
@@ -109,26 +109,31 @@ It is:
 * **Language-agnostic at the core** (Cypher / GQL / AnkQL are projections)
 * **Storage-backed by Lance** (relational primitives)
 
+HyperFrame is the Python API surface that constructs and queries HyperGraphs; it exposes views and lazy plans without redefining the logical model.
+
 ### 4.2 Conceptual Positioning
 
 | Layer             | Abstraction                       |
 | ----------------- | --------------------------------- |
 | User API (Python) | `HyperFrame`                      |
+| Logical Model     | `HyperGraph`                      |
 | Logical IR        | `HyperIR / RelSet`                |
 | Execution         | Lance + standalone / Ray          |
 | Query Views       | Cypher view, GQL view, AnkQL view |
 
 ### 4.3 Mental Model (DataFrame Analogy)
 
-| DataFrame | HyperFrame            |
-| --------- | --------------------- |
-| row       | hyperedge             |
-| column    | role / attribute      |
-| join      | hyperedge composition |
-| groupby   | hyperedge projection  |
-| filter    | sub-hypergraph        |
+| DataFrame | HyperGraph (via HyperFrame) |
+| --------- | --------------------------- |
+| row       | hyperedge                   |
+| column    | role / attribute            |
+| join      | hyperedge composition       |
+| groupby   | hyperedge projection        |
+| filter    | sub-hypergraph              |
 
 This analogy will be **extremely powerful** for adoption.
+
+HyperFrame keeps the DataFrame-like ergonomics while the HyperGraph model remains the source of truth.
 
 ### 4.4 Cypher Compatibility via Views
 
@@ -189,13 +194,16 @@ This will scale cleanly to:
 | -------------- | ----------------------- |
 | KnowledgeGraph | ❌ removed               |
 | GraphFrame     | property-view           |
-| HyperGraph     | storage / theory        |
+| HyperFrame     | Python API surface      |
+| HyperGraph     | logical data model      |
 | AnkQL          | native hypergraph query |
 | Cypher         | compatibility layer     |
 
 ---
 
 ## 5. Python-First HyperFrame API
+
+HyperFrame is the Python-first API for building HyperGraph plans and views.
 
 ### 5.1 Core Object
 
@@ -2086,7 +2094,7 @@ hf.nodes("Paper").hint(index="year_idx").filter(col("year") >= 2022)
 
 ## 20. One-Sentence Summary
 
-> **Grism exposes hypergraphs as `HyperFrame`—a lazy, typed Python object model analogous to `DataFrame` for tables, whose only job is to express intent; all semantics live in the Rust logical engine.**
+> **Grism exposes the logical `HyperGraph` through `HyperFrame`—a lazy, typed Python object model analogous to `DataFrame` for tables, whose only job is to express intent; all semantics live in the Rust logical engine.**
 
 ---
 
