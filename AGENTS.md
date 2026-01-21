@@ -75,6 +75,52 @@ From the architecture and RFCs, these principles must be followed:
 
 ---
 
+## Recording Work Progress
+
+AI agents should record work progress in the `_workdir/` directory for each development session.
+
+### File Naming
+
+Create progress files named: `progress-YYYY-MM-DD-NNN.md`
+- `YYYY-MM-DD`: Date of the session
+- `NNN`: Sequence number for multiple sessions on the same day (001, 002, etc.)
+
+Example: `_workdir/progress-2026-01-21-001.md`
+
+### Progress File Format
+
+Use the template in `_workdir/_template.md` as a reference. Each progress file should include:
+
+**Frontmatter (YAML):**
+```yaml
+---
+date: YYYY-MM-DD
+session: <unique-id>
+objective: <one-line summary>
+status: completed | in-progress | blocked
+---
+```
+
+**Required Sections:**
+- **Objective** - What was the goal of this session
+- **Completed** - List of completed tasks
+- **Files Changed** - List of modified files with brief descriptions
+- **Tests** - Test results (total passed/failed, new tests added)
+- **Notes** - Important observations, decisions, or context
+- **Next Steps** - What comes next (even if "none")
+
+### Guidelines
+
+1. **Be concise** - Focus on outcomes, not process
+2. **List files** - Always document which files were changed
+3. **Note tests** - Include test results when code changes are made
+4. **Link specs** - Reference relevant specs/RFCs when applicable
+5. **Next steps** - Always indicate what comes next, even if "none"
+
+See `_workdir/_template.md` for the complete template and field descriptions.
+
+---
+
 ## Project Structure
 
 ```
