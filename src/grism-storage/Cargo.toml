@@ -1,0 +1,20 @@
+[package]
+name = "grism-storage"
+edition = { workspace = true }
+version = { workspace = true }
+description = "Storage layer for Grism with Lance integration"
+
+[dependencies]
+common-error = { workspace = true }
+grism-core = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
+pyo3 = { workspace = true, optional = true }
+
+[features]
+default = []
+python = ["dep:pyo3", "grism-core/python"]
+
+[lints]
+workspace = true

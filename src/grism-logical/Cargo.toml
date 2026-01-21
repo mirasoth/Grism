@@ -1,0 +1,19 @@
+[package]
+name = "grism-logical"
+edition = { workspace = true }
+version = { workspace = true }
+description = "Logical plan layer for Grism query execution"
+
+[dependencies]
+common-error = { workspace = true }
+grism-core = { workspace = true }
+serde = { workspace = true }
+indexmap = { workspace = true }
+pyo3 = { workspace = true, optional = true }
+
+[features]
+default = []
+python = ["dep:pyo3", "grism-core/python"]
+
+[lints]
+workspace = true

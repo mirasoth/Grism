@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 6a93837b7ade0d2f9126d887b51a284ef59efc969e63cbd3cd7bf5bfd4a2812d # shrinks to node = Node { id: 218, labels: ["Aaa"], properties: {"a": Float64(216387822.86999398)} }
+cc 2961e411b2869a0f40d7caab17a3f0cddfea6066937cae658c402c7e9af60bf7 # shrinks to value = Float64(1017124345.8429983)
