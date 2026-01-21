@@ -7,6 +7,7 @@ description = "Core data model for Grism hypergraph database"
 [dependencies]
 common-error = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 indexmap = { workspace = true }
 hashbrown = { workspace = true }
 uuid = { workspace = true }
@@ -17,6 +18,9 @@ arrow = { workspace = true }
 arrow-array = { workspace = true }
 arrow-buffer = { workspace = true }
 arrow-schema = { workspace = true }
+
+[dev-dependencies]
+proptest = "1.4"
 
 [features]
 default = []

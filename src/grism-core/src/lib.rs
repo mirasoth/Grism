@@ -83,11 +83,16 @@ pub mod schema;
 pub mod testing;
 pub mod types;
 
+#[cfg(test)]
+mod proptest_utils;
+
 // Re-export commonly used types
 pub use hypergraph::{
     Edge, EdgeId, EntityRef, Hyperedge, HyperedgeBuilder, Hypergraph, Label, Node, NodeId,
     PropertyKey, PropertyMap, ROLE_SOURCE, ROLE_TARGET, Role, RoleBinding, SubgraphView,
 };
-pub use schema::{ColumnInfo, ColumnRef, EntityInfo, EntityKind, Schema};
+pub use schema::{
+    ColumnInfo, ColumnRef, EntityInfo, EntityKind, PropertySchema, Schema, SchemaViolation,
+};
 pub use testing::{HypergraphAssertions, HypergraphFixture};
 pub use types::{DataType, Value};

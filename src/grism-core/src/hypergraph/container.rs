@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use super::{Edge, EdgeId, Hyperedge, Label, Node, NodeId, PropertyMap, Role};
-use crate::schema::{EntityInfo, EntityKind, Schema};
+use crate::schema::{EntityInfo, EntityKind, Schema, SchemaViolation};
 use crate::types::Value;
 
 /// A hypergraph container - the canonical user-facing abstraction.
@@ -64,6 +64,11 @@ pub struct Hypergraph {
 
     /// Global properties
     properties: PropertyMap,
+
+    /// Whether to enforce strict schema validation on writes.
+    /// When true, all properties must match their declared types.
+    #[serde(default)]
+    strict_schema: bool,
 }
 
 impl Hypergraph {
@@ -80,7 +85,41 @@ impl Hypergraph {
             hyperedges: HashMap::new(),
             schema: Schema::empty(),
             properties: PropertyMap::new(),
+            strict_schema: false,
         }
+    }
+
+    /// Enable or disable strict schema validation.
+    ///
+    /// When strict schema is enabled:
+    /// - All properties must match their declared types
+    /// - Undeclared properties are violations
+    /// - Required properties must be present
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use grism_core::Hypergraph;
+    /// use grism_core::types::DataType;
+    ///
+    /// let mut hg = Hypergraph::new().with_strict_schema(true);
+    /// hg.schema_mut().register_property("Person", "age", DataType::Int64);
+    ///
+    /// // Now add_node_validated will check properties against schema
+    /// ```
+    pub fn with_strict_schema(mut self, strict: bool) -> Self {
+        self.strict_schema = strict;
+        self
+    }
+
+    /// Check if strict schema validation is enabled.
+    pub fn is_strict_schema(&self) -> bool {
+        self.strict_schema
+    }
+
+    /// Set strict schema mode.
+    pub fn set_strict_schema(&mut self, strict: bool) {
+        self.strict_schema = strict;
     }
 
     /// Get the hypergraph ID.
@@ -91,6 +130,11 @@ impl Hypergraph {
     /// Get the hypergraph schema.
     pub fn schema(&self) -> &Schema {
         &self.schema
+    }
+
+    /// Get a mutable reference to the hypergraph schema.
+    pub fn schema_mut(&mut self) -> &mut Schema {
+        &mut self.schema
     }
 
     /// Get the number of nodes in the hypergraph.
@@ -140,6 +184,80 @@ impl Hypergraph {
 
         self.nodes.insert(node_id, node);
         node_id
+    }
+
+    /// Add a node with schema validation.
+    ///
+    /// If strict schema mode is enabled, this validates all properties against
+    /// the schema before adding the node.
+    ///
+    /// # Arguments
+    /// * `label` - The node label/type
+    /// * `properties` - Initial properties as key-value pairs
+    ///
+    /// # Returns
+    /// * `Ok(NodeId)` if the node was added successfully
+    /// * `Err(Vec<SchemaViolation>)` if validation failed
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use grism_core::Hypergraph;
+    /// use grism_core::types::DataType;
+    ///
+    /// let mut hg = Hypergraph::new().with_strict_schema(true);
+    /// hg.schema_mut().register_property("Person", "age", DataType::Int64);
+    ///
+    /// // This will fail because "age" should be Int64
+    /// let result = hg.add_node_validated("Person", [("age", "thirty")]);
+    /// assert!(result.is_err());
+    ///
+    /// // This will succeed
+    /// let result = hg.add_node_validated("Person", [("age", 30i64)]);
+    /// assert!(result.is_ok());
+    /// ```
+    pub fn add_node_validated<I, K, V>(
+        &mut self,
+        label: impl Into<Label>,
+        properties: I,
+    ) -> Result<NodeId, Vec<SchemaViolation>>
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: Into<String>,
+        V: Into<Value>,
+    {
+        let label = label.into();
+        let mut property_map = PropertyMap::new();
+
+        for (key, value) in properties {
+            property_map.insert(key.into(), value.into());
+        }
+
+        // Validate properties if strict schema is enabled
+        if self.strict_schema {
+            let violations = self.schema.validate_properties(&label, &property_map, true);
+            if !violations.is_empty() {
+                return Err(violations);
+            }
+        }
+
+        let node_id = super::identifiers::new_node_id();
+        let node = Node {
+            id: node_id,
+            labels: vec![label.clone()],
+            properties: property_map,
+        };
+
+        // Update schema with node type info
+        self.schema.register_entity(EntityInfo {
+            name: label,
+            kind: EntityKind::Node,
+            columns: node.properties.keys().cloned().collect(),
+            is_alias: false,
+        });
+
+        self.nodes.insert(node_id, node);
+        Ok(node_id)
     }
 
     /// Add a hyperedge to the hypergraph.
@@ -228,6 +346,69 @@ impl Hypergraph {
     /// Remove a global property.
     pub fn remove_property(&mut self, key: &str) -> Option<Value> {
         self.properties.remove(key)
+    }
+
+    /// Validate the hypergraph against its schema.
+    ///
+    /// This method checks that all data in the hypergraph conforms to the
+    /// declared schema. It returns a list of all violations found.
+    ///
+    /// # Arguments
+    /// * `strict` - If true, undeclared properties are also reported as violations
+    ///
+    /// # Checks Performed
+    /// - All node properties match their declared types
+    /// - All hyperedge properties match their declared types
+    /// - Required properties are present
+    /// - Non-nullable properties are not null
+    /// - (In strict mode) No undeclared properties exist
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use grism_core::Hypergraph;
+    /// use grism_core::types::DataType;
+    ///
+    /// let mut hg = Hypergraph::new();
+    /// hg.schema_mut().register_property("Person", "age", DataType::Int64);
+    ///
+    /// // Add a node with correct type
+    /// hg.add_node("Person", [("age", 30i64)]);
+    ///
+    /// // Validate - should pass
+    /// let violations = hg.validate_schema(false);
+    /// assert!(violations.is_empty());
+    /// ```
+    pub fn validate_schema(&self, strict: bool) -> Vec<SchemaViolation> {
+        let mut violations = Vec::new();
+
+        // Validate all nodes
+        for node in self.nodes.values() {
+            // Get the primary label for this node
+            if let Some(label) = node.labels.first() {
+                let node_violations =
+                    self.schema
+                        .validate_properties(label, &node.properties, strict);
+                violations.extend(node_violations);
+            }
+        }
+
+        // Validate all hyperedges
+        for edge in self.hyperedges.values() {
+            let edge_violations =
+                self.schema
+                    .validate_properties(&edge.label, &edge.properties, strict);
+            violations.extend(edge_violations);
+        }
+
+        violations
+    }
+
+    /// Check if the hypergraph data is valid according to its schema.
+    ///
+    /// This is a convenience method that returns true if there are no violations.
+    pub fn is_schema_valid(&self, strict: bool) -> bool {
+        self.validate_schema(strict).is_empty()
     }
 
     /// Create a subgraph containing only nodes and hyperedges that match criteria.
@@ -349,6 +530,58 @@ impl<'a> HyperedgeBuilder<'a> {
 
         self.hypergraph.hyperedges.insert(edge_id, self.hyperedge);
         edge_id
+    }
+
+    /// Build and add the hyperedge with schema validation.
+    ///
+    /// If strict schema mode is enabled on the hypergraph, this validates
+    /// all properties against the schema before adding the hyperedge.
+    ///
+    /// # Returns
+    /// * `Ok(EdgeId)` if the hyperedge was added successfully
+    /// * `Err(Vec<SchemaViolation>)` if validation failed
+    ///
+    /// # Errors
+    /// Returns an error if:
+    /// - The hyperedge has fewer than 2 role bindings (arity < 2)
+    /// - Strict schema is enabled and properties don't match the schema
+    pub fn build_validated(self) -> Result<EdgeId, Vec<SchemaViolation>> {
+        let edge_id = self.hyperedge.id;
+
+        // Validate that hyperedge has at least 2 endpoints (arity ≥ 2)
+        if self.hyperedge.arity() < 2 {
+            return Err(vec![SchemaViolation::MissingEntity {
+                name: format!(
+                    "Hyperedge '{}' must have arity >= 2, got {}",
+                    self.hyperedge.label,
+                    self.hyperedge.arity()
+                ),
+                kind: EntityKind::Hyperedge,
+            }]);
+        }
+
+        // Validate properties if strict schema is enabled
+        if self.hypergraph.strict_schema {
+            let violations = self.hypergraph.schema.validate_properties(
+                &self.hyperedge.label,
+                &self.hyperedge.properties,
+                true,
+            );
+            if !violations.is_empty() {
+                return Err(violations);
+            }
+        }
+
+        // Update schema with hyperedge type info
+        self.hypergraph.schema.register_entity(EntityInfo {
+            name: self.hyperedge.label.clone(),
+            kind: EntityKind::Hyperedge,
+            columns: self.hyperedge.properties.keys().cloned().collect(),
+            is_alias: false,
+        });
+
+        self.hypergraph.hyperedges.insert(edge_id, self.hyperedge);
+        Ok(edge_id)
     }
 }
 
@@ -625,5 +858,205 @@ mod tests {
         hg.add_hyperedge("INVALID")
             .with_node(alice, "only_endpoint")
             .build();
+    }
+
+    #[test]
+    fn test_strict_schema_mode() {
+        use crate::types::DataType;
+
+        let mut hg = Hypergraph::new().with_strict_schema(true);
+
+        // Register property schemas
+        hg.schema_mut()
+            .register_property("Person", "age", DataType::Int64);
+        hg.schema_mut()
+            .register_property("Person", "name", DataType::String);
+
+        // Valid node - properties match schema (using Value directly for mixed types)
+        let result = hg.add_node_validated(
+            "Person",
+            vec![
+                ("age".to_string(), Value::Int64(30)),
+                ("name".to_string(), Value::String("Alice".to_string())),
+            ],
+        );
+        assert!(result.is_ok());
+
+        // Invalid node - type mismatch (age should be Int64)
+        let result = hg.add_node_validated("Person", [("age", "thirty")]);
+        assert!(result.is_err());
+
+        let violations = result.unwrap_err();
+        assert!(!violations.is_empty());
+    }
+
+    #[test]
+    fn test_strict_schema_disabled() {
+        let mut hg = Hypergraph::new(); // strict_schema defaults to false
+
+        // Without strict schema, any properties are allowed
+        let result = hg.add_node_validated("Person", [("anything", "is allowed")]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_hyperedge_build_validated() {
+        use crate::types::DataType;
+
+        let mut hg = Hypergraph::new().with_strict_schema(true);
+
+        // Register property schemas
+        hg.schema_mut()
+            .register_property("KNOWS", "since", DataType::Int64);
+
+        let alice = hg.add_node("Person", [("name", "Alice")]);
+        let bob = hg.add_node("Person", [("name", "Bob")]);
+
+        // Valid hyperedge
+        let result = hg
+            .add_hyperedge("KNOWS")
+            .with_node(alice, "source")
+            .with_node(bob, "target")
+            .with_properties([("since", 2020i64)])
+            .build_validated();
+        assert!(result.is_ok());
+
+        // Invalid hyperedge - type mismatch
+        let result = hg
+            .add_hyperedge("KNOWS")
+            .with_node(alice, "source")
+            .with_node(bob, "target")
+            .with_properties([("since", "recently")])
+            .build_validated();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_schema_mut() {
+        use crate::types::DataType;
+
+        let mut hg = Hypergraph::new();
+
+        // Initially no property schemas
+        assert!(!hg.schema().has_property_schema("Person", "age"));
+
+        // Register via schema_mut
+        hg.schema_mut()
+            .register_property("Person", "age", DataType::Int64);
+
+        // Now the schema is registered
+        assert!(hg.schema().has_property_schema("Person", "age"));
+    }
+
+    #[test]
+    fn test_validate_schema_valid() {
+        use crate::types::DataType;
+
+        let mut hg = Hypergraph::new();
+        hg.schema_mut()
+            .register_property("Person", "age", DataType::Int64);
+        hg.schema_mut()
+            .register_property("Person", "name", DataType::String);
+
+        // Add nodes with correct types
+        hg.add_node(
+            "Person",
+            vec![
+                ("age", Value::Int64(30)),
+                ("name", Value::String("Alice".into())),
+            ],
+        );
+        hg.add_node(
+            "Person",
+            vec![
+                ("age", Value::Int64(25)),
+                ("name", Value::String("Bob".into())),
+            ],
+        );
+
+        // Validate - should have no violations
+        let violations = hg.validate_schema(false);
+        assert!(violations.is_empty());
+        assert!(hg.is_schema_valid(false));
+    }
+
+    #[test]
+    fn test_validate_schema_type_mismatch() {
+        use crate::schema::SchemaViolation;
+        use crate::types::DataType;
+
+        let mut hg = Hypergraph::new();
+        hg.schema_mut()
+            .register_property("Person", "age", DataType::Int64);
+
+        // Add a node with wrong type (string instead of int)
+        hg.add_node("Person", [("age", "thirty")]);
+
+        // Validate - should have type mismatch
+        let violations = hg.validate_schema(false);
+        assert_eq!(violations.len(), 1);
+        assert!(matches!(
+            &violations[0],
+            SchemaViolation::TypeMismatch { property, .. } if property == "age"
+        ));
+        assert!(!hg.is_schema_valid(false));
+    }
+
+    #[test]
+    fn test_validate_schema_strict_mode() {
+        use crate::schema::SchemaViolation;
+        use crate::types::DataType;
+
+        let mut hg = Hypergraph::new();
+        hg.schema_mut()
+            .register_property("Person", "age", DataType::Int64);
+
+        // Add a node with an undeclared property
+        hg.add_node(
+            "Person",
+            vec![
+                ("age", Value::Int64(30)),
+                ("undeclared", Value::String("value".into())),
+            ],
+        );
+
+        // Non-strict: no violations for undeclared properties
+        let violations = hg.validate_schema(false);
+        assert!(violations.is_empty());
+
+        // Strict: undeclared properties are violations
+        let violations = hg.validate_schema(true);
+        assert_eq!(violations.len(), 1);
+        assert!(matches!(
+            &violations[0],
+            SchemaViolation::UndeclaredProperty { property, .. } if property == "undeclared"
+        ));
+    }
+
+    #[test]
+    fn test_validate_hyperedge_properties() {
+        use crate::schema::SchemaViolation;
+        use crate::types::DataType;
+
+        let mut hg = Hypergraph::new();
+        hg.schema_mut()
+            .register_property("KNOWS", "since", DataType::Int64);
+
+        let alice = hg.add_node("Person", [("name", "Alice")]);
+        let bob = hg.add_node("Person", [("name", "Bob")]);
+
+        // Add hyperedge with wrong property type
+        hg.add_hyperedge("KNOWS")
+            .with_node(alice, "source")
+            .with_node(bob, "target")
+            .with_properties([("since", "recently")]) // Should be Int64
+            .build();
+
+        let violations = hg.validate_schema(false);
+        assert_eq!(violations.len(), 1);
+        assert!(matches!(
+            &violations[0],
+            SchemaViolation::TypeMismatch { entity, property, .. } if entity == "KNOWS" && property == "since"
+        ));
     }
 }
