@@ -5,10 +5,14 @@
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "python")]
+use pyo3::prelude::*;
+
+#[cfg(feature = "python")]
 pub mod python;
 
 /// Global Grism configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "python", pyclass)]
 pub struct GrismConfig {
     /// Execution configuration.
     pub execution: ExecutionConfig,

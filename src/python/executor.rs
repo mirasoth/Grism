@@ -1,6 +1,7 @@
 //! Python bindings for executors.
 
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 
 /// Python wrapper for executors.
 #[pyclass(name = "Executor")]
@@ -15,7 +16,8 @@ impl PyExecutor {
     /// Create a local executor.
     #[staticmethod]
     #[pyo3(signature = (parallelism=None, memory_limit=None))]
-    fn local(_parallelism: Option<usize>, _memory_limit: Option<usize>) -> Self {
+    fn local(parallelism: Option<usize>, memory_limit: Option<usize>) -> Self {
+        let _ = (parallelism, memory_limit);
         Self {
             executor_type: "local".to_string(),
         }
@@ -25,9 +27,10 @@ impl PyExecutor {
     #[staticmethod]
     #[pyo3(signature = (num_workers=None, resources=None))]
     fn ray(
-        _num_workers: Option<usize>,
-        _resources: Option<&Bound<'_, pyo3::types::PyDict>>,
+        num_workers: Option<usize>,
+        resources: Option<Bound<'_, PyDict>>,
     ) -> Self {
+        let _ = (num_workers, resources);
         Self {
             executor_type: "ray".to_string(),
         }
