@@ -1,0 +1,122 @@
+[package]
+name = "grism"
+version = "0.1.0"
+edition = "2024"
+description = "AI-native neurosymbolic hypergraph database system"
+license = "Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+name = "grism"
+
+[dependencies]
+# Workspace crates
+common-error = { path = "src/common/error", default-features = false }
+common-display = { path = "src/common/display", default-features = false }
+common-config = { path = "src/common/config", default-features = false }
+common-runtime = { path = "src/common/runtime", default-features = false }
+grism-core = { path = "src/grism-core", default-features = false }
+grism-logical = { path = "src/grism-logical", default-features = false }
+grism-optimizer = { path = "src/grism-optimizer", default-features = false }
+grism-engine = { path = "src/grism-engine", default-features = false }
+grism-distributed = { path = "src/grism-distributed", default-features = false }
+grism-storage = { path = "src/grism-storage", default-features = false }
+
+# External dependencies
+log = { workspace = true }
+pyo3 = { workspace = true, optional = true }
+
+[features]
+default = []
+python = [
+    "dep:pyo3",
+    "common-error/python",
+    "common-config/python",
+    "grism-core/python",
+    "grism-logical/python",
+    "grism-engine/python",
+    "grism-distributed/python",
+    "grism-storage/python",
+]
+
+[workspace]
+members = [
+    "src/common/error",
+    "src/common/display",
+    "src/common/config",
+    "src/common/runtime",
+    "src/grism-core",
+    "src/grism-logical",
+    "src/grism-optimizer",
+    "src/grism-engine",
+    "src/grism-distributed",
+    "src/grism-storage",
+]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+
+[workspace.dependencies]
+# Error handling
+thiserror = "2.0"
+
+# Serialization
+serde = { version = "1.0", features = ["derive", "rc"] }
+serde_json = "1.0"
+bincode = { version = "2.0", features = ["derive", "serde"] }
+
+# Arrow ecosystem
+arrow = "53.0"
+arrow-array = { version = "53.0", features = ["chrono-tz"] }
+arrow-buffer = "53.0"
+arrow-schema = "53.0"
+arrow-ipc = "53.0"
+
+# Async runtime
+tokio = { version = "1.40", features = ["rt", "rt-multi-thread", "macros", "sync"] }
+futures = "0.3"
+async-trait = "0.1"
+
+# Python bindings
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py310"] }
+
+# Logging
+log = { version = "0.4", features = ["std"] }
+
+# Collections
+indexmap = { version = "2.0", features = ["serde"] }
+hashbrown = "0.14"
+
+# Utilities
+derive_more = { version = "1.0", features = ["display", "from"] }
+uuid = { version = "1.10", features = ["v4"] }
+
+# Workspace crates
+common-error = { path = "src/common/error" }
+common-display = { path = "src/common/display" }
+common-config = { path = "src/common/config" }
+common-runtime = { path = "src/common/runtime" }
+grism-core = { path = "src/grism-core" }
+grism-logical = { path = "src/grism-logical" }
+grism-optimizer = { path = "src/grism-optimizer" }
+grism-engine = { path = "src/grism-engine" }
+grism-distributed = { path = "src/grism-distributed" }
+grism-storage = { path = "src/grism-storage" }
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+
+[profile.dev]
+debug = "line-tables-only"
+overflow-checks = false
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

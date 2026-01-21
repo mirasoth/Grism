@@ -1,0 +1,23 @@
+[package]
+name = "grism-engine"
+edition = { workspace = true }
+version = { workspace = true }
+description = "Local execution engine for Grism"
+
+[dependencies]
+common-error = { workspace = true }
+common-runtime = { workspace = true }
+grism-core = { workspace = true }
+grism-logical = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+futures = { workspace = true }
+arrow-array = { workspace = true }
+pyo3 = { workspace = true, optional = true }
+
+[features]
+default = []
+python = ["dep:pyo3", "grism-core/python", "grism-logical/python"]
+
+[lints]
+workspace = true
