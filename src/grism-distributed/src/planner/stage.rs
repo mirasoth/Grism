@@ -117,7 +117,7 @@ mod tests {
     #[test]
     fn test_stage_operators() {
         let mut stage = Stage::new(1);
-        stage.add_operator(LogicalOp::Scan(ScanOp::nodes(Some("Person"))));
+        stage.add_operator(LogicalOp::Scan(ScanOp::nodes_with_label("Person")));
 
         assert_eq!(stage.operators.len(), 1);
     }
