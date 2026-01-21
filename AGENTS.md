@@ -11,7 +11,7 @@ The following specifications define the Grism system. They must be followed in o
 
 ### 2. RFC Specifications (Must Comply)
 
-Each RFC defines specific system aspects. See [RFC Index](#rfc-index) below.
+Each RFC defines specific system aspects. See `specs/rfc-index.md`.
 
 ### 3. API References (May Change)
 
@@ -32,29 +32,6 @@ From the architecture and RFCs, these principles must be followed:
 3. **One concept → one canonical name** - Aliases allowed only at public API boundaries
 4. **Operators are semantic, not algorithmic** - Physical algorithms live in `*Exec` names only
 5. **Hyperedges can reference other hyperedges** - Enabling meta-relations, provenance, and inference chains
-
----
-
-## RFC Index
-
-| RFC | Title | Brief |
-|-----|-------|-------|
-| **rfc-0001** | Hypergraph Logical Model and Execution Architecture | Core hypergraph model, execution projections, physical layouts, Cypher compatibility |
-| **rfc-0002** | Hypergraph Logical Algebra & Formal Semantics | Logical operators (Scan, Expand, Filter, Project, Aggregate), semantic contracts |
-| **rfc-0003** | Expression System & Type Model | Expression IR, type system, type checking, coercion, nullability rules |
-| **rfc-0006** | Logical Planning & Rewrite Rules | Plan structure, rewrite rule categories, safety conditions, equivalence guarantees |
-| **rfc-0007** | Cost Model & Execution Mode Selection | Cost estimation, execution modes (relational/graph/hybrid), mode selection |
-| **rfc-0008** | Physical Plan & Operator Interfaces | Physical plan structure, operator contracts, execution lifecycle |
-| **rfc-0009** | Indexes, Adjacency & Access Paths | Index types, adjacency as access path, planner visibility rules |
-| **rfc-0010** | Distributed & Parallel Execution | Parallelization rules, partitioning, semantic guarantees, failure handling |
-| **rfc-0011** | Runtime, Scheduling & Backpressure | Operator scheduling, resource management, flow control, cancellation |
-| **rfc-0012** | Storage & Persistence Layer | Persistence, columnar/adjacency access, snapshots, index materialization |
-| **rfc-0013** | Semantic Reasoning & Neurosymbolic Layer | Symbolic reasoning, ontology inference, rule-based derivation, neural integration |
-| **rfc-0014** | Multi-Modal Data Processing | Images, video, audio as queryable data; feature extraction; embedding integration |
-| **rfc-0015** | Schema, Typing & Evolution | Schema versioning, type refinement, evolution without brittleness |
-| **rfc-0016** | Constraints & Integrity | Integrity model for long-lived systems with partial inference and neural approximation |
-| **rfc-0017** | Transactions, Mutations & Write Semantics | Write semantics for append-only storage, incremental ingestion, agent writes |
-| **rfc-namings** | Naming Alignment & Completion | Authoritative cross-RFC naming reference for all system layers |
 
 ---
 
