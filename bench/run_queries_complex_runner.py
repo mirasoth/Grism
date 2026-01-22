@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Runner for Grism queries from grism_queries_part1.py.
+Runner for Grism complex queries from grism_queries_complex.py.
 
-This script tests that all 200 queries can successfully generate logical plans.
+This script tests that all complex queries can successfully generate logical plans.
 It does NOT execute the queries (which would require actual data), but validates
 that the query construction and plan generation work correctly.
 
 Usage:
-    python -m bench.run_queries_part1_runner              # Run all queries
-    python -m bench.run_queries_part1_runner --query 4    # Run only query_004
-    python -m bench.run_queries_part1_runner --verbose    # Show logical plans
-    python -m bench.run_queries_part1_runner --range 1-10 # Run queries 1-10
+    python -m bench.run_queries_complex_runner              # Run all queries
+    python -m bench.run_queries_complex_runner --query 1    # Run only complex_query_001
+    python -m bench.run_queries_complex_runner --verbose    # Show logical plans
+    python -m bench.run_queries_complex_runner --all        # Include alternative implementations
 """
 
 import argparse
@@ -58,7 +58,8 @@ def _create_method_interceptor(frame: Any, plan_captured: list[str], method_name
 def _create_callable_wrapper(attr: Any, plan_captured: list[str]) -> Any:
     """Create a wrapper for callable attributes that continues the capture chain."""
     def wrapper(*args, **kwargs):
-        result = attr(*args, **kwargs)
+        unwrapped_args = _unwrap_args(args)
+        result = attr(*unwrapped_args, **kwargs)
         return _wrap_result(result, plan_captured)
     return wrapper
 
@@ -113,7 +114,7 @@ class FrameCapture:
             )
 
         # Handle special methods that need argument unwrapping
-        if name == "union":
+        if name in ("union", "intersect", "except_"):
             def special_method(*args, **kwargs):
                 unwrapped_args = _unwrap_args(args)
                 result = attr(*unwrapped_args, **kwargs)
@@ -134,9 +135,6 @@ class HypergraphCapture:
 
     # Methods that return frames and should be wrapped
     _FRAME_METHODS = ("nodes", "edges", "hyperedges")
-
-    # Global functions that need special handling
-    _GLOBAL_FUNCTIONS = ("shortest_path", "all_paths")
 
     def __init__(self):
         self._hg = gr.Hypergraph.connect("grism://local")
@@ -160,14 +158,6 @@ class HypergraphCapture:
                 return FrameCapture(result, self._captured_plans)
             return frame_method
 
-        # Handle global functions that need argument unwrapping
-        if name in self._GLOBAL_FUNCTIONS:
-            def global_function(*args, **kwargs):
-                unwrapped_args = _unwrap_args(args)
-                result = attr(*unwrapped_args, **kwargs)
-                return FrameCapture(result, self._captured_plans) if hasattr(result, 'explain') else result
-            return global_function
-
         return attr
 
 
@@ -187,29 +177,69 @@ def _create_path_wrapper(original_func: Callable) -> Callable:
     return wrapped_path
 
 
-def get_query_functions() -> dict[str, Callable]:
-    """
-    Import and return all query functions from grism_queries_part1.py.
+def _create_exists_wrapper(original_func: Callable) -> Callable:
+    """Create a wrapper for exists() that handles FrameCapture arguments."""
+    def wrapped_exists(subquery, *args, **kwargs):
+        # Unwrap FrameCapture if necessary
+        if isinstance(subquery, FrameCapture):
+            subquery = subquery._frame
+        return original_func(subquery, *args, **kwargs)
+    return wrapped_exists
 
-    Also patches the module-level shortest_path and all_paths functions
-    to return wrapped frames.
+
+def _create_all_any_wrapper(original_func: Callable) -> Callable:
+    """Create a wrapper for all_() and any_() that handles arguments properly."""
+    def wrapped_func(*args, **kwargs):
+        # These functions take expressions, not frames, so just pass through
+        return original_func(*args, **kwargs)
+    return wrapped_func
+
+
+def get_query_functions(include_alternatives: bool = False) -> dict[str, Callable]:
+    """
+    Import and return all query functions from grism_queries_complex.py.
+
+    Also patches the module-level functions to work with capture mechanism.
+
+    Args:
+        include_alternatives: If True, include alternative implementations (_alt suffix)
 
     Returns:
         Dict mapping query names to query functions.
     """
-    from bench import grism_queries_part1 as queries_module
+    from bench import grism_queries_complex as queries_module
     import grism as gr
 
     # Wrap module-level path functions to return FrameCapture
     queries_module.shortest_path = _create_path_wrapper(gr.shortest_path)
     queries_module.all_paths = _create_path_wrapper(gr.all_paths)
+    
+    # Wrap exists to handle FrameCapture arguments
+    queries_module.exists = _create_exists_wrapper(gr.exists)
+    
+    # Wrap all_ and any_ 
+    queries_module.all_ = _create_all_any_wrapper(gr.all_)
+    queries_module.any_ = _create_all_any_wrapper(gr.any_)
 
     # Collect all query functions
-    query_functions = {
-        f"query_{i:03d}": getattr(queries_module, f"query_{i:03d}")
-        for i in range(1, 201)
-        if hasattr(queries_module, f"query_{i:03d}")
-    }
+    query_functions = {}
+    
+    # Main complex queries (001-005)
+    for i in range(1, 6):
+        query_name = f"complex_query_{i:03d}"
+        if hasattr(queries_module, query_name):
+            query_functions[query_name] = getattr(queries_module, query_name)
+    
+    # Bonus query
+    if hasattr(queries_module, "complex_query_bonus"):
+        query_functions["complex_query_bonus"] = getattr(queries_module, "complex_query_bonus")
+    
+    # Alternative implementations (if requested)
+    if include_alternatives:
+        for i in range(1, 6):
+            alt_name = f"complex_query_{i:03d}_alt"
+            if hasattr(queries_module, alt_name):
+                query_functions[alt_name] = getattr(queries_module, alt_name)
 
     return query_functions
 
@@ -248,15 +278,19 @@ def run_query_with_capture(query_func: Callable, hg: HypergraphCapture) -> tuple
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Run Grism queries and validate logical plan generation"
+        description="Run Grism complex queries and validate logical plan generation"
     )
     parser.add_argument(
         "--query", "-q", type=int,
-        help="Run only a specific query (e.g., --query 4 for query_004)"
+        help="Run only a specific query (e.g., --query 1 for complex_query_001)"
     )
     parser.add_argument(
-        "--range", "-r", type=str,
-        help="Run a range of queries (e.g., --range 1-10)"
+        "--name", "-n", type=str,
+        help="Run a query by full name (e.g., --name complex_query_003_alt)"
+    )
+    parser.add_argument(
+        "--all", "-a", action="store_true",
+        help="Include alternative implementations (_alt suffix)"
     )
     parser.add_argument(
         "--verbose", "-v", action="store_true",
@@ -270,23 +304,30 @@ def main():
     args = parser.parse_args()
     
     # Get all query functions
-    query_functions = get_query_functions()
+    query_functions = get_query_functions(include_alternatives=args.all)
     print(f"Found {len(query_functions)} query functions")
     
     # Determine which queries to run
     if args.query:
-        query_name = f"query_{args.query:03d}"
+        query_name = f"complex_query_{args.query:03d}"
         if query_name not in query_functions:
             print(f"Error: {query_name} not found")
             sys.exit(1)
         queries_to_run = {query_name: query_functions[query_name]}
-    elif args.range:
-        start, end = map(int, args.range.split("-"))
-        queries_to_run = {
-            f"query_{i:03d}": query_functions[f"query_{i:03d}"]
-            for i in range(start, end + 1)
-            if f"query_{i:03d}" in query_functions
-        }
+    elif args.name:
+        if args.name not in query_functions:
+            # Try to find a matching query
+            matches = [k for k in query_functions if args.name in k]
+            if len(matches) == 1:
+                args.name = matches[0]
+            elif matches:
+                print(f"Error: Ambiguous query name. Matches: {matches}")
+                sys.exit(1)
+            else:
+                print(f"Error: {args.name} not found")
+                print(f"Available queries: {list(query_functions.keys())}")
+                sys.exit(1)
+        queries_to_run = {args.name: query_functions[args.name]}
     else:
         queries_to_run = query_functions
     
