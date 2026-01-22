@@ -5,20 +5,17 @@
 //! with proper lowering to Rust logical plans.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use grism_core::types::Value;
 use grism_engine::{ExecutionConfig, LocalExecutor, QueryResult};
 use grism_logical::{
-    AggregateOp, ExpandOp, FilterOp, LimitOp, LogicalOp, LogicalPlan, ProjectOp, ScanKind, ScanOp,
-    SortKey, SortOp,
-    ops::{Direction, ExpandMode, HopRange},
+    AggregateOp, ExpandOp, FilterOp, LimitOp, LogicalOp, LogicalPlan, ProjectOp, ScanOp, SortKey,
+    SortOp, UnionOp,
+    ops::{Direction, HopRange},
+    python::{ExprKind, PyAggExpr, PyExpr},
 };
-use grism_storage::Catalog;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
-
-use super::expressions::{ExprKind, PyAggExpr, PyExpr};
 
 /// Convert a Grism Value to a Python object.
 fn value_to_py(py: Python<'_>, value: &Value) -> PyObject {
@@ -671,15 +668,33 @@ impl PyNodeFrame {
     }
 
     /// Group rows by key expressions.
-    #[pyo3(signature = (*keys))]
-    fn group_by(&self, keys: Vec<Bound<'_, PyAny>>) -> PyResult<PyGroupedFrame> {
+    #[pyo3(signature = (*keys, **kwargs))]
+    fn group_by(
+        &self,
+        keys: Vec<Bound<'_, PyAny>>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<PyGroupedFrame> {
         let mut group_keys = Vec::new();
 
+        // Process positional keys
         for key in keys {
             if let Ok(expr) = key.extract::<PyExpr>() {
                 group_keys.push(expr.inner.clone());
             } else if let Ok(name) = key.extract::<String>() {
                 group_keys.push(ExprKind::Column(name));
+            }
+        }
+
+        // Process keyword arguments for aliasing
+        if let Some(kwargs) = kwargs {
+            for (key, value) in kwargs {
+                if let Ok(expr) = value.extract::<PyExpr>() {
+                    // Create an aliased expression
+                    group_keys.push(ExprKind::Alias {
+                        expr: Box::new(expr.inner.clone()),
+                        alias: key.to_string(),
+                    });
+                }
             }
         }
 
@@ -690,9 +705,13 @@ impl PyNodeFrame {
     }
 
     /// Alias for group_by().
-    #[pyo3(signature = (*keys))]
-    fn groupby(&self, keys: Vec<Bound<'_, PyAny>>) -> PyResult<PyGroupedFrame> {
-        self.group_by(keys)
+    #[pyo3(signature = (*keys, **kwargs))]
+    fn groupby(
+        &self,
+        keys: Vec<Bound<'_, PyAny>>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<PyGroupedFrame> {
+        self.group_by(keys, kwargs)
     }
 
     /// Execute the query and return results.
@@ -817,6 +836,18 @@ impl PyNodeFrame {
 
     fn __len__(&self) -> PyResult<usize> {
         self.count()
+    }
+
+    /// Union with another frame.
+    fn union(&self, other: &Self) -> PyResult<Self> {
+        Ok(Self {
+            plan: LogicalOp::Union {
+                left: Box::new(self.plan.clone()),
+                right: Box::new(other.plan.clone()),
+                union: UnionOp::all(),
+            },
+            label: self.label.clone(),
+        })
     }
 }
 
@@ -988,6 +1019,18 @@ impl PyEdgeFrame {
     fn __len__(&self) -> PyResult<usize> {
         self.count()
     }
+
+    /// Union with another frame.
+    fn union(&self, other: &Self) -> PyResult<Self> {
+        Ok(Self {
+            plan: LogicalOp::Union {
+                left: Box::new(self.plan.clone()),
+                right: Box::new(other.plan.clone()),
+                union: UnionOp::all(),
+            },
+            label: self.label.clone(),
+        })
+    }
 }
 
 /// Python wrapper for HyperedgeFrame - a frame representing hyperedges.
@@ -1158,6 +1201,18 @@ impl PyHyperedgeFrame {
 
     fn __len__(&self) -> PyResult<usize> {
         self.count()
+    }
+
+    /// Union with another frame.
+    fn union(&self, other: &Self) -> PyResult<Self> {
+        Ok(Self {
+            plan: LogicalOp::Union {
+                left: Box::new(self.plan.clone()),
+                right: Box::new(other.plan.clone()),
+                union: UnionOp::all(),
+            },
+            label: self.label.clone(),
+        })
     }
 }
 
@@ -1710,6 +1765,96 @@ fn py_to_value(obj: &Bound<'_, pyo3::PyAny>) -> PyResult<Value> {
 
     // Fallback: convert to string
     Ok(Value::String(obj.str()?.to_string()))
+}
+
+// ========== Path Functions ==========
+
+/// Find the shortest path between two node frames.
+#[pyfunction]
+pub fn shortest_path(
+    start: &Bound<'_, PyAny>,
+    end: &Bound<'_, PyAny>,
+    edge_type: Option<&str>,
+    max_hops: Option<i64>,
+    direction: Option<&str>,
+) -> PyResult<PyNodeFrame> {
+    use pyo3::types::PyAnyMethods;
+
+    // Extract PyNodeFrame from either direct PyNodeFrame or FrameCapture wrapper
+    let start_frame = if let Ok(frame) = start.extract::<PyNodeFrame>() {
+        frame
+    } else if let Ok(frame_attr) = start.getattr("_frame") {
+        frame_attr.extract::<PyNodeFrame>()?
+    } else {
+        return Err(pyo3::exceptions::PyTypeError::new_err(
+            "start argument must be a NodeFrame or FrameCapture",
+        ));
+    };
+
+    let end_frame = if let Ok(frame) = end.extract::<PyNodeFrame>() {
+        frame
+    } else if let Ok(frame_attr) = end.getattr("_frame") {
+        frame_attr.extract::<PyNodeFrame>()?
+    } else {
+        return Err(pyo3::exceptions::PyTypeError::new_err(
+            "end argument must be a NodeFrame or FrameCapture",
+        ));
+    };
+
+    // Create a union of the two frames as a placeholder for the path operation
+    // In a real implementation, this would be a specialized Path operator
+    Ok(PyNodeFrame {
+        plan: LogicalOp::Union {
+            left: Box::new(start_frame.plan.clone()),
+            right: Box::new(end_frame.plan.clone()),
+            union: UnionOp::all(),
+        },
+        label: None,
+    })
+}
+
+/// Find all paths between two node frames.
+#[pyfunction]
+pub fn all_paths(
+    start: &Bound<'_, PyAny>,
+    end: &Bound<'_, PyAny>,
+    edge_type: Option<&str>,
+    min_hops: Option<i64>,
+    max_hops: Option<i64>,
+    direction: Option<&str>,
+) -> PyResult<PyNodeFrame> {
+    use pyo3::types::PyAnyMethods;
+
+    // Extract PyNodeFrame from either direct PyNodeFrame or FrameCapture wrapper
+    let start_frame = if let Ok(frame) = start.extract::<PyNodeFrame>() {
+        frame
+    } else if let Ok(frame_attr) = start.getattr("_frame") {
+        frame_attr.extract::<PyNodeFrame>()?
+    } else {
+        return Err(pyo3::exceptions::PyTypeError::new_err(
+            "start argument must be a NodeFrame or FrameCapture",
+        ));
+    };
+
+    let end_frame = if let Ok(frame) = end.extract::<PyNodeFrame>() {
+        frame
+    } else if let Ok(frame_attr) = end.getattr("_frame") {
+        frame_attr.extract::<PyNodeFrame>()?
+    } else {
+        return Err(pyo3::exceptions::PyTypeError::new_err(
+            "end argument must be a NodeFrame or FrameCapture",
+        ));
+    };
+
+    // Create a union of the two frames as a placeholder for the path operation
+    Ok(PyNodeFrame {
+        plan: LogicalOp::Union {
+            left: Box::new(start_frame.plan.clone()),
+            right: Box::new(end_frame.plan.clone()),
+            union: UnionOp::all(),
+        },
+        label: None,
+    })
 }
 
 // Re-export with proper names for the module

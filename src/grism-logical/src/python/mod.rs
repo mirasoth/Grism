@@ -1,16 +1,17 @@
 //! Python bindings for the Grism expression system.
 //!
-//! This module provides PyO3 bindings for expressions, following the Python API spec
-//! (specs/2_python_api_v0.1.md) and implementing expression lowering to Rust LogicalExpr
-//! per RFC-0003.
+//! This module provides PyO3 bindings for expressions, following the Daft pattern
+//! of individual python modules per crate. Implements expression lowering to Rust
+//! LogicalExpr per RFC-0003.
 
 use grism_core::Value;
-use grism_logical::{
+use pyo3::prelude::*;
+use pyo3::types::{PyAnyMethods, PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
+
+use crate::{
     AggExpr as RustAggExpr, LogicalExpr,
     expr::{AggFunc, BinaryOp, FuncExpr, FuncKind, UnaryOp},
 };
-use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 
 /// Internal representation of a Python expression that can be lowered to LogicalExpr.
 #[derive(Debug, Clone)]
@@ -70,35 +71,31 @@ impl ExprKind {
             },
             ExprKind::Function { name, args } => {
                 let func_kind = match name.as_str() {
-                    "length" | "len" => FuncKind::Builtin(grism_logical::BuiltinFunc::Length),
-                    "upper" => FuncKind::Builtin(grism_logical::BuiltinFunc::Upper),
-                    "lower" => FuncKind::Builtin(grism_logical::BuiltinFunc::Lower),
-                    "trim" => FuncKind::Builtin(grism_logical::BuiltinFunc::Trim),
-                    "abs" => FuncKind::Builtin(grism_logical::BuiltinFunc::Abs),
-                    "ceil" => FuncKind::Builtin(grism_logical::BuiltinFunc::Ceil),
-                    "floor" => FuncKind::Builtin(grism_logical::BuiltinFunc::Floor),
-                    "round" => FuncKind::Builtin(grism_logical::BuiltinFunc::Round),
-                    "sqrt" => FuncKind::Builtin(grism_logical::BuiltinFunc::Sqrt),
-                    "coalesce" => FuncKind::Builtin(grism_logical::BuiltinFunc::Coalesce),
-                    "concat" => FuncKind::Builtin(grism_logical::BuiltinFunc::Concat),
-                    "substring" => FuncKind::Builtin(grism_logical::BuiltinFunc::Substring),
-                    "replace" => FuncKind::Builtin(grism_logical::BuiltinFunc::Replace),
-                    "similarity" | "sim" => {
-                        FuncKind::Builtin(grism_logical::BuiltinFunc::CosineSimilarity)
-                    }
-                    "contains" => FuncKind::Builtin(grism_logical::BuiltinFunc::Contains),
-                    "starts_with" => FuncKind::Builtin(grism_logical::BuiltinFunc::StartsWith),
-                    "ends_with" => FuncKind::Builtin(grism_logical::BuiltinFunc::EndsWith),
-                    "regex_match" | "matches" => {
-                        FuncKind::Builtin(grism_logical::BuiltinFunc::RegexMatch)
-                    }
-                    "like" => FuncKind::Builtin(grism_logical::BuiltinFunc::Like),
-                    "cast" => FuncKind::Builtin(grism_logical::BuiltinFunc::Cast),
-                    "id" => FuncKind::Builtin(grism_logical::BuiltinFunc::Id),
-                    "labels" => FuncKind::Builtin(grism_logical::BuiltinFunc::Labels),
-                    "type" => FuncKind::Builtin(grism_logical::BuiltinFunc::Type),
-                    "properties" => FuncKind::Builtin(grism_logical::BuiltinFunc::Properties),
-                    "size" => FuncKind::Builtin(grism_logical::BuiltinFunc::Size),
+                    "length" | "len" => FuncKind::Builtin(crate::BuiltinFunc::Length),
+                    "upper" => FuncKind::Builtin(crate::BuiltinFunc::Upper),
+                    "lower" => FuncKind::Builtin(crate::BuiltinFunc::Lower),
+                    "trim" => FuncKind::Builtin(crate::BuiltinFunc::Trim),
+                    "abs" => FuncKind::Builtin(crate::BuiltinFunc::Abs),
+                    "ceil" => FuncKind::Builtin(crate::BuiltinFunc::Ceil),
+                    "floor" => FuncKind::Builtin(crate::BuiltinFunc::Floor),
+                    "round" => FuncKind::Builtin(crate::BuiltinFunc::Round),
+                    "sqrt" => FuncKind::Builtin(crate::BuiltinFunc::Sqrt),
+                    "coalesce" => FuncKind::Builtin(crate::BuiltinFunc::Coalesce),
+                    "concat" => FuncKind::Builtin(crate::BuiltinFunc::Concat),
+                    "substring" => FuncKind::Builtin(crate::BuiltinFunc::Substring),
+                    "replace" => FuncKind::Builtin(crate::BuiltinFunc::Replace),
+                    "similarity" | "sim" => FuncKind::Builtin(crate::BuiltinFunc::CosineSimilarity),
+                    "contains" => FuncKind::Builtin(crate::BuiltinFunc::Contains),
+                    "starts_with" => FuncKind::Builtin(crate::BuiltinFunc::StartsWith),
+                    "ends_with" => FuncKind::Builtin(crate::BuiltinFunc::EndsWith),
+                    "regex_match" | "matches" => FuncKind::Builtin(crate::BuiltinFunc::RegexMatch),
+                    "like" => FuncKind::Builtin(crate::BuiltinFunc::Like),
+                    "cast" => FuncKind::Builtin(crate::BuiltinFunc::Cast),
+                    "id" => FuncKind::Builtin(crate::BuiltinFunc::Id),
+                    "labels" => FuncKind::Builtin(crate::BuiltinFunc::Labels),
+                    "type" => FuncKind::Builtin(crate::BuiltinFunc::Type),
+                    "properties" => FuncKind::Builtin(crate::BuiltinFunc::Properties),
+                    "size" => FuncKind::Builtin(crate::BuiltinFunc::Size),
                     _ => FuncKind::UserDefined(name.clone()),
                 };
                 let func_args: Vec<_> = args.iter().map(|a| a.to_logical_expr()).collect();
@@ -134,7 +131,7 @@ impl ExprKind {
 #[derive(Clone)]
 pub struct PyExpr {
     /// Internal expression representation.
-    pub(crate) inner: ExprKind,
+    pub inner: ExprKind,
 }
 
 impl PyExpr {
@@ -599,6 +596,24 @@ impl PyExpr {
         self.alias(name)
     }
 
+    // ========== Utility Methods ==========
+
+    /// Get all properties as a map.
+    fn properties(&self) -> Self {
+        Self::new(ExprKind::Function {
+            name: "properties".to_string(),
+            args: vec![self.inner.clone()],
+        })
+    }
+
+    /// Explode an array or list into multiple rows.
+    fn explode(&self) -> Self {
+        Self::new(ExprKind::Function {
+            name: "explode".to_string(),
+            args: vec![self.inner.clone()],
+        })
+    }
+
     // ========== Display ==========
 
     fn __repr__(&self) -> String {
@@ -611,7 +626,7 @@ impl PyExpr {
 }
 
 /// Convert a Python value to an ExprKind.
-fn py_any_to_expr(value: &Bound<'_, PyAny>) -> PyResult<ExprKind> {
+pub fn py_any_to_expr(value: &Bound<'_, PyAny>) -> PyResult<ExprKind> {
     // Check if it's already a PyExpr
     if let Ok(expr) = value.extract::<PyExpr>() {
         return Ok(expr.inner);
@@ -648,7 +663,7 @@ fn py_any_to_expr(value: &Bound<'_, PyAny>) -> PyResult<ExprKind> {
 }
 
 /// Convert a Python value to a Grism Value.
-fn py_any_to_value(value: &Bound<'_, PyAny>) -> PyResult<Value> {
+pub fn py_any_to_value(value: &Bound<'_, PyAny>) -> PyResult<Value> {
     if value.is_none() {
         return Ok(Value::Null);
     }
@@ -705,13 +720,13 @@ pub fn prop(name: &str) -> PyExpr {
 #[pyclass(name = "AggExpr")]
 #[derive(Clone)]
 pub struct PyAggExpr {
-    pub(crate) func: AggFunc,
-    pub(crate) expr: ExprKind,
-    pub(crate) alias: Option<String>,
+    pub func: AggFunc,
+    pub expr: ExprKind,
+    pub alias: Option<String>,
 }
 
 impl PyAggExpr {
-    fn new(func: AggFunc, expr: ExprKind) -> Self {
+    pub fn new(func: AggFunc, expr: ExprKind) -> Self {
         Self {
             func,
             expr,
@@ -1147,56 +1162,6 @@ pub fn all_fn(expr: &PyExpr, predicate: Option<&PyExpr>) -> PyExpr {
     })
 }
 
-// ========== Path Functions ==========
-
-/// Find the shortest path between two nodes.
-#[pyfunction]
-#[pyo3(signature = (start, end, edge_type=None, max_hops=None))]
-pub fn shortest_path(
-    start: &PyExpr,
-    end: &PyExpr,
-    edge_type: Option<&str>,
-    max_hops: Option<i64>,
-) -> PyExpr {
-    let mut args = vec![start.inner.clone(), end.inner.clone()];
-    if let Some(et) = edge_type {
-        args.push(ExprKind::Literal(Value::String(et.to_string())));
-    }
-    if let Some(mh) = max_hops {
-        args.push(ExprKind::Literal(Value::Int64(mh)));
-    }
-    PyExpr::new(ExprKind::Function {
-        name: "shortest_path".to_string(),
-        args,
-    })
-}
-
-/// Find all paths between two nodes.
-#[pyfunction]
-#[pyo3(signature = (start, end, edge_type=None, min_hops=None, max_hops=None))]
-pub fn all_paths(
-    start: &PyExpr,
-    end: &PyExpr,
-    edge_type: Option<&str>,
-    min_hops: Option<i64>,
-    max_hops: Option<i64>,
-) -> PyExpr {
-    let mut args = vec![start.inner.clone(), end.inner.clone()];
-    if let Some(et) = edge_type {
-        args.push(ExprKind::Literal(Value::String(et.to_string())));
-    }
-    if let Some(mn) = min_hops {
-        args.push(ExprKind::Literal(Value::Int64(mn)));
-    }
-    if let Some(mx) = max_hops {
-        args.push(ExprKind::Literal(Value::Int64(mx)));
-    }
-    PyExpr::new(ExprKind::Function {
-        name: "all_paths".to_string(),
-        args,
-    })
-}
-
 // ========== Pattern Class ==========
 
 /// Pattern for graph matching.
@@ -1207,17 +1172,17 @@ pub fn all_paths(
 #[derive(Clone)]
 pub struct PyPattern {
     /// Pattern specification.
-    pub(crate) spec: String,
+    pub spec: String,
     /// Optional start node.
-    pub(crate) start: Option<String>,
+    pub start: Option<String>,
     /// Optional end node.
-    pub(crate) end: Option<String>,
+    pub end: Option<String>,
     /// Edge type filter.
-    pub(crate) edge_type: Option<String>,
+    pub edge_type: Option<String>,
     /// Minimum hops.
-    pub(crate) min_hops: Option<u32>,
+    pub min_hops: Option<u32>,
     /// Maximum hops.
-    pub(crate) max_hops: Option<u32>,
+    pub max_hops: Option<u32>,
 }
 
 #[pymethods]
@@ -1291,6 +1256,90 @@ impl PyPattern {
             self.spec, self.start, self.end, self.edge_type, self.min_hops, self.max_hops
         )
     }
+}
+
+// ========== Module Registration (Daft Pattern) ==========
+
+/// Register all Python bindings from this crate with the parent module.
+///
+/// Following the Daft pattern, each crate exports a `register_modules` function
+/// that registers its Python classes and functions with the parent module.
+pub fn register_modules(parent: &Bound<'_, PyModule>) -> PyResult<()> {
+    // ========== Expression Classes ==========
+    parent.add_class::<PyExpr>()?;
+    parent.add_class::<PyAggExpr>()?;
+    parent.add_class::<PyPattern>()?;
+
+    // ========== Expression Functions ==========
+    // Column references
+    parent.add_function(wrap_pyfunction!(col, parent)?)?;
+    parent.add_function(wrap_pyfunction!(lit, parent)?)?;
+    parent.add_function(wrap_pyfunction!(prop, parent)?)?;
+
+    // ========== Aggregation Functions ==========
+    parent.add_function(wrap_pyfunction!(count, parent)?)?;
+    parent.add_function(wrap_pyfunction!(count_distinct, parent)?)?;
+    parent.add_function(wrap_pyfunction!(sum_agg, parent)?)?;
+    parent.add_function(wrap_pyfunction!(avg, parent)?)?;
+    parent.add_function(wrap_pyfunction!(min_agg, parent)?)?;
+    parent.add_function(wrap_pyfunction!(max_agg, parent)?)?;
+    parent.add_function(wrap_pyfunction!(collect, parent)?)?;
+    parent.add_function(wrap_pyfunction!(collect_distinct, parent)?)?;
+    parent.add_function(wrap_pyfunction!(first, parent)?)?;
+    parent.add_function(wrap_pyfunction!(last, parent)?)?;
+
+    // ========== String Functions ==========
+    parent.add_function(wrap_pyfunction!(concat, parent)?)?;
+    parent.add_function(wrap_pyfunction!(length, parent)?)?;
+    parent.add_function(wrap_pyfunction!(lower, parent)?)?;
+    parent.add_function(wrap_pyfunction!(upper, parent)?)?;
+    parent.add_function(wrap_pyfunction!(trim, parent)?)?;
+    parent.add_function(wrap_pyfunction!(contains_fn, parent)?)?;
+
+    // ========== Math Functions ==========
+    parent.add_function(wrap_pyfunction!(abs_fn, parent)?)?;
+    parent.add_function(wrap_pyfunction!(ceil, parent)?)?;
+    parent.add_function(wrap_pyfunction!(floor, parent)?)?;
+    parent.add_function(wrap_pyfunction!(round_fn, parent)?)?;
+    parent.add_function(wrap_pyfunction!(sqrt, parent)?)?;
+    parent.add_function(wrap_pyfunction!(power, parent)?)?;
+
+    // ========== Date/Time Functions ==========
+    parent.add_function(wrap_pyfunction!(date, parent)?)?;
+    parent.add_function(wrap_pyfunction!(year, parent)?)?;
+    parent.add_function(wrap_pyfunction!(month, parent)?)?;
+    parent.add_function(wrap_pyfunction!(day, parent)?)?;
+
+    // ========== Conditional Functions ==========
+    parent.add_function(wrap_pyfunction!(coalesce, parent)?)?;
+    parent.add_function(wrap_pyfunction!(if_expr, parent)?)?;
+
+    // ========== Graph Functions ==========
+    parent.add_function(wrap_pyfunction!(labels, parent)?)?;
+    parent.add_function(wrap_pyfunction!(type_fn, parent)?)?;
+    parent.add_function(wrap_pyfunction!(id_fn, parent)?)?;
+    parent.add_function(wrap_pyfunction!(properties, parent)?)?;
+    parent.add_function(wrap_pyfunction!(nodes, parent)?)?;
+    parent.add_function(wrap_pyfunction!(relationships, parent)?)?;
+    parent.add_function(wrap_pyfunction!(path_length, parent)?)?;
+
+    // ========== Vector/AI Functions ==========
+    parent.add_function(wrap_pyfunction!(sim, parent)?)?;
+
+    // ========== String Functions (standalone) ==========
+    parent.add_function(wrap_pyfunction!(substring, parent)?)?;
+    parent.add_function(wrap_pyfunction!(replace, parent)?)?;
+    parent.add_function(wrap_pyfunction!(split, parent)?)?;
+
+    // ========== Conditional Functions (additional) ==========
+    parent.add_function(wrap_pyfunction!(when, parent)?)?;
+
+    // ========== Predicate Functions ==========
+    parent.add_function(wrap_pyfunction!(exists_fn, parent)?)?;
+    parent.add_function(wrap_pyfunction!(any_fn, parent)?)?;
+    parent.add_function(wrap_pyfunction!(all_fn, parent)?)?;
+
+    Ok(())
 }
 
 #[cfg(test)]

@@ -55,6 +55,8 @@
 pub mod expr;
 pub mod ops;
 mod plan;
+#[cfg(feature = "python")]
+pub mod python;
 pub mod schema_inference;
 pub mod validation;
 
