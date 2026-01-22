@@ -4,10 +4,26 @@
 //! or a maximum number of iterations is reached.
 
 use common_error::GrismResult;
-use grism_logical::LogicalPlan;
+use grism_logical::{LogicalOp, LogicalPlan};
 use log::debug;
 
 use super::rule::{OptimizationRule, OptimizedPlan, RuleTrace};
+
+/// Generate an operator chain summary for a plan.
+///
+/// Returns a string like "Filter → Expand → Scan"
+fn operator_chain_summary(plan: &LogicalPlan) -> String {
+    fn collect_chain(op: &LogicalOp, chain: &mut Vec<&'static str>) {
+        chain.push(op.name());
+        if let Some(first_input) = op.inputs().first() {
+            collect_chain(first_input, chain);
+        }
+    }
+
+    let mut chain = Vec::new();
+    collect_chain(plan.root(), &mut chain);
+    chain.join(" → ")
+}
 
 /// Configuration for the optimizer.
 #[derive(Debug, Clone)]
@@ -108,10 +124,13 @@ impl Optimizer {
             let mut changed_this_iteration = false;
 
             for rule in &self.rules {
-                let before = if self.config.enable_trace {
-                    Some(current_plan.explain())
+                let (before_explain, before_summary) = if self.config.enable_trace {
+                    (
+                        Some(current_plan.explain()),
+                        Some(operator_chain_summary(&current_plan)),
+                    )
                 } else {
-                    None
+                    (None, None)
                 };
 
                 let result = rule.apply(current_plan)?;
@@ -123,10 +142,14 @@ impl Optimizer {
                     debug!("Rule '{}' applied in iteration {}", rule.name(), iterations);
 
                     if self.config.enable_trace {
-                        trace.push(RuleTrace::new(
+                        let after_summary = operator_chain_summary(&result.plan);
+
+                        trace.push(RuleTrace::with_summaries(
                             rule.name(),
-                            before.unwrap_or_default(),
+                            before_explain.unwrap_or_default(),
                             result.plan.explain(),
+                            before_summary.unwrap_or_default(),
+                            after_summary,
                             true,
                         ));
                     }
@@ -191,12 +214,19 @@ impl Optimizer {
 
 impl Default for Optimizer {
     fn default() -> Self {
-        use super::{ConstantFolding, PredicatePushdown, ProjectionPruning};
+        use super::{
+            ConstantFolding, ExpandReordering, FilterExpandFusion, PredicatePushdown,
+            ProjectionPruning,
+        };
 
         // Default optimizer with standard rules per RFC-0006, Section 7
+        // Order matters: constant folding first, then predicate pushdown,
+        // then filter-expand fusion, then expand reordering, then projection pruning
         Self::new(vec![
             Box::new(ConstantFolding),
             Box::new(PredicatePushdown),
+            Box::new(FilterExpandFusion),
+            Box::new(ExpandReordering),
             Box::new(ProjectionPruning),
         ])
     }

@@ -6,8 +6,8 @@
 
 use grism_core::Value;
 use grism_logical::{
-    expr::{AggFunc, BinaryOp, FuncExpr, FuncKind, UnaryOp},
     AggExpr as RustAggExpr, LogicalExpr,
+    expr::{AggFunc, BinaryOp, FuncExpr, FuncKind, UnaryOp},
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
@@ -83,11 +83,15 @@ impl ExprKind {
                     "concat" => FuncKind::Builtin(grism_logical::BuiltinFunc::Concat),
                     "substring" => FuncKind::Builtin(grism_logical::BuiltinFunc::Substring),
                     "replace" => FuncKind::Builtin(grism_logical::BuiltinFunc::Replace),
-                    "similarity" | "sim" => FuncKind::Builtin(grism_logical::BuiltinFunc::CosineSimilarity),
+                    "similarity" | "sim" => {
+                        FuncKind::Builtin(grism_logical::BuiltinFunc::CosineSimilarity)
+                    }
                     "contains" => FuncKind::Builtin(grism_logical::BuiltinFunc::Contains),
                     "starts_with" => FuncKind::Builtin(grism_logical::BuiltinFunc::StartsWith),
                     "ends_with" => FuncKind::Builtin(grism_logical::BuiltinFunc::EndsWith),
-                    "regex_match" | "matches" => FuncKind::Builtin(grism_logical::BuiltinFunc::RegexMatch),
+                    "regex_match" | "matches" => {
+                        FuncKind::Builtin(grism_logical::BuiltinFunc::RegexMatch)
+                    }
                     "like" => FuncKind::Builtin(grism_logical::BuiltinFunc::Like),
                     "cast" => FuncKind::Builtin(grism_logical::BuiltinFunc::Cast),
                     "id" => FuncKind::Builtin(grism_logical::BuiltinFunc::Id),
@@ -457,10 +461,7 @@ impl PyExpr {
     /// Extract substring.
     #[pyo3(signature = (start, length=None))]
     fn substring(&self, start: i64, length: Option<i64>) -> Self {
-        let mut args = vec![
-            self.inner.clone(),
-            ExprKind::Literal(Value::Int64(start)),
-        ];
+        let mut args = vec![self.inner.clone(), ExprKind::Literal(Value::Int64(start))];
         if let Some(len) = length {
             args.push(ExprKind::Literal(Value::Int64(len)));
         }
@@ -638,10 +639,7 @@ fn py_any_to_expr(value: &Bound<'_, PyAny>) -> PyResult<ExprKind> {
     }
 
     if let Ok(list) = value.downcast::<PyList>() {
-        let values: PyResult<Vec<Value>> = list
-            .iter()
-            .map(|item| py_any_to_value(&item))
-            .collect();
+        let values: PyResult<Vec<Value>> = list.iter().map(|item| py_any_to_value(&item)).collect();
         return Ok(ExprKind::Literal(Value::Array(values?)));
     }
 
@@ -672,10 +670,7 @@ fn py_any_to_value(value: &Bound<'_, PyAny>) -> PyResult<Value> {
     }
 
     if let Ok(list) = value.downcast::<PyList>() {
-        let values: PyResult<Vec<Value>> = list
-            .iter()
-            .map(|item| py_any_to_value(&item))
-            .collect();
+        let values: PyResult<Vec<Value>> = list.iter().map(|item| py_any_to_value(&item)).collect();
         return Ok(Value::Array(values?));
     }
 
@@ -749,7 +744,10 @@ impl PyAggExpr {
     }
 
     fn __repr__(&self) -> String {
-        let alias_str = self.alias.as_deref().map_or(String::new(), |a| format!(" AS {}", a));
+        let alias_str = self
+            .alias
+            .as_deref()
+            .map_or(String::new(), |a| format!(" AS {}", a));
         format!("AggExpr({:?}({:?}){}", self.func, self.expr, alias_str)
     }
 }
@@ -993,7 +991,11 @@ pub fn coalesce(exprs: Vec<Bound<'_, PyAny>>) -> PyResult<PyExpr> {
 /// Simple if-then-else expression.
 #[pyfunction]
 #[pyo3(name = "if_")]
-pub fn if_expr(condition: &PyExpr, then: &Bound<'_, PyAny>, else_: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
+pub fn if_expr(
+    condition: &PyExpr,
+    then: &Bound<'_, PyAny>,
+    else_: &Bound<'_, PyAny>,
+) -> PyResult<PyExpr> {
     let then_expr = py_any_to_expr(then)?;
     let else_expr = py_any_to_expr(else_)?;
     Ok(PyExpr::new(ExprKind::Function {

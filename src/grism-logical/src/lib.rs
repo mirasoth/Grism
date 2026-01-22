@@ -55,6 +55,8 @@
 pub mod expr;
 pub mod ops;
 mod plan;
+pub mod schema_inference;
+pub mod validation;
 
 // Re-export commonly used types
 pub use plan::{LogicalPlan, PlanBuilder};

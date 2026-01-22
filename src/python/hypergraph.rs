@@ -10,9 +10,9 @@ use std::sync::Arc;
 use grism_core::types::Value;
 use grism_engine::{ExecutionConfig, LocalExecutor, QueryResult};
 use grism_logical::{
-    ops::{Direction, ExpandMode, HopRange},
     AggregateOp, ExpandOp, FilterOp, LimitOp, LogicalOp, LogicalPlan, ProjectOp, ScanKind, ScanOp,
     SortKey, SortOp,
+    ops::{Direction, ExpandMode, HopRange},
 };
 use grism_storage::Catalog;
 use pyo3::prelude::*;
@@ -75,7 +75,7 @@ fn execute_plan(plan: &LogicalOp, config: Option<&ExecutionConfig>) -> PyResult<
         Some(cfg) => LocalExecutor::with_config(cfg.clone()),
         None => LocalExecutor::new(),
     };
-    
+
     executor.execute_sync(logical_plan).map_err(|e| {
         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Execution error: {}", e))
     })
@@ -149,7 +149,12 @@ impl PyHypergraph {
     ///     memory_limit: Memory limit in bytes (None = unlimited)
     ///     batch_size: Batch size for processing (default 1024)
     #[pyo3(signature = (parallelism=None, memory_limit=None, batch_size=1024))]
-    fn with_config(&self, parallelism: Option<usize>, memory_limit: Option<usize>, batch_size: usize) -> Self {
+    fn with_config(
+        &self,
+        parallelism: Option<usize>,
+        memory_limit: Option<usize>,
+        batch_size: usize,
+    ) -> Self {
         Self {
             uri: self.uri.clone(),
             namespace: self.namespace.clone(),
@@ -233,7 +238,7 @@ impl PyHypergraph {
         } else {
             ScanOp::nodes()
         };
-        
+
         let plan = LogicalOp::Scan(scan);
         let result = execute_plan(&plan, self.exec_config.as_ref())?;
         Ok(result.total_rows())
@@ -253,7 +258,7 @@ impl PyHypergraph {
         } else {
             ScanOp::edges()
         };
-        
+
         let plan = LogicalOp::Scan(scan);
         let result = execute_plan(&plan, self.exec_config.as_ref())?;
         Ok(result.total_rows())
@@ -273,7 +278,7 @@ impl PyHypergraph {
         } else {
             ScanOp::hyperedges()
         };
-        
+
         let plan = LogicalOp::Scan(scan);
         let result = execute_plan(&plan, self.exec_config.as_ref())?;
         Ok(result.total_rows())
@@ -301,14 +306,14 @@ impl PyHypergraph {
         } else {
             ScanOp::nodes()
         };
-        
+
         // Apply namespace if set
         let scan = if let Some(ref ns) = self.namespace {
             scan.with_namespace(ns)
         } else {
             scan
         };
-        
+
         Ok(PyNodeFrame {
             plan: LogicalOp::Scan(scan),
             label: label.map(String::from),
@@ -329,13 +334,13 @@ impl PyHypergraph {
         } else {
             ScanOp::edges()
         };
-        
+
         let scan = if let Some(ref ns) = self.namespace {
             scan.with_namespace(ns)
         } else {
             scan
         };
-        
+
         Ok(PyEdgeFrame {
             plan: LogicalOp::Scan(scan),
             label: label.map(String::from),
@@ -356,13 +361,13 @@ impl PyHypergraph {
         } else {
             ScanOp::hyperedges()
         };
-        
+
         let scan = if let Some(ref ns) = self.namespace {
             scan.with_namespace(ns)
         } else {
             scan
         };
-        
+
         Ok(PyHyperedgeFrame {
             plan: LogicalOp::Scan(scan),
             label: label.map(String::from),
@@ -426,7 +431,7 @@ impl PyNodeFrame {
         aliases: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut projections = Vec::new();
-        
+
         // Process positional columns
         for col in columns {
             if let Ok(expr) = col.extract::<PyExpr>() {
@@ -439,7 +444,7 @@ impl PyNodeFrame {
                 }
             }
         }
-        
+
         // Process keyword aliases
         if let Some(kw) = aliases {
             for (key, value) in kw.iter() {
@@ -449,9 +454,9 @@ impl PyNodeFrame {
                 }
             }
         }
-        
+
         let project_op = ProjectOp::new(projections);
-        
+
         Ok(Self {
             plan: LogicalOp::Project {
                 input: Box::new(self.plan.clone()),
@@ -468,7 +473,7 @@ impl PyNodeFrame {
             expr.to_logical_expr().alias(name),
         ];
         let project_op = ProjectOp::new(projection);
-        
+
         Ok(Self {
             plan: LogicalOp::Project {
                 input: Box::new(self.plan.clone()),
@@ -502,12 +507,13 @@ impl PyNodeFrame {
             "out" => Direction::Outgoing,
             "both" => Direction::Both,
             _ => {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    format!("Invalid direction: {}. Must be 'in', 'out', or 'both'", direction)
-                ))
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Invalid direction: {}. Must be 'in', 'out', or 'both'",
+                    direction
+                )));
             }
         };
-        
+
         // Parse hops - can be int or tuple, default to 1
         let hop_range = if let Some(hops) = hops {
             if let Ok(h) = hops.extract::<u32>() {
@@ -520,11 +526,9 @@ impl PyNodeFrame {
         } else {
             HopRange::single()
         };
-        
-        let mut expand_op = ExpandOp::binary()
-            .with_direction(dir)
-            .with_hops(hop_range);
-        
+
+        let mut expand_op = ExpandOp::binary().with_direction(dir).with_hops(hop_range);
+
         if let Some(e) = edge {
             expand_op = expand_op.with_edge_label(e);
         }
@@ -537,7 +541,7 @@ impl PyNodeFrame {
         if let Some(e_alias) = edge_as {
             expand_op = expand_op.with_edge_alias(e_alias);
         }
-        
+
         Ok(Self {
             plan: LogicalOp::Expand {
                 input: Box::new(self.plan.clone()),
@@ -565,9 +569,13 @@ impl PyNodeFrame {
 
     /// Sort rows by one or more expressions.
     #[pyo3(signature = (*exprs, ascending=None))]
-    fn order_by(&self, exprs: Vec<Bound<'_, PyAny>>, ascending: Option<Bound<'_, PyAny>>) -> PyResult<Self> {
+    fn order_by(
+        &self,
+        exprs: Vec<Bound<'_, PyAny>>,
+        ascending: Option<Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
         let mut sort_keys = Vec::new();
-        
+
         // Handle ascending - can be bool or list of bools
         let ascending_list: Vec<bool> = if let Some(asc_val) = ascending {
             if let Ok(asc) = asc_val.extract::<bool>() {
@@ -580,10 +588,10 @@ impl PyNodeFrame {
         } else {
             vec![true; exprs.len()]
         };
-        
+
         for (i, expr) in exprs.iter().enumerate() {
             let asc = ascending_list.get(i).copied().unwrap_or(true);
-            
+
             let logical_expr = if let Ok(e) = expr.extract::<PyExpr>() {
                 e.to_logical_expr()
             } else if let Ok(name) = expr.extract::<String>() {
@@ -591,16 +599,16 @@ impl PyNodeFrame {
             } else {
                 continue;
             };
-            
+
             sort_keys.push(SortKey {
                 expr: logical_expr,
                 ascending: asc,
                 nulls_first: false,
             });
         }
-        
+
         let sort_op = SortOp::new(sort_keys);
-        
+
         Ok(Self {
             plan: LogicalOp::Sort {
                 input: Box::new(self.plan.clone()),
@@ -612,7 +620,11 @@ impl PyNodeFrame {
 
     /// Alias for order_by().
     #[pyo3(signature = (*exprs, ascending=None))]
-    fn sort(&self, exprs: Vec<Bound<'_, PyAny>>, ascending: Option<Bound<'_, PyAny>>) -> PyResult<Self> {
+    fn sort(
+        &self,
+        exprs: Vec<Bound<'_, PyAny>>,
+        ascending: Option<Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
         self.order_by(exprs, ascending)
     }
 
@@ -662,7 +674,7 @@ impl PyNodeFrame {
     #[pyo3(signature = (*keys))]
     fn group_by(&self, keys: Vec<Bound<'_, PyAny>>) -> PyResult<PyGroupedFrame> {
         let mut group_keys = Vec::new();
-        
+
         for key in keys {
             if let Ok(expr) = key.extract::<PyExpr>() {
                 group_keys.push(expr.inner.clone());
@@ -670,7 +682,7 @@ impl PyNodeFrame {
                 group_keys.push(ExprKind::Column(name));
             }
         }
-        
+
         Ok(PyGroupedFrame {
             input_plan: self.plan.clone(),
             group_keys,
@@ -702,27 +714,27 @@ impl PyNodeFrame {
         as_polars: bool,
     ) -> PyResult<PyObject> {
         let _ = (executor, as_arrow);
-        
+
         // Execute the plan
         let result = execute_plan(&self.plan, None)?;
-        
+
         Python::with_gil(|py| {
             let rows = result_to_py(py, result);
-            
+
             // Convert to pandas DataFrame if requested
             if as_pandas {
                 let pandas = py.import_bound("pandas")?;
                 let df = pandas.call_method1("DataFrame", (rows,))?;
                 return Ok(df.into_py(py));
             }
-            
+
             // Convert to polars DataFrame if requested
             if as_polars {
                 let polars = py.import_bound("polars")?;
                 let df = polars.call_method1("from_dicts", (rows,))?;
                 return Ok(df.into_py(py));
             }
-            
+
             // Return as list of dicts
             Ok(rows.into_py(py))
         })
@@ -741,9 +753,9 @@ impl PyNodeFrame {
             input: Box::new(self.plan.clone()),
             limit: LimitOp::new(1),
         };
-        
+
         let result = execute_plan(&limited_plan, None)?;
-        
+
         Python::with_gil(|py| {
             let rows = result.to_rows();
             if let Some(row) = rows.first() {
@@ -776,9 +788,10 @@ impl PyNodeFrame {
         let plan = LogicalPlan::new(self.plan.clone());
         match mode {
             "logical" | "optimized" | "physical" | "cost" => Ok(plan.explain()),
-            _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Invalid mode: {}. Must be 'logical', 'optimized', 'physical', or 'cost'", mode)
-            )),
+            _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Invalid mode: {}. Must be 'logical', 'optimized', 'physical', or 'cost'",
+                mode
+            ))),
         }
     }
 
@@ -794,7 +807,7 @@ impl PyNodeFrame {
     fn __iter__(&self) -> PyResult<PyObject> {
         // Return an iterator over collected results
         let result = execute_plan(&self.plan, None)?;
-        
+
         Python::with_gil(|py| {
             let rows = result_to_py(py, result);
             let list = PyList::new_bound(py, rows);
@@ -836,7 +849,7 @@ impl PyEdgeFrame {
         let expand = ExpandOp::binary()
             .with_direction(Direction::Incoming)
             .with_target_alias("source");
-        
+
         Ok(PyNodeFrame {
             plan: LogicalOp::Expand {
                 input: Box::new(self.plan.clone()),
@@ -851,7 +864,7 @@ impl PyEdgeFrame {
         let expand = ExpandOp::binary()
             .with_direction(Direction::Outgoing)
             .with_target_alias("target");
-        
+
         Ok(PyNodeFrame {
             plan: LogicalOp::Expand {
                 input: Box::new(self.plan.clone()),
@@ -871,9 +884,10 @@ impl PyEdgeFrame {
                 // Return union of source and target
                 self.source() // Simplified for now
             }
-            _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Invalid which: {}. Must be 'source', 'target', or 'both'", which)
-            )),
+            _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Invalid which: {}. Must be 'source', 'target', or 'both'",
+                which
+            ))),
         }
     }
 
@@ -900,22 +914,22 @@ impl PyEdgeFrame {
     #[pyo3(signature = (as_pandas=false, as_polars=false))]
     fn collect(&self, as_pandas: bool, as_polars: bool) -> PyResult<PyObject> {
         let result = execute_plan(&self.plan, None)?;
-        
+
         Python::with_gil(|py| {
             let rows = result_to_py(py, result);
-            
+
             if as_pandas {
                 let pandas = py.import_bound("pandas")?;
                 let df = pandas.call_method1("DataFrame", (rows,))?;
                 return Ok(df.into_py(py));
             }
-            
+
             if as_polars {
                 let polars = py.import_bound("polars")?;
                 let df = polars.call_method1("from_dicts", (rows,))?;
                 return Ok(df.into_py(py));
             }
-            
+
             Ok(rows.into_py(py))
         })
     }
@@ -932,9 +946,9 @@ impl PyEdgeFrame {
             input: Box::new(self.plan.clone()),
             limit: LimitOp::new(1),
         };
-        
+
         let result = execute_plan(&limited_plan, None)?;
-        
+
         Python::with_gil(|py| {
             let rows = result.to_rows();
             if let Some(row) = rows.first() {
@@ -1010,11 +1024,11 @@ impl PyHyperedgeFrame {
         } else {
             grism_logical::LogicalExpr::literal(value.str()?.to_string())
         };
-        
+
         let role_ref = grism_logical::expr::col(role);
         let predicate = role_ref.eq(value_expr);
         let filter_op = FilterOp::new(predicate);
-        
+
         Ok(Self {
             plan: LogicalOp::Filter {
                 input: Box::new(self.plan.clone()),
@@ -1028,11 +1042,11 @@ impl PyHyperedgeFrame {
     #[pyo3(signature = (role, as_=None))]
     fn expand(&self, role: &str, as_: Option<&str>) -> PyResult<PyNodeFrame> {
         let mut expand_op = ExpandOp::role("_", role);
-        
+
         if let Some(alias) = as_ {
             expand_op = expand_op.with_target_alias(alias);
         }
-        
+
         Ok(PyNodeFrame {
             plan: LogicalOp::Expand {
                 input: Box::new(self.plan.clone()),
@@ -1071,22 +1085,22 @@ impl PyHyperedgeFrame {
     #[pyo3(signature = (as_pandas=false, as_polars=false))]
     fn collect(&self, as_pandas: bool, as_polars: bool) -> PyResult<PyObject> {
         let result = execute_plan(&self.plan, None)?;
-        
+
         Python::with_gil(|py| {
             let rows = result_to_py(py, result);
-            
+
             if as_pandas {
                 let pandas = py.import_bound("pandas")?;
                 let df = pandas.call_method1("DataFrame", (rows,))?;
                 return Ok(df.into_py(py));
             }
-            
+
             if as_polars {
                 let polars = py.import_bound("polars")?;
                 let df = polars.call_method1("from_dicts", (rows,))?;
                 return Ok(df.into_py(py));
             }
-            
+
             Ok(rows.into_py(py))
         })
     }
@@ -1103,9 +1117,9 @@ impl PyHyperedgeFrame {
             input: Box::new(self.plan.clone()),
             limit: LimitOp::new(1),
         };
-        
+
         let result = execute_plan(&limited_plan, None)?;
-        
+
         Python::with_gil(|py| {
             let rows = result.to_rows();
             if let Some(row) = rows.first() {
@@ -1166,17 +1180,19 @@ impl PyGroupedFrame {
         aggs: Vec<PyAggExpr>,
         named_aggs: Option<Bound<'_, PyDict>>,
     ) -> PyResult<PyNodeFrame> {
-        let keys: Vec<_> = self.group_keys.iter()
+        let keys: Vec<_> = self
+            .group_keys
+            .iter()
             .map(|k| k.to_logical_expr())
             .collect();
-        
+
         let mut aggregations = Vec::new();
-        
+
         // Process positional aggregations
         for agg in aggs {
             aggregations.push(agg.to_rust_agg_expr());
         }
-        
+
         // Process keyword aggregations
         if let Some(kw) = named_aggs {
             for (key, value) in kw.iter() {
@@ -1188,9 +1204,9 @@ impl PyGroupedFrame {
                 }
             }
         }
-        
+
         let agg_op = AggregateOp::new(keys, aggregations);
-        
+
         Ok(PyNodeFrame {
             plan: LogicalOp::Aggregate {
                 input: Box::new(self.input_plan.clone()),
@@ -1202,13 +1218,15 @@ impl PyGroupedFrame {
 
     /// Count rows per group.
     fn count(&self) -> PyResult<PyNodeFrame> {
-        let keys: Vec<_> = self.group_keys.iter()
+        let keys: Vec<_> = self
+            .group_keys
+            .iter()
             .map(|k| k.to_logical_expr())
             .collect();
-        
+
         let count_agg = grism_logical::AggExpr::count_star().with_alias("count");
         let agg_op = AggregateOp::new(keys, vec![count_agg]);
-        
+
         Ok(PyNodeFrame {
             plan: LogicalOp::Aggregate {
                 input: Box::new(self.input_plan.clone()),
@@ -1239,7 +1257,10 @@ pub struct PyFrameSchema {
 impl PyFrameSchema {
     /// Get column names.
     fn column_names(&self) -> Vec<String> {
-        self.columns.iter().map(|(name, _, _)| name.clone()).collect()
+        self.columns
+            .iter()
+            .map(|(name, _, _)| name.clone())
+            .collect()
     }
 
     /// Get column count.
@@ -1264,7 +1285,8 @@ impl PyFrameSchema {
 
     /// Get column type by name.
     fn column_type(&self, name: &str) -> Option<String> {
-        self.columns.iter()
+        self.columns
+            .iter()
             .find(|(n, _, _)| n == name)
             .map(|(_, t, _)| t.clone())
     }
@@ -1368,23 +1390,23 @@ impl PyTransaction {
     ) -> PyResult<String> {
         if !self.active {
             return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                "Transaction is not active"
+                "Transaction is not active",
             ));
         }
-        
+
         let props = if let Some(dict) = properties {
             dict_to_value_map(&dict)?
         } else {
             HashMap::new()
         };
-        
+
         let node_id = format!("node_{}", self.pending_ops.len());
-        
+
         self.pending_ops.push(WriteOp::CreateNode {
             label: label.to_string(),
             properties: props,
         });
-        
+
         Ok(node_id)
     }
 
@@ -1408,25 +1430,25 @@ impl PyTransaction {
     ) -> PyResult<String> {
         if !self.active {
             return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                "Transaction is not active"
+                "Transaction is not active",
             ));
         }
-        
+
         let props = if let Some(dict) = properties {
             dict_to_value_map(&dict)?
         } else {
             HashMap::new()
         };
-        
+
         let edge_id = format!("edge_{}", self.pending_ops.len());
-        
+
         self.pending_ops.push(WriteOp::CreateEdge {
             edge_type: edge_type.to_string(),
             source_id: source.to_string(),
             target_id: target.to_string(),
             properties: props,
         });
-        
+
         Ok(edge_id)
     }
 
@@ -1448,10 +1470,10 @@ impl PyTransaction {
     ) -> PyResult<String> {
         if !self.active {
             return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                "Transaction is not active"
+                "Transaction is not active",
             ));
         }
-        
+
         let binding_list: Vec<(String, String)> = bindings
             .iter()
             .filter_map(|(k, v)| {
@@ -1460,21 +1482,21 @@ impl PyTransaction {
                 Some((role, entity_id))
             })
             .collect();
-        
+
         let props = if let Some(dict) = properties {
             dict_to_value_map(&dict)?
         } else {
             HashMap::new()
         };
-        
+
         let he_id = format!("hyperedge_{}", self.pending_ops.len());
-        
+
         self.pending_ops.push(WriteOp::CreateHyperedge {
             label: label.to_string(),
             bindings: binding_list,
             properties: props,
         });
-        
+
         Ok(he_id)
     }
 
@@ -1487,21 +1509,21 @@ impl PyTransaction {
     fn update(&mut self, entity_id: &str, properties: Option<Bound<'_, PyDict>>) -> PyResult<()> {
         if !self.active {
             return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                "Transaction is not active"
+                "Transaction is not active",
             ));
         }
-        
+
         let props = if let Some(dict) = properties {
             dict_to_value_map(&dict)?
         } else {
             HashMap::new()
         };
-        
+
         self.pending_ops.push(WriteOp::UpdateProperties {
             entity_id: entity_id.to_string(),
             properties: props,
         });
-        
+
         Ok(())
     }
 
@@ -1512,14 +1534,14 @@ impl PyTransaction {
     fn delete_node(&mut self, node_id: &str) -> PyResult<()> {
         if !self.active {
             return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                "Transaction is not active"
+                "Transaction is not active",
             ));
         }
-        
+
         self.pending_ops.push(WriteOp::DeleteNode {
             node_id: node_id.to_string(),
         });
-        
+
         Ok(())
     }
 
@@ -1530,14 +1552,14 @@ impl PyTransaction {
     fn delete_edge(&mut self, edge_id: &str) -> PyResult<()> {
         if !self.active {
             return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                "Transaction is not active"
+                "Transaction is not active",
             ));
         }
-        
+
         self.pending_ops.push(WriteOp::DeleteEdge {
             edge_id: edge_id.to_string(),
         });
-        
+
         Ok(())
     }
 
@@ -1548,14 +1570,14 @@ impl PyTransaction {
     fn delete_hyperedge(&mut self, hyperedge_id: &str) -> PyResult<()> {
         if !self.active {
             return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                "Transaction is not active"
+                "Transaction is not active",
             ));
         }
-        
+
         self.pending_ops.push(WriteOp::DeleteHyperedge {
             hyperedge_id: hyperedge_id.to_string(),
         });
-        
+
         Ok(())
     }
 
@@ -1565,15 +1587,15 @@ impl PyTransaction {
     fn commit(&mut self) -> PyResult<()> {
         if !self.active {
             return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                "Transaction is not active"
+                "Transaction is not active",
             ));
         }
-        
+
         // TODO: Implement actual commit to storage
         // For now, just mark as committed
         self.active = false;
         self.pending_ops.clear();
-        
+
         Ok(())
     }
 
@@ -1583,13 +1605,13 @@ impl PyTransaction {
     fn rollback(&mut self) -> PyResult<()> {
         if !self.active {
             return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                "Transaction is not active"
+                "Transaction is not active",
             ));
         }
-        
+
         self.active = false;
         self.pending_ops.clear();
-        
+
         Ok(())
     }
 
@@ -1616,10 +1638,10 @@ impl PyTransaction {
     ) -> PyResult<bool> {
         // Check if an exception occurred
         let has_exception = exc_type.is_some();
-        
+
         // Consume the unused values
         let _ = (exc_type, exc_val, exc_tb);
-        
+
         if self.active {
             // Auto-rollback on exception (if exc_type is Some)
             // Auto-commit otherwise
@@ -1655,37 +1677,37 @@ fn dict_to_value_map(dict: &Bound<'_, PyDict>) -> PyResult<HashMap<String, Value
 /// Convert Python value to Grism Value.
 fn py_to_value(obj: &Bound<'_, pyo3::PyAny>) -> PyResult<Value> {
     use pyo3::types::{PyBool, PyFloat, PyInt, PyList, PyString};
-    
+
     if obj.is_none() {
         return Ok(Value::Null);
     }
-    
+
     if let Ok(b) = obj.downcast::<PyBool>() {
         return Ok(Value::Bool(b.is_true()));
     }
-    
+
     if let Ok(i) = obj.downcast::<PyInt>() {
         return Ok(Value::Int64(i.extract()?));
     }
-    
+
     if let Ok(f) = obj.downcast::<PyFloat>() {
         return Ok(Value::Float64(f.extract()?));
     }
-    
+
     if let Ok(s) = obj.downcast::<PyString>() {
         return Ok(Value::String(s.to_string()));
     }
-    
+
     if let Ok(list) = obj.downcast::<PyList>() {
         let values: PyResult<Vec<Value>> = list.iter().map(|item| py_to_value(&item)).collect();
         return Ok(Value::Array(values?));
     }
-    
+
     if let Ok(dict) = obj.downcast::<PyDict>() {
         let map = dict_to_value_map(dict)?;
         return Ok(Value::Map(map));
     }
-    
+
     // Fallback: convert to string
     Ok(Value::String(obj.str()?.to_string()))
 }
@@ -1782,25 +1804,27 @@ mod tests {
         Python::with_gil(|py| {
             let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
             let mut tx = hg.transaction().unwrap();
-            
+
             // Create a node
             let node_id = tx.create_node("Person", None).unwrap();
             assert!(node_id.starts_with("node_"));
             assert_eq!(tx.pending_count(), 1);
-            
+
             // Create an edge
             let edge_id = tx.create_edge("KNOWS", "node1", "node2", None).unwrap();
             assert!(edge_id.starts_with("edge_"));
             assert_eq!(tx.pending_count(), 2);
-            
+
             // Create a hyperedge
             let bindings = PyDict::new_bound(py);
             bindings.set_item("author", "node1").unwrap();
             bindings.set_item("paper", "node2").unwrap();
-            let he_id = tx.create_hyperedge("Authored", bindings.clone(), None).unwrap();
+            let he_id = tx
+                .create_hyperedge("Authored", bindings.clone(), None)
+                .unwrap();
             assert!(he_id.starts_with("hyperedge_"));
             assert_eq!(tx.pending_count(), 3);
-            
+
             // Rollback
             tx.rollback().unwrap();
             assert!(!tx.is_active());
@@ -1813,7 +1837,7 @@ mod tests {
         Python::with_gil(|_py| {
             let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
             let mut tx = hg.transaction().unwrap();
-            
+
             tx.create_node("Person", None).unwrap();
             tx.commit().unwrap();
             assert!(!tx.is_active());
@@ -1827,19 +1851,19 @@ mod tests {
             // Test null
             let null_obj = value_to_py(py, &Value::Null);
             assert!(null_obj.is_none(py));
-            
+
             // Test bool
             let bool_obj = value_to_py(py, &Value::Bool(true));
             assert!(bool_obj.extract::<bool>(py).unwrap());
-            
+
             // Test int
             let int_obj = value_to_py(py, &Value::Int64(42));
             assert_eq!(int_obj.extract::<i64>(py).unwrap(), 42);
-            
+
             // Test float
             let float_obj = value_to_py(py, &Value::Float64(3.14));
             assert!((float_obj.extract::<f64>(py).unwrap() - 3.14).abs() < 0.001);
-            
+
             // Test string
             let str_obj = value_to_py(py, &Value::String("hello".to_string()));
             assert_eq!(str_obj.extract::<String>(py).unwrap(), "hello");
@@ -1861,11 +1885,11 @@ mod tests {
         Python::with_gil(|_py| {
             let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
             let nf = hg.nodes(Some("Person")).unwrap();
-            
+
             // Create a filter expression
             let expr = PyExpr::column("age");
             let filtered = nf.filter(&expr).unwrap();
-            
+
             let explain = filtered.explain("logical").unwrap();
             assert!(explain.contains("Filter"));
         });
@@ -1877,7 +1901,7 @@ mod tests {
             let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
             let nf = hg.nodes(Some("Person")).unwrap();
             let limited = nf.limit(10).unwrap();
-            
+
             let explain = limited.explain("logical").unwrap();
             assert!(explain.contains("Limit"));
         });

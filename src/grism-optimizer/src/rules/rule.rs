@@ -66,6 +66,14 @@ impl From<LogicalPlan> for Transformed {
 }
 
 /// A trace entry for a single rule application.
+///
+/// # Display Format (RFC-0006, Section 8.2)
+///
+/// ```text
+/// Rule: PredicatePushdown
+/// Before: Filter → Expand → Scan
+/// After: Expand → Filter → Scan
+/// ```
 #[derive(Debug, Clone)]
 pub struct RuleTrace {
     /// The name of the rule that was applied.
@@ -76,6 +84,10 @@ pub struct RuleTrace {
     pub after: String,
     /// Whether the rule actually changed the plan.
     pub changed: bool,
+    /// Brief summary of the plan structure before (operator chain).
+    pub before_summary: Option<String>,
+    /// Brief summary of the plan structure after (operator chain).
+    pub after_summary: Option<String>,
 }
 
 impl RuleTrace {
@@ -91,7 +103,64 @@ impl RuleTrace {
             before: before.into(),
             after: after.into(),
             changed,
+            before_summary: None,
+            after_summary: None,
         }
+    }
+
+    /// Create a trace entry with summaries.
+    pub fn with_summaries(
+        rule_name: impl Into<String>,
+        before: impl Into<String>,
+        after: impl Into<String>,
+        before_summary: impl Into<String>,
+        after_summary: impl Into<String>,
+        changed: bool,
+    ) -> Self {
+        Self {
+            rule_name: rule_name.into(),
+            before: before.into(),
+            after: after.into(),
+            changed,
+            before_summary: Some(before_summary.into()),
+            after_summary: Some(after_summary.into()),
+        }
+    }
+
+    /// Format this trace entry according to RFC-0006, Section 8.2.
+    pub fn format_rfc(&self) -> String {
+        let mut output = String::new();
+
+        output.push_str(&format!("Rule: {}\n", self.rule_name));
+
+        // Use summaries if available, otherwise extract from full explain
+        let before_chain = self
+            .before_summary
+            .as_ref()
+            .map(String::as_str)
+            .unwrap_or_else(|| self.extract_operator_chain(&self.before));
+        let after_chain = self
+            .after_summary
+            .as_ref()
+            .map(String::as_str)
+            .unwrap_or_else(|| self.extract_operator_chain(&self.after));
+
+        output.push_str(&format!("Before: {}\n", before_chain));
+        output.push_str(&format!("After: {}\n", after_chain));
+
+        output
+    }
+
+    /// Extract operator chain from explain output.
+    fn extract_operator_chain<'a>(&self, explain: &'a str) -> &'a str {
+        // Simple extraction: take first line or use full string
+        explain.lines().next().unwrap_or(explain).trim()
+    }
+}
+
+impl std::fmt::Display for RuleTrace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.format_rfc())
     }
 }
 
@@ -119,27 +188,70 @@ impl OptimizedPlan {
         }
     }
 
-    /// Format the trace as a human-readable string.
+    /// Format the trace as a human-readable string (RFC-0006, Section 8.2).
+    ///
+    /// # Output Format
+    ///
+    /// ```text
+    /// Optimization completed in 3 iterations, 2 rules applied
+    ///
+    /// Rule: PredicatePushdown
+    /// Before: Filter → Expand → Scan
+    /// After: Expand → Filter → Scan
+    ///
+    /// Rule: ConstantFolding
+    /// Before: Filter(1 < 2) → Scan
+    /// After: Scan
+    /// ```
     pub fn format_trace(&self) -> String {
         let mut output = String::new();
         output.push_str(&format!(
-            "Optimization completed in {} iterations, {} rules applied\n",
-            self.iterations, self.rules_applied
+            "Optimization completed in {} iteration{}, {} rule{} applied\n",
+            self.iterations,
+            if self.iterations == 1 { "" } else { "s" },
+            self.rules_applied,
+            if self.rules_applied == 1 { "" } else { "s" }
+        ));
+
+        if self.trace.is_empty() {
+            output.push_str("  (no trace available)\n");
+        } else {
+            let changed_entries: Vec<_> = self.trace.iter().filter(|t| t.changed).collect();
+
+            if changed_entries.is_empty() {
+                output.push_str("  (no rules applied)\n");
+            } else {
+                for entry in changed_entries {
+                    output.push('\n');
+                    output.push_str(&entry.format_rfc());
+                }
+            }
+        }
+
+        output
+    }
+
+    /// Format trace in verbose mode (includes full explain output).
+    pub fn format_trace_verbose(&self) -> String {
+        let mut output = String::new();
+        output.push_str(&format!(
+            "Optimization completed in {} iteration{}, {} rule{} applied\n",
+            self.iterations,
+            if self.iterations == 1 { "" } else { "s" },
+            self.rules_applied,
+            if self.rules_applied == 1 { "" } else { "s" }
         ));
 
         if self.trace.is_empty() {
             output.push_str("  (no trace available)\n");
         } else {
             for (i, entry) in self.trace.iter().filter(|t| t.changed).enumerate() {
-                output.push_str(&format!(
-                    "\n--- Rule {} applied: {} ---\n",
-                    i + 1,
-                    entry.rule_name
-                ));
-                output.push_str("Before:\n");
+                output.push_str(&format!("\n=== Step {} - {} ===\n", i + 1, entry.rule_name));
+                output.push_str("\nBefore:\n");
                 output.push_str(&entry.before);
                 output.push_str("\nAfter:\n");
                 output.push_str(&entry.after);
+                output.push('\n');
             }
         }
 
