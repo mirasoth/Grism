@@ -10,7 +10,7 @@ use std::collections::HashSet;
 use crate::{LogicalExpr, LogicalOp, LogicalPlan};
 
 /// A semantic validation error.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SemanticValidationError {
     /// A column reference is unresolvable.
     UnresolvedColumn {
@@ -69,36 +69,28 @@ impl std::fmt::Display for SemanticValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::UnresolvedColumn { column, available } => {
-                write!(
-                    f,
-                    "Unresolved column '{}'. Available: {:?}",
-                    column, available
-                )
+                write!(f, "Unresolved column '{column}'. Available: {available:?}")
             }
             Self::TypeMismatch { message } => {
-                write!(f, "Type mismatch: {}", message)
+                write!(f, "Type mismatch: {message}")
             }
             Self::InvalidRoleBinding { role, message } => {
-                write!(f, "Invalid role binding '{}': {}", role, message)
+                write!(f, "Invalid role binding '{role}': {message}")
             }
             Self::DuplicateAlias { alias } => {
-                write!(f, "Duplicate alias: '{}'", alias)
+                write!(f, "Duplicate alias: '{alias}'")
             }
             Self::MissingAlias { context } => {
-                write!(f, "Missing required alias: {}", context)
+                write!(f, "Missing required alias: {context}")
             }
             Self::NonDeterministicExpression { expression } => {
-                write!(
-                    f,
-                    "Non-deterministic expression not allowed: {}",
-                    expression
-                )
+                write!(f, "Non-deterministic expression not allowed: {expression}")
             }
             Self::InvalidAggregation { message } => {
-                write!(f, "Invalid aggregation: {}", message)
+                write!(f, "Invalid aggregation: {message}")
             }
             Self::InvalidProjection { message } => {
-                write!(f, "Invalid projection: {}", message)
+                write!(f, "Invalid projection: {message}")
             }
         }
     }
@@ -134,174 +126,225 @@ impl SemanticValidator {
         scope: &mut Scope,
     ) {
         match op {
-            LogicalOp::Scan(scan) => {
-                // Scan introduces columns from the entity schema
-                if let Some(ref alias) = scan.alias {
-                    scope.add_alias(alias.clone());
-                }
-                // Add entity-level columns that are always available
-                scope.add_column("_id".to_string());
-                scope.add_column("_labels".to_string());
-                // Add label-specific properties (would need catalog in real impl)
-            }
-
-            LogicalOp::Empty => {
-                // Empty introduces no columns
-            }
-
+            LogicalOp::Scan(scan) => Self::validate_scan_operator(scan, scope),
+            LogicalOp::Empty => {}
             LogicalOp::Filter { input, filter } => {
-                // First validate children to build scope
-                Self::validate_operator(input, errors, scope);
-
-                // Validate filter expression
-                Self::validate_expression(&filter.predicate, errors, scope);
-
-                // Filter predicate must be deterministic
-                if !filter.predicate.is_deterministic() {
-                    errors.push(SemanticValidationError::NonDeterministicExpression {
-                        expression: filter.predicate.to_string(),
-                    });
-                }
+                Self::validate_filter_operator(input, filter, errors, scope);
             }
-
             LogicalOp::Project { input, project } => {
-                // First validate children to build scope
-                Self::validate_operator(input, errors, scope);
-
-                // Validate projection expressions
-                for expr in &project.expressions {
-                    Self::validate_expression(expr, errors, scope);
-                }
-
-                // Check for duplicate output names
-                let mut output_names = HashSet::new();
-                for expr in &project.expressions {
-                    let name = expr.output_name();
-                    if name != "*" && !output_names.insert(name.clone()) {
-                        errors.push(SemanticValidationError::DuplicateAlias { alias: name });
-                    }
-                }
-
-                // Update scope with projected columns
-                scope.clear_columns();
-                for expr in &project.expressions {
-                    if let LogicalExpr::Wildcard = expr {
-                        // Wildcard keeps all existing columns
-                    } else {
-                        scope.add_column(expr.output_name());
-                    }
-                }
+                Self::validate_project_operator(input, project, errors, scope);
             }
-
             LogicalOp::Expand { input, expand } => {
-                // First validate children to build scope
-                Self::validate_operator(input, errors, scope);
-
-                // Validate edge predicate if present
-                if let Some(ref pred) = expand.edge_predicate {
-                    // Edge predicates should only reference edge columns
-                    Self::validate_expression(pred, errors, scope);
-                }
-
-                // Validate target predicate if present
-                if let Some(ref pred) = expand.target_predicate {
-                    Self::validate_expression(pred, errors, scope);
-                }
-
-                // Add expanded columns to scope
-                if let Some(ref alias) = expand.target_alias {
-                    scope.add_alias(alias.clone());
-                    scope.add_column(format!("{}._id", alias));
-                    scope.add_column(format!("{}._labels", alias));
-                }
-                if let Some(ref alias) = expand.edge_alias {
-                    scope.add_alias(alias.clone());
-                    scope.add_column(format!("{}._id", alias));
-                    scope.add_column(format!("{}._type", alias));
-                }
+                Self::validate_expand_operator(input, expand, errors, scope);
             }
-
             LogicalOp::Aggregate { input, aggregate } => {
-                // First validate children to build scope
-                Self::validate_operator(input, errors, scope);
-
-                // Validate group keys
-                for key in &aggregate.group_keys {
-                    Self::validate_expression(key, errors, scope);
-                }
-
-                // Validate aggregation expressions
-                for agg in &aggregate.aggregates {
-                    Self::validate_expression(&agg.expr, errors, scope);
-                }
-
-                // Update scope - only group keys and aggregation outputs are available
-                scope.clear_columns();
-                for key in &aggregate.group_keys {
-                    scope.add_column(key.output_name());
-                }
-                for agg in &aggregate.aggregates {
-                    scope.add_column(agg.output_name());
-                }
+                Self::validate_aggregate_operator(input, aggregate, errors, scope);
             }
-
             LogicalOp::Sort { input, sort } => {
-                // First validate children to build scope
-                Self::validate_operator(input, errors, scope);
-
-                // Validate sort expressions
-                for key in &sort.keys {
-                    Self::validate_expression(&key.expr, errors, scope);
-                }
+                Self::validate_sort_operator(input, sort, errors, scope);
             }
-
-            LogicalOp::Limit { input, .. } => {
-                // Just validate children
+            LogicalOp::Limit { input, .. } | LogicalOp::Infer { input, .. } => {
                 Self::validate_operator(input, errors, scope);
             }
-
             LogicalOp::Union { left, right, .. } => {
-                // Validate both branches
-                let mut left_scope = Scope::new();
-                let mut right_scope = Scope::new();
-
-                Self::validate_operator(left, errors, &mut left_scope);
-                Self::validate_operator(right, errors, &mut right_scope);
-
-                // Union produces the intersection of available columns
-                // (simplified - real impl would check schema compatibility)
+                Self::validate_union_operator(left, right, errors, scope);
             }
-
             LogicalOp::Rename { input, rename } => {
-                // First validate children to build scope
-                Self::validate_operator(input, errors, scope);
-
-                // Check that renamed columns exist
-                for (old_name, _new_name) in &rename.mapping {
-                    if !scope.has_column(old_name) {
-                        errors.push(SemanticValidationError::UnresolvedColumn {
-                            column: old_name.to_string(),
-                            available: scope.available_columns(),
-                        });
-                    }
-                }
-
-                // Apply renames to scope
-                for (old_name, new_name) in &rename.mapping {
-                    scope.remove_column(old_name);
-                    scope.add_column(new_name.clone());
-                }
-            }
-
-            LogicalOp::Infer { input, .. } => {
-                // Validate children
-                Self::validate_operator(input, errors, scope);
-                // Infer rules would need additional validation
+                Self::validate_rename_operator(input, rename, errors, scope);
             }
         }
     }
 
+    fn validate_scan_operator(scan: &crate::ops::ScanOp, scope: &mut Scope) {
+        // Scan introduces columns from the entity schema
+        if let Some(ref alias) = scan.alias {
+            scope.add_alias(alias.clone());
+        }
+        // Add entity-level columns that are always available
+        scope.add_column("_id".to_string());
+        scope.add_column("_labels".to_string());
+        // Add label-specific properties (would need catalog in real impl)
+    }
+
+    fn validate_filter_operator(
+        input: &LogicalOp,
+        filter: &crate::ops::FilterOp,
+        errors: &mut Vec<SemanticValidationError>,
+        scope: &mut Scope,
+    ) {
+        // First validate children to build scope
+        Self::validate_operator(input, errors, scope);
+
+        // Validate filter expression
+        Self::validate_expression(&filter.predicate, errors, scope);
+
+        // Filter predicate must be deterministic
+        if !filter.predicate.is_deterministic() {
+            errors.push(SemanticValidationError::NonDeterministicExpression {
+                expression: filter.predicate.to_string(),
+            });
+        }
+    }
+
+    fn validate_project_operator(
+        input: &LogicalOp,
+        project: &crate::ops::ProjectOp,
+        errors: &mut Vec<SemanticValidationError>,
+        scope: &mut Scope,
+    ) {
+        use std::collections::HashSet;
+
+        // First validate children to build scope
+        Self::validate_operator(input, errors, scope);
+
+        // Validate projection expressions
+        for expr in &project.expressions {
+            Self::validate_expression(expr, errors, scope);
+        }
+
+        // Check for duplicate output names
+        let mut output_names = HashSet::new();
+        for expr in &project.expressions {
+            let name = expr.output_name();
+            if name != "*" && !output_names.insert(name.clone()) {
+                errors.push(SemanticValidationError::DuplicateAlias { alias: name });
+            }
+        }
+
+        // Update scope with projected columns
+        scope.clear_columns();
+        for expr in &project.expressions {
+            if matches!(expr, LogicalExpr::Wildcard) {
+                // Wildcard keeps all existing columns
+            } else {
+                scope.add_column(expr.output_name());
+            }
+        }
+    }
+
+    fn validate_expand_operator(
+        input: &LogicalOp,
+        expand: &crate::ops::ExpandOp,
+        errors: &mut Vec<SemanticValidationError>,
+        scope: &mut Scope,
+    ) {
+        // First validate children to build scope
+        Self::validate_operator(input, errors, scope);
+
+        // Validate edge predicate if present
+        if let Some(ref pred) = expand.edge_predicate {
+            // Edge predicates should only reference edge columns
+            Self::validate_expression(pred, errors, scope);
+        }
+
+        // Validate target predicate if present
+        if let Some(ref pred) = expand.target_predicate {
+            Self::validate_expression(pred, errors, scope);
+        }
+
+        // Add expanded columns to scope
+        if let Some(ref alias) = expand.target_alias {
+            scope.add_alias(alias.clone());
+            scope.add_column(format!("{alias}._id"));
+            scope.add_column(format!("{alias}._labels"));
+        }
+        if let Some(ref alias) = expand.edge_alias {
+            scope.add_alias(alias.clone());
+            scope.add_column(format!("{alias}._id"));
+            scope.add_column(format!("{alias}._type"));
+        }
+    }
+
+    fn validate_aggregate_operator(
+        input: &LogicalOp,
+        aggregate: &crate::ops::AggregateOp,
+        errors: &mut Vec<SemanticValidationError>,
+        scope: &mut Scope,
+    ) {
+        // First validate children to build scope
+        Self::validate_operator(input, errors, scope);
+
+        // Validate group keys
+        for key in &aggregate.group_keys {
+            Self::validate_expression(key, errors, scope);
+        }
+
+        // Validate aggregation expressions
+        for agg in &aggregate.aggregates {
+            Self::validate_expression(&agg.expr, errors, scope);
+        }
+
+        // Update scope - only group keys and aggregation outputs are available
+        scope.clear_columns();
+        for key in &aggregate.group_keys {
+            scope.add_column(key.output_name());
+        }
+        for agg in &aggregate.aggregates {
+            scope.add_column(agg.output_name());
+        }
+    }
+
+    fn validate_sort_operator(
+        input: &LogicalOp,
+        sort: &crate::ops::SortOp,
+        errors: &mut Vec<SemanticValidationError>,
+        scope: &mut Scope,
+    ) {
+        // First validate children to build scope
+        Self::validate_operator(input, errors, scope);
+
+        // Validate sort expressions
+        for key in &sort.keys {
+            Self::validate_expression(&key.expr, errors, scope);
+        }
+    }
+
+    fn validate_union_operator(
+        left: &LogicalOp,
+        right: &LogicalOp,
+        errors: &mut Vec<SemanticValidationError>,
+        _scope: &mut Scope,
+    ) {
+        // Validate both branches
+        let mut left_scope = Scope::new();
+        let mut right_scope = Scope::new();
+
+        Self::validate_operator(left, errors, &mut left_scope);
+        Self::validate_operator(right, errors, &mut right_scope);
+
+        // Union produces the intersection of available columns
+        // (simplified - real impl would check schema compatibility)
+    }
+
+    fn validate_rename_operator(
+        input: &LogicalOp,
+        rename: &crate::ops::RenameOp,
+        errors: &mut Vec<SemanticValidationError>,
+        scope: &mut Scope,
+    ) {
+        // First validate children to build scope
+        Self::validate_operator(input, errors, scope);
+
+        // Check that renamed columns exist
+        #[allow(clippy::for_kv_map)]
+        for (old_name, _new_name) in &rename.mapping {
+            if !scope.has_column(old_name) {
+                errors.push(SemanticValidationError::UnresolvedColumn {
+                    column: old_name.to_string(),
+                    available: scope.available_columns(),
+                });
+            }
+        }
+
+        // Apply renames to scope
+        for (old_name, new_name) in &rename.mapping {
+            scope.remove_column(old_name);
+            scope.add_column(new_name.clone());
+        }
+    }
+
     /// Validate an expression against the current scope.
+    #[allow(clippy::only_used_in_recursion)]
     fn validate_expression(
         expr: &LogicalExpr,
         errors: &mut Vec<SemanticValidationError>,
@@ -328,7 +371,9 @@ impl SemanticValidator {
                 Self::validate_expression(right, errors, scope);
             }
 
-            LogicalExpr::Unary { expr: inner, .. } => {
+            LogicalExpr::Unary { expr: inner, .. }
+            | LogicalExpr::Alias { expr: inner, .. }
+            | LogicalExpr::SortKey { expr: inner, .. } => {
                 Self::validate_expression(inner, errors, scope);
             }
 
@@ -340,10 +385,6 @@ impl SemanticValidator {
 
             LogicalExpr::Aggregate(agg) => {
                 Self::validate_expression(&agg.expr, errors, scope);
-            }
-
-            LogicalExpr::Alias { expr: inner, .. } => {
-                Self::validate_expression(inner, errors, scope);
             }
 
             LogicalExpr::Case {
@@ -363,16 +404,12 @@ impl SemanticValidator {
                 }
             }
 
-            LogicalExpr::SortKey { expr: inner, .. } => {
-                Self::validate_expression(inner, errors, scope);
-            }
-
             // Literals and wildcards need no validation
-            LogicalExpr::Literal(_) | LogicalExpr::Wildcard => {}
-
-            // Other expression types that need no special validation
-            LogicalExpr::TypeLiteral(_) => {}
-            LogicalExpr::QualifiedWildcard(_) => {}
+            LogicalExpr::Literal(_)
+            | LogicalExpr::Wildcard
+            | LogicalExpr::TypeLiteral(_)
+            | LogicalExpr::QualifiedWildcard(_)
+            | LogicalExpr::Placeholder { .. } => {}
 
             LogicalExpr::InList { expr, list, .. } => {
                 Self::validate_expression(expr, errors, scope);
@@ -389,18 +426,9 @@ impl SemanticValidator {
                 Self::validate_expression(high, errors, scope);
             }
 
-            LogicalExpr::Exists { subquery, .. } => {
+            LogicalExpr::Exists { subquery, .. } | LogicalExpr::Subquery(subquery) => {
                 // Subqueries would need their own validation context
                 let _ = subquery;
-            }
-
-            LogicalExpr::Subquery(subquery) => {
-                // Subqueries would need their own validation context
-                let _ = subquery;
-            }
-
-            LogicalExpr::Placeholder { .. } => {
-                // Placeholders are resolved at execution time
             }
         }
     }

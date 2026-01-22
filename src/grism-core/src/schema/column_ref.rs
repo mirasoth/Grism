@@ -54,7 +54,7 @@ impl ColumnRef {
     pub fn display_name(&self) -> String {
         self.qualifier
             .as_ref()
-            .map_or_else(|| self.name.clone(), |q| format!("{}.{q}", self.name))
+            .map_or_else(|| self.name.clone(), |q| format!("{q}.{}", self.name))
     }
 
     /// Resolve this column reference against a schema.

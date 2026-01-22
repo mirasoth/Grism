@@ -31,14 +31,16 @@ pub struct FilterExec {
     /// Accumulated metrics.
     metrics: tokio::sync::Mutex<OperatorMetrics>,
     /// Operator ID for metrics.
+    #[allow(dead_code)]
     operator_id: String,
 }
 
 impl FilterExec {
     /// Create a new filter operator.
+    #[must_use]
     pub fn new(input: Arc<dyn PhysicalOperator>, predicate: LogicalExpr) -> Self {
         let schema = input.schema().clone();
-        let operator_id = format!("FilterExec[{}]", predicate);
+        let operator_id = format!("FilterExec[{predicate}]");
 
         Self {
             input,

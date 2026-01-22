@@ -1,5 +1,8 @@
 //! Metrics collection for query execution.
 
+#![allow(clippy::let_underscore_lock)] // Some locks need to be held for the full scope
+#![allow(clippy::significant_drop_tightening)] // Guards must stay alive for their scope
+
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
@@ -21,8 +24,15 @@ pub struct OperatorMetrics {
 
 impl OperatorMetrics {
     /// Create new metrics.
-    pub fn new() -> Self {
-        Self::default()
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            rows_in: 0,
+            rows_out: 0,
+            exec_time: Duration::new(0, 0),
+            memory_bytes: 0,
+            batches: 0,
+        }
     }
 
     /// Add rows processed.
@@ -88,8 +98,11 @@ pub struct MetricsSink {
 
 impl MetricsSink {
     /// Create a new metrics sink.
+    #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            metrics: Arc::new(RwLock::new(HashMap::new())),
+        }
     }
 
     /// Record metrics for an operator.
@@ -101,6 +114,7 @@ impl MetricsSink {
     }
 
     /// Update metrics for an operator using a closure.
+    #[allow(clippy::let_underscore_lock)] // Guard must stay alive for the scope
     pub fn update<F>(&self, operator_id: &str, f: F)
     where
         F: FnOnce(&mut OperatorMetrics),
@@ -177,6 +191,7 @@ pub struct ExecutionTimer {
 
 impl ExecutionTimer {
     /// Start a new timer.
+    #[must_use]
     pub fn start() -> Self {
         Self {
             start: Instant::now(),
@@ -189,6 +204,7 @@ impl ExecutionTimer {
     }
 
     /// Stop and return elapsed time.
+    #[must_use]
     pub fn stop(self) -> Duration {
         self.start.elapsed()
     }

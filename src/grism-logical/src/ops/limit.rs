@@ -21,17 +21,17 @@ pub struct LimitOp {
 
 impl LimitOp {
     /// Create a limit with no offset.
-    pub fn new(limit: usize) -> Self {
+    pub const fn new(limit: usize) -> Self {
         Self { limit, offset: 0 }
     }
 
     /// Create a limit with offset.
-    pub fn with_offset(limit: usize, offset: usize) -> Self {
+    pub const fn with_offset(limit: usize, offset: usize) -> Self {
         Self { limit, offset }
     }
 
     /// Check if this limit has an offset.
-    pub fn has_offset(&self) -> bool {
+    pub const fn has_offset(&self) -> bool {
         self.offset > 0
     }
 }

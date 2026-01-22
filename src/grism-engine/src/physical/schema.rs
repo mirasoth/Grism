@@ -20,6 +20,7 @@ pub struct PhysicalSchema {
 
 impl PhysicalSchema {
     /// Create from Arrow schema.
+    #[must_use]
     pub fn new(arrow_schema: SchemaRef) -> Self {
         Self {
             arrow_schema,
@@ -28,6 +29,7 @@ impl PhysicalSchema {
     }
 
     /// Create with qualifiers.
+    #[must_use]
     pub fn with_qualifiers(arrow_schema: SchemaRef, qualifiers: HashMap<String, String>) -> Self {
         Self {
             arrow_schema,
@@ -36,6 +38,7 @@ impl PhysicalSchema {
     }
 
     /// Create an empty schema.
+    #[must_use]
     pub fn empty() -> Self {
         Self::new(Arc::new(ArrowSchema::empty()))
     }
@@ -181,17 +184,23 @@ pub struct PhysicalSchemaBuilder {
 
 impl PhysicalSchemaBuilder {
     /// Create a new builder.
+    #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            fields: Vec::new(),
+            qualifiers: HashMap::new(),
+        }
     }
 
     /// Add a field.
+    #[must_use]
     pub fn field(mut self, name: impl Into<String>, data_type: DataType, nullable: bool) -> Self {
         self.fields.push(Field::new(name, data_type, nullable));
         self
     }
 
     /// Add a field with qualifier.
+    #[must_use]
     pub fn qualified_field(
         mut self,
         name: impl Into<String>,
@@ -206,16 +215,19 @@ impl PhysicalSchemaBuilder {
     }
 
     /// Add a non-nullable Int64 field (common for IDs).
+    #[must_use]
     pub fn id_field(self, name: impl Into<String>) -> Self {
         self.field(name, DataType::Int64, false)
     }
 
     /// Add a nullable String field.
+    #[must_use]
     pub fn string_field(self, name: impl Into<String>) -> Self {
         self.field(name, DataType::Utf8, true)
     }
 
     /// Build the schema.
+    #[must_use]
     pub fn build(self) -> PhysicalSchema {
         PhysicalSchema::with_qualifiers(Arc::new(ArrowSchema::new(self.fields)), self.qualifiers)
     }

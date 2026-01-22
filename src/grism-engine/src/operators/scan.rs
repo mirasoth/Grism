@@ -65,7 +65,7 @@ impl NodeScanExec {
 
     /// Create a node scan operator with label and alias.
     pub fn new(label: Option<String>, alias: Option<String>) -> Self {
-        let schema = Self::build_schema(&label, &alias);
+        let schema = Self::build_schema(label.as_ref(), alias.as_ref());
         let operator_id = match (&label, &alias) {
             (Some(l), Some(a)) => format!("NodeScanExec[{}:{}]", l, a),
             (Some(l), None) => format!("NodeScanExec[{}]", l),
@@ -85,12 +85,12 @@ impl NodeScanExec {
     /// Set alias for the scanned entity.
     pub fn with_alias(mut self, alias: impl Into<String>) -> Self {
         self.alias = Some(alias.into());
-        self.schema = Self::build_schema(&self.label, &self.alias);
+        self.schema = Self::build_schema(self.label.as_ref(), self.alias.as_ref());
         self
     }
 
-    fn build_schema(label: &Option<String>, alias: &Option<String>) -> PhysicalSchema {
-        let qualifier = alias.clone().or_else(|| label.clone());
+    fn build_schema(label: Option<&String>, alias: Option<&String>) -> PhysicalSchema {
+        let qualifier = alias.cloned().or_else(|| label.cloned());
 
         let mut builder = PhysicalSchemaBuilder::new();
 
@@ -105,7 +105,7 @@ impl NodeScanExec {
         builder.build()
     }
 
-    /// Convert nodes to RecordBatch.
+    /// Convert nodes to `RecordBatch`.
     fn nodes_to_batch(&self, nodes: &[Node], batch_size: usize) -> GrismResult<RecordBatch> {
         let actual_size = nodes.len().min(batch_size);
         let mut id_builder = Int64Array::builder(actual_size);
@@ -247,7 +247,7 @@ impl HyperedgeScanExec {
 
     /// Create a hyperedge scan operator with label and alias.
     pub fn new(label: Option<String>, alias: Option<String>) -> Self {
-        let schema = Self::build_schema(&label, &alias);
+        let schema = Self::build_schema(label.as_ref(), alias.as_ref());
         let operator_id = match (&label, &alias) {
             (Some(l), Some(a)) => format!("HyperedgeScanExec[{}:{}]", l, a),
             (Some(l), None) => format!("HyperedgeScanExec[{}]", l),
@@ -267,12 +267,12 @@ impl HyperedgeScanExec {
     /// Set alias for the scanned entity.
     pub fn with_alias(mut self, alias: impl Into<String>) -> Self {
         self.alias = Some(alias.into());
-        self.schema = Self::build_schema(&self.label, &self.alias);
+        self.schema = Self::build_schema(self.label.as_ref(), self.alias.as_ref());
         self
     }
 
-    fn build_schema(label: &Option<String>, alias: &Option<String>) -> PhysicalSchema {
-        let qualifier = alias.clone().or_else(|| label.clone());
+    fn build_schema(label: Option<&String>, alias: Option<&String>) -> PhysicalSchema {
+        let qualifier = alias.cloned().or_else(|| label.cloned());
 
         let mut builder = PhysicalSchemaBuilder::new();
 
@@ -291,7 +291,7 @@ impl HyperedgeScanExec {
         builder.build()
     }
 
-    /// Convert hyperedges to RecordBatch.
+    /// Convert hyperedges to `RecordBatch`.
     fn hyperedges_to_batch(
         &self,
         hyperedges: &[Hyperedge],

@@ -28,7 +28,7 @@ pub struct AggregateOp {
 
 impl AggregateOp {
     /// Create a new aggregate operation.
-    pub fn new(group_keys: Vec<LogicalExpr>, aggregates: Vec<AggExpr>) -> Self {
+    pub const fn new(group_keys: Vec<LogicalExpr>, aggregates: Vec<AggExpr>) -> Self {
         Self {
             group_keys,
             aggregates,
@@ -36,7 +36,7 @@ impl AggregateOp {
     }
 
     /// Create an aggregate with no grouping (global aggregate).
-    pub fn global(aggregates: Vec<AggExpr>) -> Self {
+    pub const fn global(aggregates: Vec<AggExpr>) -> Self {
         Self {
             group_keys: Vec::new(),
             aggregates,
@@ -55,12 +55,14 @@ impl AggregateOp {
     }
 
     /// Add a grouping key.
+    #[must_use]
     pub fn with_key(mut self, key: LogicalExpr) -> Self {
         self.group_keys.push(key);
         self
     }
 
     /// Add an aggregate expression.
+    #[must_use]
     pub fn with_agg(mut self, agg: AggExpr) -> Self {
         self.aggregates.push(agg);
         self
@@ -68,13 +70,17 @@ impl AggregateOp {
 
     /// Get the output column names.
     pub fn output_names(&self) -> Vec<String> {
-        let mut names: Vec<String> = self.group_keys.iter().map(|k| k.output_name()).collect();
-        names.extend(self.aggregates.iter().map(|a| a.output_name()));
+        let mut names: Vec<String> = self
+            .group_keys
+            .iter()
+            .map(LogicalExpr::output_name)
+            .collect();
+        names.extend(self.aggregates.iter().map(AggExpr::output_name));
         names
     }
 
     /// Check if this is a global aggregate (no grouping keys).
-    pub fn is_global(&self) -> bool {
+    pub const fn is_global(&self) -> bool {
         self.group_keys.is_empty()
     }
 
@@ -112,7 +118,7 @@ impl std::fmt::Display for AggregateOp {
             let keys = self
                 .group_keys
                 .iter()
-                .map(|k| k.output_name())
+                .map(LogicalExpr::output_name)
                 .collect::<Vec<_>>()
                 .join(", ");
             write!(f, "keys=[{}], ", keys)?;
@@ -121,7 +127,7 @@ impl std::fmt::Display for AggregateOp {
         let aggs = self
             .aggregates
             .iter()
-            .map(|a| a.to_string())
+            .map(std::string::ToString::to_string)
             .collect::<Vec<_>>()
             .join(", ");
         write!(f, "aggs=[{}])", aggs)

@@ -65,6 +65,7 @@ impl OptimizationRule for FilterExpandFusion {
 }
 
 /// Recursively fuse filter predicates into expand operations.
+#[allow(clippy::too_many_lines)]
 fn fuse_filter_expand(op: LogicalOp) -> (LogicalOp, bool) {
     match op {
         // Filter on top of Expand: try to fuse
@@ -92,7 +93,8 @@ fn fuse_filter_expand(op: LogicalOp) -> (LogicalOp, bool) {
                     // Fuse target predicate if possible
                     if let Some(tp) = target_pred {
                         if filter.is_deterministic() {
-                            expand.target_predicate = merge_predicates(expand.target_predicate, tp);
+                            expand.target_predicate =
+                                Some(merge_predicates(expand.target_predicate, tp));
                             changed = true;
                         }
                     }
@@ -100,7 +102,8 @@ fn fuse_filter_expand(op: LogicalOp) -> (LogicalOp, bool) {
                     // Fuse edge predicate if possible
                     if let Some(ep) = edge_pred {
                         if filter.is_deterministic() {
-                            expand.edge_predicate = merge_predicates(expand.edge_predicate, ep);
+                            expand.edge_predicate =
+                                Some(merge_predicates(expand.edge_predicate, ep));
                             changed = true;
                         }
                     }
@@ -243,7 +246,8 @@ fn fuse_filter_expand(op: LogicalOp) -> (LogicalOp, bool) {
 
 /// Partition a predicate into target, edge, and remaining components.
 ///
-/// Returns (target_predicate, edge_predicate, remaining_predicate)
+/// Returns (`target_predicate`, `edge_predicate`, `remaining_predicate`)
+#[allow(clippy::too_many_lines)]
 fn partition_predicate(
     predicate: &LogicalExpr,
     target_alias: Option<&str>,
@@ -301,21 +305,18 @@ fn refs_all_match_alias(refs: &HashSet<String>, alias: &str) -> bool {
     if refs.is_empty() {
         return false;
     }
-    let prefix = format!("{}.", alias);
+    let prefix = format!("{alias}.");
     refs.iter().all(|r| r.starts_with(&prefix))
 }
 
 /// Rewrite a predicate to remove the alias prefix from column references.
 fn rewrite_predicate_remove_alias(expr: LogicalExpr, alias: &str) -> LogicalExpr {
-    let prefix = format!("{}.", alias);
+    let prefix = format!("{alias}.");
     match expr {
-        LogicalExpr::Column(name) => {
-            if let Some(stripped) = name.strip_prefix(&prefix) {
-                LogicalExpr::Column(stripped.to_string())
-            } else {
-                LogicalExpr::Column(name)
-            }
-        }
+        LogicalExpr::Column(name) => name.strip_prefix(&prefix).map_or_else(
+            || LogicalExpr::Column(name.clone()),
+            |stripped| LogicalExpr::Column(stripped.to_string()),
+        ),
         LogicalExpr::QualifiedColumn { qualifier, name } => {
             if qualifier == alias {
                 LogicalExpr::Column(name)
@@ -363,10 +364,10 @@ fn merge_optional_predicates(
 }
 
 /// Merge a new predicate with an existing optional predicate.
-fn merge_predicates(existing: Option<LogicalExpr>, new: LogicalExpr) -> Option<LogicalExpr> {
+fn merge_predicates(existing: Option<LogicalExpr>, new: LogicalExpr) -> LogicalExpr {
     match existing {
-        Some(e) => Some(e.and(new)),
-        None => Some(new),
+        Some(e) => e.and(new),
+        None => new,
     }
 }
 

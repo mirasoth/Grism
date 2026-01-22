@@ -21,7 +21,7 @@ pub enum Direction {
 
 impl Direction {
     /// Get the name for display.
-    pub fn name(&self) -> &'static str {
+    pub const fn name(&self) -> &'static str {
         match self {
             Self::Outgoing => "OUT",
             Self::Incoming => "IN",
@@ -50,7 +50,7 @@ pub enum ExpandMode {
 
 impl ExpandMode {
     /// Get the name for display.
-    pub fn name(&self) -> &'static str {
+    pub const fn name(&self) -> &'static str {
         match self {
             Self::Binary => "BINARY",
             Self::Role => "ROLE",
@@ -75,9 +75,9 @@ impl std::fmt::Display for ExpandMode {
 ///
 /// # Modes
 ///
-/// - **BinaryExpand**: For arity=2 hyperedges with {source, target} roles
-/// - **RoleExpand**: For role-qualified traversal over n-ary hyperedges
-/// - **MaterializeHyperedge**: When hyperedges should appear as first-class outputs
+/// - **`BinaryExpand`**: For arity=2 hyperedges with {source, target} roles
+/// - **`RoleExpand`**: For role-qualified traversal over n-ary hyperedges
+/// - **`MaterializeHyperedge`**: When hyperedges should appear as first-class outputs
 ///
 /// # Rules
 ///
@@ -141,27 +141,27 @@ impl Default for HopRange {
 
 impl HopRange {
     /// Create a single hop range.
-    pub fn single() -> Self {
+    pub const fn single() -> Self {
         Self { min: 1, max: 1 }
     }
 
     /// Create a variable length range.
-    pub fn range(min: u32, max: u32) -> Self {
+    pub const fn range(min: u32, max: u32) -> Self {
         Self { min, max }
     }
 
     /// Create an unlimited range (min to infinity).
-    pub fn unbounded(min: u32) -> Self {
+    pub const fn unbounded(min: u32) -> Self {
         Self { min, max: 0 }
     }
 
     /// Check if this is a single hop.
-    pub fn is_single(&self) -> bool {
+    pub const fn is_single(&self) -> bool {
         self.min == 1 && self.max == 1
     }
 
     /// Check if this is variable length.
-    pub fn is_variable(&self) -> bool {
+    pub const fn is_variable(&self) -> bool {
         self.min != self.max || self.max == 0
     }
 }
@@ -186,7 +186,7 @@ impl std::fmt::Display for HopRange {
 
 impl ExpandOp {
     /// Create a new binary expand operation.
-    pub fn binary() -> Self {
+    pub const fn binary() -> Self {
         Self {
             mode: ExpandMode::Binary,
             direction: Direction::Outgoing,
@@ -222,7 +222,7 @@ impl ExpandOp {
     }
 
     /// Create an expand that materializes hyperedges.
-    pub fn materialize() -> Self {
+    pub const fn materialize() -> Self {
         Self {
             mode: ExpandMode::MaterializeHyperedge,
             direction: Direction::Outgoing,
@@ -240,55 +240,64 @@ impl ExpandOp {
     }
 
     /// Set direction.
-    pub fn with_direction(mut self, direction: Direction) -> Self {
+    #[must_use]
+    pub const fn with_direction(mut self, direction: Direction) -> Self {
         self.direction = direction;
         self
     }
 
     /// Set edge label filter.
+    #[must_use]
     pub fn with_edge_label(mut self, label: impl Into<String>) -> Self {
         self.edge_label = Some(label.into());
         self
     }
 
     /// Set target node label filter.
+    #[must_use]
     pub fn with_to_label(mut self, label: impl Into<String>) -> Self {
         self.to_label = Some(label.into());
         self
     }
 
     /// Set hop range.
-    pub fn with_hops(mut self, hops: HopRange) -> Self {
+    #[must_use]
+    pub const fn with_hops(mut self, hops: HopRange) -> Self {
         self.hops = hops;
         self
     }
 
     /// Set edge alias.
+    #[must_use]
     pub fn with_edge_alias(mut self, alias: impl Into<String>) -> Self {
         self.edge_alias = Some(alias.into());
         self
     }
 
     /// Set target alias.
+    #[must_use]
     pub fn with_target_alias(mut self, alias: impl Into<String>) -> Self {
         self.target_alias = Some(alias.into());
         self
     }
 
     /// Set edge predicate.
+    #[must_use]
     pub fn with_edge_predicate(mut self, predicate: LogicalExpr) -> Self {
         self.edge_predicate = Some(predicate);
         self
     }
 
     /// Set target predicate.
+    #[must_use]
     pub fn with_target_predicate(mut self, predicate: LogicalExpr) -> Self {
         self.target_predicate = Some(predicate);
         self
     }
 
     /// Enable path output.
-    pub fn with_path(mut self) -> Self {
+    #[must_use]
+    pub const fn with_path(mut self) -> Self {
         self.include_path = true;
         self
     }

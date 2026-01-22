@@ -48,7 +48,8 @@ pub struct NoopMemoryManager;
 
 impl NoopMemoryManager {
     /// Create a new no-op memory manager.
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self
     }
 }
@@ -84,7 +85,8 @@ impl TrackingMemoryManager {
     /// # Arguments
     ///
     /// * `limit` - Memory limit in bytes. 0 means unlimited.
-    pub fn new(limit: usize) -> Self {
+    #[must_use]
+    pub const fn new(limit: usize) -> Self {
         Self {
             used: AtomicUsize::new(0),
             limit,
@@ -92,7 +94,8 @@ impl TrackingMemoryManager {
     }
 
     /// Create an unlimited tracking memory manager (for accounting only).
-    pub fn unlimited() -> Self {
+    #[must_use]
+    pub const fn unlimited() -> Self {
         Self::new(0)
     }
 

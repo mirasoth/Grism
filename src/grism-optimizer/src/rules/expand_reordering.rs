@@ -71,6 +71,7 @@ impl OptimizationRule for ExpandReordering {
 }
 
 /// Recursively reorder expand operations in the plan tree.
+#[allow(clippy::too_many_lines)]
 fn reorder_expands(op: LogicalOp) -> (LogicalOp, bool) {
     match op {
         // Expand on top of Expand: check if we can reorder
@@ -287,7 +288,7 @@ fn are_expands_independent(outer: &ExpandOp, inner: &ExpandOp) -> bool {
 /// - Has edge predicate: +20
 /// - Has target predicate: +20
 /// - Single hop (vs variable): +5
-fn selectivity_score(expand: &ExpandOp) -> i32 {
+const fn selectivity_score(expand: &ExpandOp) -> i32 {
     let mut score = 0;
 
     if expand.edge_label.is_some() {
@@ -316,7 +317,7 @@ fn selectivity_score(expand: &ExpandOp) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use grism_logical::{Direction, PlanBuilder, ScanOp, col, lit};
+    use grism_logical::{PlanBuilder, ScanOp, col, lit};
 
     #[test]
     fn test_independent_expands() {

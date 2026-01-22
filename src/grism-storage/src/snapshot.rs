@@ -1,5 +1,7 @@
 //! Snapshot management for MVCC.
 
+#![allow(clippy::cast_possible_truncation)]
+
 use serde::{Deserialize, Serialize};
 
 /// Snapshot identifier.
@@ -36,6 +38,7 @@ impl Snapshot {
     }
 
     /// Create a child snapshot.
+    #[must_use]
     pub fn child(&self) -> Self {
         let mut snapshot = Self::new();
         snapshot.parent = Some(self.id);
@@ -43,6 +46,7 @@ impl Snapshot {
     }
 
     /// Set a name for this snapshot.
+    #[must_use]
     pub fn with_name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
         self

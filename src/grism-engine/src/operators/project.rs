@@ -30,11 +30,13 @@ pub struct ProjectExec {
     /// Accumulated metrics.
     metrics: tokio::sync::Mutex<OperatorMetrics>,
     /// Operator ID for metrics.
+    #[allow(dead_code)]
     operator_id: String,
 }
 
 impl ProjectExec {
     /// Create a new project operator.
+    #[must_use]
     pub fn new(
         input: Arc<dyn PhysicalOperator>,
         projections: Vec<(LogicalExpr, String)>,
@@ -296,7 +298,7 @@ mod tests {
         let input: Arc<dyn PhysicalOperator> = Arc::new(MockInputOp::new(batch));
 
         // Compute x + y
-        let computed_expr = col("x").add(col("y"));
+        let computed_expr = col("x").add_expr(col("y"));
         let projections = vec![
             (col("id").into(), "id".to_string()),
             (computed_expr.into(), "sum".to_string()),
@@ -374,7 +376,7 @@ mod tests {
         let input: Arc<dyn PhysicalOperator> = Arc::new(MockInputOp::new(batch));
 
         // Compute x * 2 + y
-        let computed_expr = col("x").mul(lit(2i64)).add(col("y"));
+        let computed_expr = col("x").mul_expr(lit(2i64)).add_expr(col("y"));
         let projections = vec![(computed_expr.into(), "result".to_string())];
 
         let output_schema = Arc::new(Schema::new(vec![Field::new(

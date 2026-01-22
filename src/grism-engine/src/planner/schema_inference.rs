@@ -23,9 +23,8 @@ pub fn infer_expr_type(expr: &LogicalExpr, schema: &PhysicalSchema) -> Option<Ar
 
         LogicalExpr::QualifiedColumn { qualifier, name } => {
             // Try qualified name first, then unqualified
-            let qualified_name = format!("{}.{}", qualifier, name);
             schema
-                .field(&qualified_name)
+                .field(&format!("{qualifier}.{name}"))
                 .or_else(|| schema.field(name))
                 .map(|f| f.data_type().clone())
         }
@@ -193,7 +192,7 @@ pub fn build_project_schema(
     let fields: Vec<Field> = projections
         .iter()
         .map(|(expr, name)| {
-            let data_type = infer_expr_type(expr, input_schema).unwrap_or_else(|| {
+            let data_type = infer_expr_type(expr, input_schema).unwrap_or({
                 // Default to Utf8 for unknown types
                 ArrowDataType::Utf8
             });
@@ -282,18 +281,18 @@ mod tests {
         let schema = test_schema();
 
         // Int + Int = Int
-        let expr = col("_id").add(lit(1i64));
+        let expr = col("_id").add_expr(lit(1i64));
         assert_eq!(infer_expr_type(&expr, &schema), Some(ArrowDataType::Int64));
 
         // Int + Float = Float
-        let expr = col("age").add(col("salary"));
+        let expr = col("age").add_expr(col("salary"));
         assert_eq!(
             infer_expr_type(&expr, &schema),
             Some(ArrowDataType::Float64)
         );
 
         // Float * Float = Float
-        let expr = col("salary").mul(lit(1.1f64));
+        let expr = col("salary").mul_expr(lit(1.1f64));
         assert_eq!(
             infer_expr_type(&expr, &schema),
             Some(ArrowDataType::Float64)
@@ -366,8 +365,11 @@ mod tests {
 
         // Computed expression projection
         let projections = vec![
-            (col("_id").add(lit(1i64)), "id_plus_one".to_string()),
-            (col("salary").mul(lit(12f64)), "annual_salary".to_string()),
+            (col("_id").add_expr(lit(1i64)), "id_plus_one".to_string()),
+            (
+                col("salary").mul_expr(lit(12f64)),
+                "annual_salary".to_string(),
+            ),
         ];
         let result = build_project_schema(&schema, &projections);
         assert_eq!(result.num_columns(), 2);

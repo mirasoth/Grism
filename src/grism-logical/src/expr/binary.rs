@@ -54,7 +54,7 @@ pub enum BinaryOp {
 
 impl BinaryOp {
     /// Check if this is an arithmetic operator.
-    pub fn is_arithmetic(&self) -> bool {
+    pub const fn is_arithmetic(&self) -> bool {
         matches!(
             self,
             Self::Add | Self::Subtract | Self::Multiply | Self::Divide | Self::Modulo
@@ -62,7 +62,7 @@ impl BinaryOp {
     }
 
     /// Check if this is a comparison operator.
-    pub fn is_comparison(&self) -> bool {
+    pub const fn is_comparison(&self) -> bool {
         matches!(
             self,
             Self::Eq
@@ -77,7 +77,7 @@ impl BinaryOp {
     }
 
     /// Check if this is a logical operator.
-    pub fn is_logical(&self) -> bool {
+    pub const fn is_logical(&self) -> bool {
         matches!(self, Self::And | Self::Or)
     }
 
@@ -136,7 +136,7 @@ impl BinaryOp {
     }
 
     /// Get the operator symbol for display.
-    pub fn symbol(&self) -> &'static str {
+    pub const fn symbol(&self) -> &'static str {
         match self {
             Self::Add => "+",
             Self::Subtract => "-",

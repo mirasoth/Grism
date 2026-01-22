@@ -6,7 +6,7 @@ use std::sync::Arc;
 use arrow::array::{
     Array, ArrayRef, Float64Array, Float64Builder, Int64Array, Int64Builder, StringBuilder,
 };
-use arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
+use arrow::datatypes::DataType;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 
@@ -19,6 +19,7 @@ use crate::operators::PhysicalOperator;
 use crate::physical::{OperatorCaps, PhysicalSchema};
 
 /// Trait for aggregate accumulators.
+#[allow(dead_code)]
 trait Accumulator: Send + Sync {
     /// Update the accumulator with new values.
     fn update(&mut self, values: &ArrayRef) -> GrismResult<()>;
@@ -788,7 +789,8 @@ impl PhysicalOperator for HashAggregateExec {
 mod tests {
     use super::*;
     use crate::operators::EmptyExec;
-    use grism_logical::expr::{col, lit};
+    use arrow::datatypes::{Field, Schema as ArrowSchema};
+    use grism_logical::expr::col;
     use grism_storage::{InMemoryStorage, SnapshotId};
 
     /// Helper to create a mock input operator that returns a single batch.

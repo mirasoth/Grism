@@ -26,11 +26,15 @@ grism-storage = { path = "src/grism-storage", default-features = false }
 # External dependencies
 log = { workspace = true }
 pyo3 = { workspace = true, optional = true }
+arrow = { workspace = true, optional = true }
+arrow-array = { workspace = true, optional = true }
 
 [features]
 default = []
 python = [
     "dep:pyo3",
+    "dep:arrow",
+    "dep:arrow-array",
     "common-error/python",
     "common-config/python",
     "grism-core/python",

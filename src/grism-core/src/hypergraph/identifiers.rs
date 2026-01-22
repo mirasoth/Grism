@@ -80,7 +80,7 @@ impl EntityRef {
     pub const fn as_node(&self) -> Option<NodeId> {
         match self {
             Self::Node(id) => Some(*id),
-            _ => None,
+            Self::Hyperedge(_) => None,
         }
     }
 
@@ -88,7 +88,7 @@ impl EntityRef {
     pub const fn as_hyperedge(&self) -> Option<EdgeId> {
         match self {
             Self::Hyperedge(id) => Some(*id),
-            _ => None,
+            Self::Node(_) => None,
         }
     }
 }

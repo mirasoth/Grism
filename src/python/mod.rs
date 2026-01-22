@@ -6,13 +6,13 @@
 //! The Python API implements the specification in `specs/2_python_api_v0.1.md`,
 //! with expression lowering to Rust LogicalPlan per RFC-0002, RFC-0003, and RFC-0006.
 
+#![allow(dead_code)] // Public API items may appear unused to Rust but are used by Python
+#![allow(deprecated)] // Some PyO3 generated code uses deprecated constants
+#![allow(unsafe_op_in_unsafe_fn)] // PyO3 macros generate unsafe code that needs this allow
+
 mod hypergraph;
 
 use pyo3::prelude::*;
-
-// Re-export types from sub-crate Python modules
-pub use grism_engine::python::{PyExecutor, PyLocalExecutor, PyRayExecutor};
-pub use grism_logical::python::{PyAggExpr, PyExpr, PyPattern};
 
 // Re-export types from this crate's modules
 pub use hypergraph::{
@@ -47,6 +47,3 @@ pub fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     Ok(())
 }
-
-// Keep backwards-compatible alias
-pub use PyHypergraph as PyHyperGraph;

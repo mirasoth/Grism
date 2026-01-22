@@ -2,7 +2,6 @@
 
 use std::sync::Arc;
 
-use arrow::array::{Array, Int64Array, RecordBatch as ArrowRecordBatch, UInt64Array};
 use arrow::compute::{SortColumn, SortOptions, concat_batches, lexsort_to_indices, take};
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
@@ -188,7 +187,7 @@ impl PhysicalOperator for SortExec {
 mod tests {
     use super::*;
     use crate::operators::EmptyExec;
-    use arrow::array::StringArray;
+    use arrow::array::{Int64Array, StringArray};
     use arrow::datatypes::{DataType, Field, Schema};
     use grism_logical::expr::col;
     use grism_storage::{InMemoryStorage, SnapshotId};

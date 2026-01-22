@@ -37,6 +37,7 @@ pub struct AdjacencyExpandExec {
     /// Execution state.
     state: tokio::sync::Mutex<ExpandState>,
     /// Metrics.
+    #[allow(dead_code)]
     metrics: tokio::sync::Mutex<OperatorMetrics>,
 }
 
@@ -210,8 +211,8 @@ impl AdjacencyExpandExec {
             let col = input_batch.column(col_idx);
             let sliced = col.slice(row_idx, 1);
             // Create array with single value repeated by concatenating slices
-            let slices: Vec<&dyn Array> = (0..num_rows).map(|_| sliced.as_ref()).collect();
-            let repeated = arrow::compute::concat(&slices)
+            let slice_refs: Vec<&dyn Array> = (0..num_rows).map(|_| sliced.as_ref()).collect();
+            let repeated = arrow::compute::concat(&slice_refs)
                 .map_err(|e| GrismError::execution(e.to_string()))?;
             columns.push(repeated);
         }
@@ -544,8 +545,8 @@ impl RoleExpandExec {
         for col_idx in 0..input_batch.num_columns() {
             let col = input_batch.column(col_idx);
             let sliced = col.slice(row_idx, 1);
-            let slices: Vec<&dyn Array> = (0..num_rows).map(|_| sliced.as_ref()).collect();
-            let repeated = arrow::compute::concat(&slices)
+            let slice_refs: Vec<&dyn Array> = (0..num_rows).map(|_| sliced.as_ref()).collect();
+            let repeated = arrow::compute::concat(&slice_refs)
                 .map_err(|e| GrismError::execution(e.to_string()))?;
             columns.push(repeated);
         }

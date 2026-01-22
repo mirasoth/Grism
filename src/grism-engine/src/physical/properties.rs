@@ -37,10 +37,12 @@ pub struct PlanProperties {
 
 impl PlanProperties {
     /// Create default local execution properties.
-    pub fn local() -> Self {
+    pub const fn local() -> Self {
         Self {
             execution_mode: ExecutionMode::Local,
-            ..Default::default()
+            requires_shuffle: false,
+            contains_blocking: false,
+            partitioning: None,
         }
     }
 
@@ -109,8 +111,8 @@ impl PartitioningSpec {
     }
 
     /// Check if this is a single partition.
-    pub fn is_single(&self) -> bool {
-        self.strategy == PartitioningStrategy::Single || self.num_partitions == 1
+    pub const fn is_single(&self) -> bool {
+        matches!(self.strategy, PartitioningStrategy::Single) || self.num_partitions == 1
     }
 }
 
@@ -162,27 +164,29 @@ pub struct OperatorCaps {
 
 impl OperatorCaps {
     /// Create capabilities for a streaming (non-blocking) operator.
-    pub fn streaming() -> Self {
+    pub const fn streaming() -> Self {
         Self {
             blocking: false,
             requires_global_view: false,
+            supports_predicate_pushdown: false,
+            supports_projection_pushdown: false,
             stateless: true,
-            ..Default::default()
         }
     }
 
     /// Create capabilities for a blocking operator.
-    pub fn blocking() -> Self {
+    pub const fn blocking() -> Self {
         Self {
             blocking: true,
             requires_global_view: true,
+            supports_predicate_pushdown: false,
+            supports_projection_pushdown: false,
             stateless: false,
-            ..Default::default()
         }
     }
 
     /// Create capabilities for a source operator.
-    pub fn source() -> Self {
+    pub const fn source() -> Self {
         Self {
             blocking: false,
             requires_global_view: false,
@@ -193,12 +197,13 @@ impl OperatorCaps {
     }
 
     /// Create capabilities for an expand operator.
-    pub fn expand() -> Self {
+    pub const fn expand() -> Self {
         Self {
             blocking: false,
             requires_global_view: false,
+            supports_predicate_pushdown: false,
+            supports_projection_pushdown: false,
             stateless: false, // Has internal state
-            ..Default::default()
         }
     }
 }

@@ -1,6 +1,6 @@
 //! Logical plan structure for Grism (RFC-0006 compliant).
 //!
-//! A LogicalPlan is a DAG of logical operators that represents a query.
+//! A `LogicalPlan` is a DAG of logical operators that represents a query.
 
 use grism_core::Schema;
 use serde::{Deserialize, Serialize};
@@ -39,12 +39,12 @@ pub struct LogicalPlan {
 
 impl LogicalPlan {
     /// Create a new logical plan with the given root operator.
-    pub fn new(root: LogicalOp) -> Self {
+    pub const fn new(root: LogicalOp) -> Self {
         Self { root, schema: None }
     }
 
     /// Create a logical plan with a schema.
-    pub fn with_schema(root: LogicalOp, schema: Schema) -> Self {
+    pub const fn with_schema(root: LogicalOp, schema: Schema) -> Self {
         Self {
             root,
             schema: Some(schema),
@@ -52,17 +52,17 @@ impl LogicalPlan {
     }
 
     /// Get a reference to the root operator.
-    pub fn root(&self) -> &LogicalOp {
+    pub const fn root(&self) -> &LogicalOp {
         &self.root
     }
 
     /// Get a mutable reference to the root operator.
-    pub fn root_mut(&mut self) -> &mut LogicalOp {
+    pub const fn root_mut(&mut self) -> &mut LogicalOp {
         &mut self.root
     }
 
     /// Get the output schema if available.
-    pub fn schema(&self) -> Option<&Schema> {
+    pub const fn schema(&self) -> Option<&Schema> {
         self.schema.as_ref()
     }
 
@@ -88,12 +88,14 @@ impl LogicalPlan {
         if let Some(ref schema) = self.schema {
             output.push_str("\nOutput Schema:\n");
             for col in &schema.columns {
-                output.push_str(&format!(
+                use std::fmt::Write;
+                let _ = write!(
+                    output,
                     "  - {}: {} {}\n",
                     col.qualified_name(),
                     col.data_type,
                     if col.nullable { "(nullable)" } else { "" }
-                ));
+                );
             }
         }
 
@@ -111,8 +113,7 @@ impl LogicalPlan {
     /// Get the maximum depth of the plan tree.
     pub fn depth(&self) -> usize {
         fn max_depth(op: &LogicalOp) -> usize {
-            let child_depths: Vec<_> = op.inputs().iter().map(|i| max_depth(i)).collect();
-            1 + child_depths.into_iter().max().unwrap_or(0)
+            1 + op.inputs().iter().map(|i| max_depth(i)).max().unwrap_or(0)
         }
         max_depth(&self.root)
     }
@@ -135,6 +136,7 @@ impl LogicalPlan {
     }
 
     /// Transform the plan by applying a function to each operator (bottom-up).
+    #[must_use]
     pub fn transform<F>(self, f: F) -> Self
     where
         F: Fn(LogicalOp) -> LogicalOp + Clone,
@@ -235,13 +237,14 @@ pub struct PlanBuilder {
 
 impl PlanBuilder {
     /// Start building from a scan.
-    pub fn scan(scan: crate::ops::ScanOp) -> Self {
+    pub const fn scan(scan: crate::ops::ScanOp) -> Self {
         Self {
             op: LogicalOp::scan(scan),
         }
     }
 
     /// Add a filter.
+    #[must_use]
     pub fn filter(self, filter: crate::ops::FilterOp) -> Self {
         Self {
             op: LogicalOp::filter(self.op, filter),
@@ -249,6 +252,7 @@ impl PlanBuilder {
     }
 
     /// Add an expand.
+    #[must_use]
     pub fn expand(self, expand: crate::ops::ExpandOp) -> Self {
         Self {
             op: LogicalOp::expand(self.op, expand),
@@ -256,6 +260,7 @@ impl PlanBuilder {
     }
 
     /// Add a project.
+    #[must_use]
     pub fn project(self, project: crate::ops::ProjectOp) -> Self {
         Self {
             op: LogicalOp::project(self.op, project),
@@ -263,6 +268,7 @@ impl PlanBuilder {
     }
 
     /// Add an aggregate.
+    #[must_use]
     pub fn aggregate(self, aggregate: crate::ops::AggregateOp) -> Self {
         Self {
             op: LogicalOp::aggregate(self.op, aggregate),
@@ -270,6 +276,7 @@ impl PlanBuilder {
     }
 
     /// Add a limit.
+    #[must_use]
     pub fn limit(self, limit: crate::ops::LimitOp) -> Self {
         Self {
             op: LogicalOp::limit(self.op, limit),
@@ -277,6 +284,7 @@ impl PlanBuilder {
     }
 
     /// Add a sort.
+    #[must_use]
     pub fn sort(self, sort: crate::ops::SortOp) -> Self {
         Self {
             op: LogicalOp::sort(self.op, sort),
@@ -284,6 +292,7 @@ impl PlanBuilder {
     }
 
     /// Add a rename.
+    #[must_use]
     pub fn rename(self, rename: crate::ops::RenameOp) -> Self {
         Self {
             op: LogicalOp::rename(self.op, rename),

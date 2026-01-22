@@ -197,7 +197,7 @@ async fn test_project_computed_expression() {
 
     // Project a computed expression: _id + 10
     let scan = ScanOp::nodes_with_label("Person");
-    let expr = col("_id").add(lit(10i64)).alias("id_plus_10");
+    let expr = col("_id").add_expr(lit(10i64)).alias("id_plus_10");
     let project = ProjectOp::new(vec![col("_id").into(), expr]);
 
     let plan = LogicalPlan::new(LogicalOp::Project {
@@ -832,7 +832,7 @@ async fn test_project_arithmetic_on_ids() {
 
     // Project _id * 10 as scaled_id
     let scan = ScanOp::nodes_with_label("Person");
-    let expr = col("_id").mul(lit(10i64)).alias("scaled_id");
+    let expr = col("_id").mul_expr(lit(10i64)).alias("scaled_id");
     let project = ProjectOp::new(vec![col("_id").into(), expr]);
 
     let plan = LogicalPlan::new(LogicalOp::Project {

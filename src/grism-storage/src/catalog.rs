@@ -1,5 +1,7 @@
 //! Catalog for managing graph schemas and metadata.
 
+#![allow(clippy::cast_possible_truncation)]
+
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -32,11 +34,13 @@ pub struct Catalog {
 
 impl Catalog {
     /// Create a new empty catalog.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Set the default namespace.
+    #[must_use]
     pub fn with_default_namespace(mut self, namespace: impl Into<String>) -> Self {
         self.default_namespace = Some(namespace.into());
         self

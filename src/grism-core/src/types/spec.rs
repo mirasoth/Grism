@@ -5,12 +5,12 @@ use common_error::{GrismError, GrismResult};
 use super::{DataType, Value};
 
 /// Check that a value conforms to the expected data type.
+#[allow(clippy::match_same_arms)]
+#[allow(clippy::unnested_or_patterns)]
 pub fn check_type_invariants(value: &Value, expected: &DataType) -> GrismResult<()> {
     match (value, expected) {
-        // Null matches Null type or any nullable context
-        (Value::Null, _) => Ok(()), // Null is valid for any type in nullable context
-
-        // Direct type matches
+        // Null matches, direct type matches, and coercible types
+        (Value::Null, _) | // Null is valid for any type in nullable context
         (Value::Bool(_), DataType::Bool) |
         (Value::Int64(_), DataType::Int64) |
         (Value::Float64(_), DataType::Float64) |
@@ -137,8 +137,15 @@ pub fn check_binary_op_types(left: &DataType, right: &DataType, op: &str) -> Gri
         }
 
         // Arithmetic operators
-        "+" | "-" | "*" | "/" | "%" => {
-            if let Some(result) = left.common_supertype(right) {
+        "+" | "-" | "*" | "/" | "%" => left.common_supertype(right).map_or_else(
+            || {
+                Err(GrismError::type_error(format!(
+                    "Cannot perform {op} on {} and {}",
+                    left.display_name(),
+                    right.display_name()
+                )))
+            },
+            |result| {
                 if result.is_numeric() {
                     Ok(result)
                 } else {
@@ -148,14 +155,8 @@ pub fn check_binary_op_types(left: &DataType, right: &DataType, op: &str) -> Gri
                         right.display_name()
                     )))
                 }
-            } else {
-                Err(GrismError::type_error(format!(
-                    "Cannot perform {op} on {} and {}",
-                    left.display_name(),
-                    right.display_name()
-                )))
-            }
-        }
+            },
+        ),
 
         _ => Err(GrismError::not_implemented(format!(
             "Unknown binary operator: {op}"

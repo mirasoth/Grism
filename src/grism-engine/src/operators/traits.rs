@@ -30,7 +30,7 @@ use crate::physical::{OperatorCaps, PhysicalSchema};
 ///
 /// Operators MUST NOT:
 /// - Mutate upstream data
-/// - Perform side effects outside ExecutionContext
+/// - Perform side effects outside `ExecutionContext`
 /// - Block indefinitely without yielding
 #[async_trait]
 pub trait PhysicalOperator: Send + Sync + Debug {

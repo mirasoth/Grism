@@ -594,7 +594,7 @@ impl HyperedgeBuilder<'_> {
 
 /// A view over a subgraph, created by filtering operations.
 ///
-/// SubgraphViews are immutable and provide read-only access to a subset
+/// Subgraph views are immutable and provide read-only access to a subset
 /// of nodes and hyperedges from the base hypergraph.
 #[derive(Debug, Clone)]
 pub struct SubgraphView<'a> {
@@ -673,7 +673,7 @@ mod tests {
         let mut hg = Hypergraph::new();
 
         let alice = hg.add_node("Person", vec![("name", "Alice"), ("role", "developer")]);
-        let bob = hg.add_node("Person", vec![("name", "Bob"), ("role", "designer")]);
+        let _bob = hg.add_node("Person", vec![("name", "Bob"), ("role", "designer")]);
 
         assert_eq!(hg.node_count(), 2);
 

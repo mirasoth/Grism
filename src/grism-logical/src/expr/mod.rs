@@ -36,7 +36,7 @@
 //!
 //! // Complex expression
 //! let complex = LogicalExpr::column("price")
-//!     .mul(LogicalExpr::column("quantity"))
+//!     .mul_expr(LogicalExpr::column("quantity"))
 //!     .alias("total");
 //!
 //! // Aggregate
@@ -45,13 +45,13 @@
 
 mod agg;
 mod binary;
-mod expr;
+mod expression;
 mod func;
 mod unary;
 
 pub use agg::{AggExpr, AggFunc};
 pub use binary::BinaryOp;
-pub use expr::LogicalExpr;
+pub use expression::LogicalExpr;
 pub use func::{BuiltinFunc, Determinism, FuncCategory, FuncExpr, FuncKind, NullBehavior};
 pub use unary::UnaryOp;
 

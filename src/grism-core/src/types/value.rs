@@ -1,5 +1,13 @@
 //! Runtime value representation.
 
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_lossless)]
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::needless_collect)]
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -66,7 +74,7 @@ impl Value {
     }
 
     /// Try to get as f64.
-    pub fn as_float64(&self) -> Option<f64> {
+    pub const fn as_float64(&self) -> Option<f64> {
         match self {
             Self::Float64(f) => Some(*f),
             Self::Int64(i) => Some(*i as f64),
@@ -109,6 +117,7 @@ impl Value {
     }
 
     /// Convert this value to an Arrow scalar value.
+    #[must_use]
     pub fn to_arrow_scalar(&self) -> Option<ArrayRef> {
         match self {
             Self::Null => None,
@@ -120,7 +129,7 @@ impl Value {
             Self::Vector(v) => {
                 // Convert vector to a list of floats
                 let float_array =
-                    Float64Array::from(v.iter().map(|&x| x as f64).collect::<Vec<_>>());
+                    Float64Array::from(v.iter().map(|&x| f64::from(x)).collect::<Vec<_>>());
                 let field = Arc::new(Field::new("item", ArrowDataType::Float64, false));
                 let offsets = vec![0, v.len() as i32];
                 Some(Arc::new(ListArray::new(
@@ -227,12 +236,11 @@ impl Value {
             Self::Bool(_) => ArrowDataType::Boolean,
             Self::Int64(_) => ArrowDataType::Int64,
             Self::Float64(_) => ArrowDataType::Float64,
-            Self::String(_) => ArrowDataType::Utf8,
+            Self::String(_) | Self::Symbol(_) => ArrowDataType::Utf8,
             Self::Binary(_) => ArrowDataType::Binary,
             Self::Vector(_) => {
                 ArrowDataType::List(Arc::new(Field::new("item", ArrowDataType::Float64, false)))
             }
-            Self::Symbol(_) => ArrowDataType::Utf8,
             Self::Timestamp(_) => {
                 ArrowDataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None)
             }
@@ -302,7 +310,7 @@ impl Value {
                     // For other list types, convert to array of values
                     let mut result = Vec::new();
                     for i in start..end {
-                        if let Some(value) = Self::from_arrow_array(&values, i) {
+                        if let Some(value) = Self::from_arrow_array(values, i) {
                             result.push(value);
                         }
                     }

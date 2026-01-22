@@ -21,7 +21,7 @@ pub struct SortKey {
 
 impl SortKey {
     /// Create a new ascending sort key.
-    pub fn asc(expr: LogicalExpr) -> Self {
+    pub const fn asc(expr: LogicalExpr) -> Self {
         Self {
             expr,
             ascending: true,
@@ -30,7 +30,7 @@ impl SortKey {
     }
 
     /// Create a new descending sort key.
-    pub fn desc(expr: LogicalExpr) -> Self {
+    pub const fn desc(expr: LogicalExpr) -> Self {
         Self {
             expr,
             ascending: false,
@@ -39,13 +39,15 @@ impl SortKey {
     }
 
     /// Set nulls first.
-    pub fn nulls_first(mut self) -> Self {
+    #[must_use]
+    pub const fn nulls_first(mut self) -> Self {
         self.nulls_first = true;
         self
     }
 
     /// Set nulls last.
-    pub fn nulls_last(mut self) -> Self {
+    #[must_use]
+    pub const fn nulls_last(mut self) -> Self {
         self.nulls_first = false;
         self
     }
@@ -77,7 +79,7 @@ pub struct SortOp {
 
 impl SortOp {
     /// Create a new sort operation.
-    pub fn new(keys: Vec<SortKey>) -> Self {
+    pub const fn new(keys: Vec<SortKey>) -> Self {
         Self { keys }
     }
 
@@ -96,18 +98,21 @@ impl SortOp {
     }
 
     /// Add a sort key.
+    #[must_use]
     pub fn then_by(mut self, key: SortKey) -> Self {
         self.keys.push(key);
         self
     }
 
     /// Add an ascending sort key.
+    #[must_use]
     pub fn then_asc(mut self, expr: LogicalExpr) -> Self {
         self.keys.push(SortKey::asc(expr));
         self
     }
 
     /// Add a descending sort key.
+    #[must_use]
     pub fn then_desc(mut self, expr: LogicalExpr) -> Self {
         self.keys.push(SortKey::desc(expr));
         self
@@ -128,7 +133,7 @@ impl std::fmt::Display for SortOp {
         let keys = self
             .keys
             .iter()
-            .map(|k| k.to_string())
+            .map(std::string::ToString::to_string)
             .collect::<Vec<_>>()
             .join(", ");
         write!(f, "Sort({})", keys)

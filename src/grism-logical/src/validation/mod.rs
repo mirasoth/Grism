@@ -54,8 +54,8 @@ pub enum ValidationError {
 impl std::fmt::Display for ValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Structural(e) => write!(f, "Structural error: {}", e),
-            Self::Semantic(e) => write!(f, "Semantic error: {}", e),
+            Self::Structural(e) => write!(f, "Structural error: {e}"),
+            Self::Semantic(e) => write!(f, "Semantic error: {e}"),
         }
     }
 }
@@ -88,7 +88,8 @@ impl PlanValidator {
     }
 
     /// Skip semantic validation.
-    pub fn skip_semantic(mut self) -> Self {
+    #[must_use]
+    pub const fn skip_semantic(mut self) -> Self {
         self.skip_semantic = true;
         self
     }

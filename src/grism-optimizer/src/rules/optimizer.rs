@@ -45,13 +45,15 @@ impl Default for OptimizerConfig {
 
 impl OptimizerConfig {
     /// Create a new config with the given max iterations.
-    pub fn with_max_iterations(mut self, max: usize) -> Self {
+    #[must_use]
+    pub const fn with_max_iterations(mut self, max: usize) -> Self {
         self.max_iterations = max;
         self
     }
 
     /// Enable or disable tracing.
-    pub fn with_trace(mut self, enable: bool) -> Self {
+    #[must_use]
+    pub const fn with_trace(mut self, enable: bool) -> Self {
         self.enable_trace = enable;
         self
     }
@@ -159,7 +161,7 @@ impl Optimizer {
             }
 
             if !changed_this_iteration {
-                debug!("No changes in iteration {}, reached fixpoint", iterations);
+                debug!("No changes in iteration {iterations}, reached fixpoint");
                 break;
             }
         }

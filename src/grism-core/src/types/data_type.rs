@@ -33,22 +33,22 @@ pub enum DataType {
 
 impl DataType {
     /// Check if this type is numeric.
-    pub fn is_numeric(&self) -> bool {
+    pub const fn is_numeric(&self) -> bool {
         matches!(self, Self::Int64 | Self::Float64)
     }
 
     /// Check if this type is a string type.
-    pub fn is_string(&self) -> bool {
+    pub const fn is_string(&self) -> bool {
         matches!(self, Self::String | Self::Symbol)
     }
 
     /// Check if this type is a temporal type.
-    pub fn is_temporal(&self) -> bool {
+    pub const fn is_temporal(&self) -> bool {
         matches!(self, Self::Timestamp | Self::Date)
     }
 
     /// Check if this type is nullable.
-    pub fn is_nullable(&self) -> bool {
+    pub const fn is_nullable(&self) -> bool {
         matches!(self, Self::Null)
     }
 
@@ -71,18 +71,14 @@ impl DataType {
     }
 
     /// Check if this type can be coerced to another type.
-    pub fn can_coerce_to(&self, target: &DataType) -> bool {
+    pub fn can_coerce_to(&self, target: &Self) -> bool {
         if self == target {
             return true;
         }
 
         match (self, target) {
-            // Null can coerce to anything
-            (Self::Null, _) => true,
-            // Int64 can coerce to Float64
-            (Self::Int64, Self::Float64) => true,
-            // Symbol can coerce to String
-            (Self::Symbol, Self::String) => true,
+            // Null can coerce to anything, Int64 can coerce to Float64, and Symbol can coerce to String
+            (Self::Null, _) | (Self::Int64, Self::Float64) | (Self::Symbol, Self::String) => true,
             // Arrays can coerce if inner types can coerce
             (Self::Array(a), Self::Array(b)) => a.can_coerce_to(b),
             _ => false,
@@ -90,7 +86,7 @@ impl DataType {
     }
 
     /// Get the common supertype of two types (for type inference).
-    pub fn common_supertype(&self, other: &DataType) -> Option<DataType> {
+    pub fn common_supertype(&self, other: &Self) -> Option<Self> {
         if self == other {
             return Some(self.clone());
         }

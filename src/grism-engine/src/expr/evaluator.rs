@@ -22,7 +22,8 @@ pub struct ExprEvaluator;
 
 impl ExprEvaluator {
     /// Create a new expression evaluator.
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self
     }
 
@@ -149,8 +150,7 @@ impl ExprEvaluator {
     ) -> GrismResult<ArrayRef> {
         // Try qualified name first if qualifier is provided
         if let Some(q) = qualifier {
-            let qualified_name = format!("{}.{}", q, name);
-            if let Some(col) = batch.column_by_name(&qualified_name) {
+            if let Some(col) = batch.column_by_name(&format!("{q}.{name}")) {
                 return Ok(col.clone());
             }
         }
@@ -324,7 +324,7 @@ impl ExprEvaluator {
             .iter()
             .zip(right_str.iter())
             .map(|(l, r)| match (l, r) {
-                (Some(l), Some(r)) => Some(format!("{}{}", l, r)),
+                (Some(l), Some(r)) => Some(format!("{l}{r}")),
                 _ => None,
             })
             .collect();
@@ -697,7 +697,7 @@ mod tests {
         let batch = create_test_batch();
 
         // age + 10
-        let expr = col("age").add(lit(10i64));
+        let expr = col("age").add_expr(lit(10i64));
         let result = evaluator.evaluate(&expr, &batch).unwrap();
         let int_arr = result.as_any().downcast_ref::<Int64Array>().unwrap();
 
@@ -711,7 +711,7 @@ mod tests {
         let batch = create_test_batch();
 
         // NOT active
-        let expr = col("active").not();
+        let expr = col("active").logical_not();
         let result = evaluator.evaluate_predicate(&expr, &batch).unwrap();
 
         assert!(!result.value(0)); // NOT true = false

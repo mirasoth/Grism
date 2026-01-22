@@ -1,19 +1,22 @@
 //! Python bindings for the Grism expression system.
 //!
-//! This module provides PyO3 bindings for expressions, following the Daft pattern
+//! This module provides `PyO3` bindings for expressions, following the Daft pattern
 //! of individual python modules per crate. Implements expression lowering to Rust
-//! LogicalExpr per RFC-0003.
+//! `LogicalExpr` per RFC-0003.
+
+#![allow(unused_unsafe)]
+#![allow(unsafe_op_in_unsafe_fn)]
 
 use grism_core::Value;
 use pyo3::prelude::*;
-use pyo3::types::{PyAnyMethods, PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
+use pyo3::types::{PyAnyMethods, PyBool, PyFloat, PyInt, PyList, PyString};
 
 use crate::{
     AggExpr as RustAggExpr, LogicalExpr,
     expr::{AggFunc, BinaryOp, FuncExpr, FuncKind, UnaryOp},
 };
 
-/// Internal representation of a Python expression that can be lowered to LogicalExpr.
+/// Internal representation of a Python expression that can be lowered to `LogicalExpr`.
 #[derive(Debug, Clone)]
 pub enum ExprKind {
     /// Column reference.
@@ -45,10 +48,10 @@ pub enum ExprKind {
 }
 
 impl ExprKind {
-    /// Lower this expression to a Rust LogicalExpr.
+    /// Lower this expression to a Rust `LogicalExpr`.
     pub fn to_logical_expr(&self) -> LogicalExpr {
         match self {
-            ExprKind::Column(name) => {
+            Self::Column(name) => {
                 // Check if it's a qualified reference (contains '.')
                 if let Some((qualifier, col_name)) = name.split_once('.') {
                     LogicalExpr::qualified_column(qualifier, col_name)
@@ -56,20 +59,20 @@ impl ExprKind {
                     LogicalExpr::column(name)
                 }
             }
-            ExprKind::QualifiedColumn { qualifier, name } => {
+            Self::QualifiedColumn { qualifier, name } => {
                 LogicalExpr::qualified_column(qualifier, name)
             }
-            ExprKind::Literal(value) => LogicalExpr::Literal(value.clone()),
-            ExprKind::Binary { left, op, right } => LogicalExpr::Binary {
+            Self::Literal(value) => LogicalExpr::Literal(value.clone()),
+            Self::Binary { left, op, right } => LogicalExpr::Binary {
                 left: Box::new(left.to_logical_expr()),
                 op: *op,
                 right: Box::new(right.to_logical_expr()),
             },
-            ExprKind::Unary { op, expr } => LogicalExpr::Unary {
+            Self::Unary { op, expr } => LogicalExpr::Unary {
                 op: *op,
                 expr: Box::new(expr.to_logical_expr()),
             },
-            ExprKind::Function { name, args } => {
+            Self::Function { name, args } => {
                 let func_kind = match name.as_str() {
                     "length" | "len" => FuncKind::Builtin(crate::BuiltinFunc::Length),
                     "upper" => FuncKind::Builtin(crate::BuiltinFunc::Upper),
@@ -98,23 +101,23 @@ impl ExprKind {
                     "size" => FuncKind::Builtin(crate::BuiltinFunc::Size),
                     _ => FuncKind::UserDefined(name.clone()),
                 };
-                let func_args: Vec<_> = args.iter().map(|a| a.to_logical_expr()).collect();
+                let func_args: Vec<_> = args.iter().map(Self::to_logical_expr).collect();
                 LogicalExpr::Function(FuncExpr {
                     func: func_kind,
                     args: func_args,
                 })
             }
-            ExprKind::Aggregate { func, expr } => {
+            Self::Aggregate { func, expr } => {
                 LogicalExpr::Aggregate(RustAggExpr::new(*func, expr.to_logical_expr()))
             }
-            ExprKind::Alias { expr, alias } => expr.to_logical_expr().alias(alias),
-            ExprKind::Wildcard => LogicalExpr::Wildcard,
-            ExprKind::SortAsc(expr) => LogicalExpr::SortKey {
+            Self::Alias { expr, alias } => expr.to_logical_expr().alias(alias),
+            Self::Wildcard => LogicalExpr::Wildcard,
+            Self::SortAsc(expr) => LogicalExpr::SortKey {
                 expr: Box::new(expr.to_logical_expr()),
                 ascending: true,
                 nulls_first: false,
             },
-            ExprKind::SortDesc(expr) => LogicalExpr::SortKey {
+            Self::SortDesc(expr) => LogicalExpr::SortKey {
                 expr: Box::new(expr.to_logical_expr()),
                 ascending: false,
                 nulls_first: false,
@@ -135,8 +138,8 @@ pub struct PyExpr {
 }
 
 impl PyExpr {
-    /// Create a new PyExpr from an ExprKind.
-    pub fn new(inner: ExprKind) -> Self {
+    /// Create a new `PyExpr` from an `ExprKind`.
+    pub const fn new(inner: ExprKind) -> Self {
         Self { inner }
     }
 
@@ -146,72 +149,85 @@ impl PyExpr {
     }
 
     /// Create a literal expression.
-    pub fn literal(value: Value) -> Self {
+    pub const fn literal(value: Value) -> Self {
         Self::new(ExprKind::Literal(value))
     }
 
-    /// Lower to a Rust LogicalExpr.
+    /// Lower to a Rust `LogicalExpr`.
     pub fn to_logical_expr(&self) -> LogicalExpr {
         self.inner.to_logical_expr()
     }
 }
 
 #[pymethods]
+#[allow(unsafe_op_in_unsafe_fn)]
 impl PyExpr {
     // ========== Comparison Operators ==========
 
     fn __eq__(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let right = py_any_to_expr(other)?;
-        Ok(Self::new(ExprKind::Binary {
-            left: Box::new(self.inner.clone()),
-            op: BinaryOp::Eq,
-            right: Box::new(right),
-        }))
+        unsafe {
+            let right = py_any_to_expr(other)?;
+            Ok(Self::new(ExprKind::Binary {
+                left: Box::new(self.inner.clone()),
+                op: BinaryOp::Eq,
+                right: Box::new(right),
+            }))
+        }
     }
 
     fn __ne__(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let right = py_any_to_expr(other)?;
-        Ok(Self::new(ExprKind::Binary {
-            left: Box::new(self.inner.clone()),
-            op: BinaryOp::NotEq,
-            right: Box::new(right),
-        }))
+        unsafe {
+            let right = py_any_to_expr(other)?;
+            Ok(Self::new(ExprKind::Binary {
+                left: Box::new(self.inner.clone()),
+                op: BinaryOp::NotEq,
+                right: Box::new(right),
+            }))
+        }
     }
 
     fn __gt__(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let right = py_any_to_expr(other)?;
-        Ok(Self::new(ExprKind::Binary {
-            left: Box::new(self.inner.clone()),
-            op: BinaryOp::Gt,
-            right: Box::new(right),
-        }))
+        unsafe {
+            let right = py_any_to_expr(other)?;
+            Ok(Self::new(ExprKind::Binary {
+                left: Box::new(self.inner.clone()),
+                op: BinaryOp::Gt,
+                right: Box::new(right),
+            }))
+        }
     }
 
     fn __ge__(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let right = py_any_to_expr(other)?;
-        Ok(Self::new(ExprKind::Binary {
-            left: Box::new(self.inner.clone()),
-            op: BinaryOp::GtEq,
-            right: Box::new(right),
-        }))
+        unsafe {
+            let right = py_any_to_expr(other)?;
+            Ok(Self::new(ExprKind::Binary {
+                left: Box::new(self.inner.clone()),
+                op: BinaryOp::GtEq,
+                right: Box::new(right),
+            }))
+        }
     }
 
     fn __lt__(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let right = py_any_to_expr(other)?;
-        Ok(Self::new(ExprKind::Binary {
-            left: Box::new(self.inner.clone()),
-            op: BinaryOp::Lt,
-            right: Box::new(right),
-        }))
+        unsafe {
+            let right = py_any_to_expr(other)?;
+            Ok(Self::new(ExprKind::Binary {
+                left: Box::new(self.inner.clone()),
+                op: BinaryOp::Lt,
+                right: Box::new(right),
+            }))
+        }
     }
 
     fn __le__(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let right = py_any_to_expr(other)?;
-        Ok(Self::new(ExprKind::Binary {
-            left: Box::new(self.inner.clone()),
-            op: BinaryOp::LtEq,
-            right: Box::new(right),
-        }))
+        unsafe {
+            let right = py_any_to_expr(other)?;
+            Ok(Self::new(ExprKind::Binary {
+                left: Box::new(self.inner.clone()),
+                op: BinaryOp::LtEq,
+                right: Box::new(right),
+            }))
+        }
     }
 
     // ========== Logical Operators ==========
@@ -625,7 +641,7 @@ impl PyExpr {
     }
 }
 
-/// Convert a Python value to an ExprKind.
+/// Convert a Python value to an `ExprKind`.
 pub fn py_any_to_expr(value: &Bound<'_, PyAny>) -> PyResult<ExprKind> {
     // Check if it's already a PyExpr
     if let Ok(expr) = value.extract::<PyExpr>() {
@@ -726,7 +742,7 @@ pub struct PyAggExpr {
 }
 
 impl PyAggExpr {
-    pub fn new(func: AggFunc, expr: ExprKind) -> Self {
+    pub const fn new(func: AggFunc, expr: ExprKind) -> Self {
         Self {
             func,
             expr,
@@ -734,7 +750,7 @@ impl PyAggExpr {
         }
     }
 
-    /// Convert to a Rust AggExpr.
+    /// Convert to a Rust `AggExpr`.
     pub fn to_rust_agg_expr(&self) -> RustAggExpr {
         let mut agg = RustAggExpr::new(self.func, self.expr.to_logical_expr());
         if let Some(ref alias) = self.alias {
@@ -762,7 +778,7 @@ impl PyAggExpr {
         let alias_str = self
             .alias
             .as_deref()
-            .map_or(String::new(), |a| format!(" AS {}", a));
+            .map_or(String::new(), |a| format!(" AS {a}"));
         format!("AggExpr({:?}({:?}){}", self.func, self.expr, alias_str)
     }
 }
@@ -771,10 +787,10 @@ impl PyAggExpr {
 #[pyfunction]
 #[pyo3(signature = (expr=None))]
 pub fn count(expr: Option<&PyExpr>) -> PyAggExpr {
-    match expr {
-        Some(e) => PyAggExpr::new(AggFunc::Count, e.inner.clone()),
-        None => PyAggExpr::new(AggFunc::Count, ExprKind::Wildcard),
-    }
+    expr.map_or_else(
+        || PyAggExpr::new(AggFunc::Count, ExprKind::Wildcard),
+        |e| PyAggExpr::new(AggFunc::Count, e.inner.clone()),
+    )
 }
 
 /// Count distinct aggregation.
@@ -856,6 +872,7 @@ pub fn contains_fn(expr: &PyExpr, substring: &str) -> PyExpr {
 /// Concatenate strings.
 #[pyfunction]
 #[pyo3(signature = (*exprs))]
+#[allow(clippy::needless_pass_by_value)]
 pub fn concat(exprs: Vec<Bound<'_, PyAny>>) -> PyResult<PyExpr> {
     let args: PyResult<Vec<ExprKind>> = exprs.iter().map(|e| py_any_to_expr(e)).collect();
     Ok(PyExpr::new(ExprKind::Function {
@@ -995,6 +1012,7 @@ pub fn day(expr: &PyExpr) -> PyExpr {
 /// Return first non-NULL value.
 #[pyfunction]
 #[pyo3(signature = (*exprs))]
+#[allow(clippy::needless_pass_by_value)]
 pub fn coalesce(exprs: Vec<Bound<'_, PyAny>>) -> PyResult<PyExpr> {
     let args: PyResult<Vec<ExprKind>> = exprs.iter().map(|e| py_any_to_expr(e)).collect();
     Ok(PyExpr::new(ExprKind::Function {
@@ -1137,11 +1155,12 @@ pub fn exists_fn(expr: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
 /// Check if any element in a collection satisfies a predicate.
 #[pyfunction]
 #[pyo3(name = "any_")]
+#[pyo3(signature = (expr, predicate=None))]
 pub fn any_fn(expr: &PyExpr, predicate: Option<&PyExpr>) -> PyExpr {
-    let args = match predicate {
-        Some(p) => vec![expr.inner.clone(), p.inner.clone()],
-        None => vec![expr.inner.clone()],
-    };
+    let args = predicate.map_or_else(
+        || vec![expr.inner.clone()],
+        |p| vec![expr.inner.clone(), p.inner.clone()],
+    );
     PyExpr::new(ExprKind::Function {
         name: "any".to_string(),
         args,
@@ -1151,11 +1170,12 @@ pub fn any_fn(expr: &PyExpr, predicate: Option<&PyExpr>) -> PyExpr {
 /// Check if all elements in a collection satisfy a predicate.
 #[pyfunction]
 #[pyo3(name = "all_")]
+#[pyo3(signature = (expr, predicate=None))]
 pub fn all_fn(expr: &PyExpr, predicate: Option<&PyExpr>) -> PyExpr {
-    let args = match predicate {
-        Some(p) => vec![expr.inner.clone(), p.inner.clone()],
-        None => vec![expr.inner.clone()],
-    };
+    let args = predicate.map_or_else(
+        || vec![expr.inner.clone()],
+        |p| vec![expr.inner.clone(), p.inner.clone()],
+    );
     PyExpr::new(ExprKind::Function {
         name: "all".to_string(),
         args,

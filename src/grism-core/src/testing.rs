@@ -3,6 +3,9 @@
 //! This module provides common test patterns, fixtures, and utilities
 //! to make testing grism-core components easier and more consistent.
 
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::uninlined_format_args)]
+
 use crate::hypergraph::{EdgeId, Hypergraph, NodeId};
 use crate::types::Value;
 use std::collections::HashMap;
@@ -255,6 +258,7 @@ impl<'a> HypergraphAssertions<'a> {
     }
 
     /// Assert that the hypergraph has the expected number of hyperedges.
+    #[must_use]
     pub fn assert_hyperedge_count(self, expected: usize) -> Self {
         assert_eq!(
             self.hypergraph.hyperedge_count(),
@@ -267,28 +271,29 @@ impl<'a> HypergraphAssertions<'a> {
     }
 
     /// Assert that a node with the given label exists.
+    #[must_use]
     pub fn assert_has_node_with_label(self, label: &str) -> Self {
         let nodes = self.hypergraph.nodes_with_label(label);
         assert!(
             !nodes.is_empty(),
-            "Expected at least one node with label '{}'",
-            label
+            "Expected at least one node with label '{label}'",
         );
         self
     }
 
     /// Assert that a hyperedge with the given label exists.
+    #[must_use]
     pub fn assert_has_hyperedge_with_label(self, label: &str) -> Self {
         let edges = self.hypergraph.hyperedges_with_label(label);
         assert!(
             !edges.is_empty(),
-            "Expected at least one hyperedge with label '{}'",
-            label
+            "Expected at least one hyperedge with label '{label}'",
         );
         self
     }
 
     /// Assert that a node has a specific property.
+    #[must_use]
     pub fn assert_node_has_property(
         self,
         node_id: NodeId,
@@ -299,27 +304,24 @@ impl<'a> HypergraphAssertions<'a> {
         assert_eq!(
             node.properties.get(property_name),
             Some(expected_value),
-            "Node {} should have property {} = {:?}",
-            node_id,
-            property_name,
-            expected_value
+            "Node {node_id} should have property {property_name} = {expected_value:?}"
         );
         self
     }
 
     /// Assert that a hyperedge involves a specific node.
+    #[must_use]
     pub fn assert_hyperedge_involves(self, edge_id: EdgeId, node_id: NodeId) -> Self {
         let edge = self.hypergraph.get_hyperedge(edge_id).unwrap();
         assert!(
             edge.involves_node(node_id),
-            "Hyperedge {} should involve node {}",
-            edge_id,
-            node_id
+            "Hyperedge {edge_id} should involve node {node_id}"
         );
         self
     }
 
     /// Assert that a node has a specific role in a hyperedge.
+    #[must_use]
     pub fn assert_node_has_role(
         self,
         edge_id: EdgeId,
@@ -369,7 +371,7 @@ mod tests {
 
         // Test basic structure
         let assertions = HypergraphAssertions::new(fixture.hypergraph());
-        assertions
+        let _ = assertions
             .assert_node_count(4) // 3 people + 1 company
             .assert_hyperedge_count(3) // 2 KNOWS + 1 WORKS_AT
             .assert_has_node_with_label("Person")
@@ -382,7 +384,7 @@ mod tests {
         let bob = fixture.node_id("bob").unwrap();
         let alice_knows_bob = fixture.edge_id("alice_knows_bob").unwrap();
 
-        HypergraphAssertions::new(fixture.hypergraph())
+        let _ = HypergraphAssertions::new(fixture.hypergraph())
             .assert_hyperedge_involves(alice_knows_bob, alice)
             .assert_hyperedge_involves(alice_knows_bob, bob)
             .assert_node_has_role(alice_knows_bob, alice, "source")
@@ -394,7 +396,7 @@ mod tests {
         let fixture = HypergraphFixture::citation_network();
 
         let assertions = HypergraphAssertions::new(fixture.hypergraph());
-        assertions
+        let _ = assertions
             .assert_node_count(5) // 3 papers + 2 authors
             .assert_hyperedge_count(6) // 3 CITES + 3 AUTHORED_BY
             .assert_has_node_with_label("Paper")
@@ -407,7 +409,7 @@ mod tests {
         let paper2 = fixture.node_id("paper2").unwrap();
         let paper2_cites_paper1 = fixture.edge_id("paper2_cites_paper1").unwrap();
 
-        HypergraphAssertions::new(fixture.hypergraph())
+        let _ = HypergraphAssertions::new(fixture.hypergraph())
             .assert_hyperedge_involves(paper2_cites_paper1, paper1)
             .assert_hyperedge_involves(paper2_cites_paper1, paper2);
     }
@@ -437,7 +439,7 @@ mod tests {
         fixture.track_edge("task2_depends_task1", edge_id);
 
         let assertions = HypergraphAssertions::new(fixture.hypergraph());
-        assertions
+        let _ = assertions
             .assert_node_count(2)
             .assert_hyperedge_count(1)
             .assert_has_node_with_label("Task")

@@ -33,6 +33,7 @@ pub struct LimitExec {
 
 impl LimitExec {
     /// Create a new limit operator.
+    #[must_use]
     pub fn new(input: Arc<dyn PhysicalOperator>, limit: usize) -> Self {
         let schema = input.schema().clone();
         Self {
@@ -46,18 +47,19 @@ impl LimitExec {
     }
 
     /// Create with offset.
+    #[must_use]
     pub fn with_offset(mut self, offset: usize) -> Self {
         self.offset = offset;
         self
     }
 
     /// Get the limit.
-    pub fn limit(&self) -> usize {
+    pub const fn limit(&self) -> usize {
         self.limit
     }
 
     /// Get the offset.
-    pub fn offset(&self) -> usize {
+    pub const fn offset(&self) -> usize {
         self.offset
     }
 }

@@ -25,6 +25,7 @@ pub struct EmptyExec {
 
 impl EmptyExec {
     /// Create a new empty operator with empty schema.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             schema: PhysicalSchema::empty(),
@@ -33,6 +34,7 @@ impl EmptyExec {
     }
 
     /// Create with a specific schema.
+    #[must_use]
     pub fn with_schema(schema: PhysicalSchema) -> Self {
         Self {
             schema,

@@ -137,12 +137,12 @@ impl LogicalOp {
     // ========== Constructors ==========
 
     /// Create a scan operator.
-    pub fn scan(scan: ScanOp) -> Self {
+    pub const fn scan(scan: ScanOp) -> Self {
         Self::Scan(scan)
     }
 
     /// Create an expand operator.
-    pub fn expand(input: LogicalOp, expand: ExpandOp) -> Self {
+    pub fn expand(input: Self, expand: ExpandOp) -> Self {
         Self::Expand {
             input: Box::new(input),
             expand,
@@ -150,7 +150,7 @@ impl LogicalOp {
     }
 
     /// Create a filter operator.
-    pub fn filter(input: LogicalOp, filter: FilterOp) -> Self {
+    pub fn filter(input: Self, filter: FilterOp) -> Self {
         Self::Filter {
             input: Box::new(input),
             filter,
@@ -158,7 +158,7 @@ impl LogicalOp {
     }
 
     /// Create a project operator.
-    pub fn project(input: LogicalOp, project: ProjectOp) -> Self {
+    pub fn project(input: Self, project: ProjectOp) -> Self {
         Self::Project {
             input: Box::new(input),
             project,
@@ -166,7 +166,7 @@ impl LogicalOp {
     }
 
     /// Create an aggregate operator.
-    pub fn aggregate(input: LogicalOp, aggregate: AggregateOp) -> Self {
+    pub fn aggregate(input: Self, aggregate: AggregateOp) -> Self {
         Self::Aggregate {
             input: Box::new(input),
             aggregate,
@@ -174,7 +174,7 @@ impl LogicalOp {
     }
 
     /// Create a limit operator.
-    pub fn limit(input: LogicalOp, limit: LimitOp) -> Self {
+    pub fn limit(input: Self, limit: LimitOp) -> Self {
         Self::Limit {
             input: Box::new(input),
             limit,
@@ -182,7 +182,7 @@ impl LogicalOp {
     }
 
     /// Create a sort operator.
-    pub fn sort(input: LogicalOp, sort: SortOp) -> Self {
+    pub fn sort(input: Self, sort: SortOp) -> Self {
         Self::Sort {
             input: Box::new(input),
             sort,
@@ -190,7 +190,7 @@ impl LogicalOp {
     }
 
     /// Create a union operator.
-    pub fn union(left: LogicalOp, right: LogicalOp, union: UnionOp) -> Self {
+    pub fn union(left: Self, right: Self, union: UnionOp) -> Self {
         Self::Union {
             left: Box::new(left),
             right: Box::new(right),
@@ -199,7 +199,7 @@ impl LogicalOp {
     }
 
     /// Create a rename operator.
-    pub fn rename(input: LogicalOp, rename: RenameOp) -> Self {
+    pub fn rename(input: Self, rename: RenameOp) -> Self {
         Self::Rename {
             input: Box::new(input),
             rename,
@@ -207,7 +207,7 @@ impl LogicalOp {
     }
 
     /// Create an infer operator.
-    pub fn infer(input: LogicalOp, infer: InferOp) -> Self {
+    pub fn infer(input: Self, infer: InferOp) -> Self {
         Self::Infer {
             input: Box::new(input),
             infer,
@@ -215,14 +215,14 @@ impl LogicalOp {
     }
 
     /// Create an empty relation.
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         Self::Empty
     }
 
     // ========== Analysis methods ==========
 
     /// Get the operator name.
-    pub fn name(&self) -> &'static str {
+    pub const fn name(&self) -> &'static str {
         match self {
             Self::Scan(_) => "Scan",
             Self::Expand { .. } => "Expand",
@@ -239,7 +239,7 @@ impl LogicalOp {
     }
 
     /// Get the number of inputs to this operator.
-    pub fn input_count(&self) -> usize {
+    pub const fn input_count(&self) -> usize {
         match self {
             Self::Scan(_) | Self::Empty => 0,
             Self::Union { .. } => 2,
@@ -248,12 +248,12 @@ impl LogicalOp {
     }
 
     /// Check if this is a leaf operator (no inputs).
-    pub fn is_leaf(&self) -> bool {
+    pub const fn is_leaf(&self) -> bool {
         self.input_count() == 0
     }
 
     /// Get the input operators.
-    pub fn inputs(&self) -> Vec<&LogicalOp> {
+    pub fn inputs(&self) -> Vec<&Self> {
         match self {
             Self::Scan(_) | Self::Empty => vec![],
             Self::Expand { input, .. }
@@ -269,7 +269,7 @@ impl LogicalOp {
     }
 
     /// Get mutable references to input operators.
-    pub fn inputs_mut(&mut self) -> Vec<&mut LogicalOp> {
+    pub fn inputs_mut(&mut self) -> Vec<&mut Self> {
         match self {
             Self::Scan(_) | Self::Empty => vec![],
             Self::Expand { input, .. }
@@ -285,9 +285,10 @@ impl LogicalOp {
     }
 
     /// Map over children, replacing them with transformed versions.
+    #[must_use]
     pub fn map_children<F>(self, mut f: F) -> Self
     where
-        F: FnMut(LogicalOp) -> LogicalOp,
+        F: FnMut(Self) -> Self,
     {
         match self {
             Self::Scan(_) | Self::Empty => self,
@@ -334,7 +335,7 @@ impl LogicalOp {
     /// Format as a tree string with indentation.
     pub fn explain(&self, indent: usize) -> String {
         let prefix = "  ".repeat(indent);
-        let mut result = format!("{}{}\n", prefix, self);
+        let mut result = format!("{prefix}{self}\n");
 
         for input in self.inputs() {
             result.push_str(&input.explain(indent + 1));

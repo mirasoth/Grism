@@ -58,12 +58,12 @@ impl RoleBinding {
     }
 
     /// Get the target node ID if this binding points to a node.
-    pub fn target_node(&self) -> Option<NodeId> {
+    pub const fn target_node(&self) -> Option<NodeId> {
         self.target.as_node()
     }
 
     /// Get the target edge ID if this binding points to a hyperedge.
-    pub fn target_hyperedge(&self) -> Option<EdgeId> {
+    pub const fn target_hyperedge(&self) -> Option<EdgeId> {
         self.target.as_hyperedge()
     }
 }
@@ -302,7 +302,7 @@ impl Hyperedge {
     pub fn involved_nodes(&self) -> Vec<NodeId> {
         self.bindings
             .iter()
-            .filter_map(|b| b.target_node())
+            .filter_map(RoleBinding::target_node)
             .collect()
     }
 
@@ -310,7 +310,7 @@ impl Hyperedge {
     pub fn involved_hyperedges(&self) -> Vec<EdgeId> {
         self.bindings
             .iter()
-            .filter_map(|b| b.target_hyperedge())
+            .filter_map(RoleBinding::target_hyperedge)
             .collect()
     }
 
@@ -332,7 +332,7 @@ impl Hyperedge {
         self.bindings
             .iter()
             .filter(|b| b.role() == role)
-            .filter_map(|b| b.target_node())
+            .filter_map(RoleBinding::target_node)
             .collect()
     }
 
@@ -341,7 +341,7 @@ impl Hyperedge {
         self.bindings
             .iter()
             .filter(|b| b.role() == role)
-            .filter_map(|b| b.target_hyperedge())
+            .filter_map(RoleBinding::target_hyperedge)
             .collect()
     }
 

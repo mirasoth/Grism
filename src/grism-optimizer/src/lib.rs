@@ -12,9 +12,9 @@
 //!
 //! # Implemented Rules
 //!
-//! - **ConstantFolding**: Evaluate constant expressions at plan time
-//! - **PredicatePushdown**: Move filters closer to data sources
-//! - **ProjectionPruning**: Remove unused columns early
+//! - **`ConstantFolding`**: Evaluate constant expressions at plan time
+//! - **`PredicatePushdown`**: Move filters closer to data sources
+//! - **`ProjectionPruning`**: Remove unused columns early
 //!
 //! # Example
 //!
@@ -90,7 +90,7 @@ mod tests {
     use super::*;
     use grism_logical::{
         AggExpr, AggregateOp, ExpandOp, FilterOp, LimitOp, LogicalOp, PlanBuilder, ProjectOp,
-        ScanOp, SortKey, SortOp, UnionOp, col, lit,
+        ScanOp, UnionOp, col, lit,
     };
 
     #[test]

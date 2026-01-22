@@ -3,6 +3,8 @@
 //! This module provides PyO3 bindings for the Grism execution engine,
 //! following the Daft pattern of individual python modules per crate.
 
+#![allow(unsafe_op_in_unsafe_fn)]
+
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
@@ -52,7 +54,7 @@ pub struct PyLocalExecutor {
 impl PyLocalExecutor {
     #[new]
     #[pyo3(signature = (parallelism=None, memory_limit=None))]
-    fn new(parallelism: Option<usize>, memory_limit: Option<usize>) -> Self {
+    const fn new(parallelism: Option<usize>, memory_limit: Option<usize>) -> Self {
         Self {
             parallelism,
             memory_limit,
@@ -77,7 +79,7 @@ pub struct PyRayExecutor {
 impl PyRayExecutor {
     #[new]
     #[pyo3(signature = (num_workers=None))]
-    fn new(num_workers: Option<usize>) -> Self {
+    const fn new(num_workers: Option<usize>) -> Self {
         Self { num_workers }
     }
 
