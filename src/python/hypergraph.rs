@@ -1698,6 +1698,29 @@ mod tests {
             let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
             assert_eq!(hg.uri, "grism://local");
             assert!(hg.namespace.is_none());
+            assert!(hg.exec_config.is_none());
+        });
+    }
+
+    #[test]
+    fn test_hypergraph_with_namespace() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let hg_ns = hg.with_namespace("test_ns");
+            assert_eq!(hg_ns.namespace, Some("test_ns".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_hypergraph_with_config() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let hg_cfg = hg.with_config(Some(4), Some(1024 * 1024), 2048);
+            assert!(hg_cfg.exec_config.is_some());
+            let config = hg_cfg.exec_config.unwrap();
+            assert_eq!(config.parallelism, Some(4));
+            assert_eq!(config.memory_limit, Some(1024 * 1024));
+            assert_eq!(config.batch_size, 2048);
         });
     }
 
@@ -1707,6 +1730,151 @@ mod tests {
             let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
             let nf = hg.nodes(Some("Person")).unwrap();
             assert_eq!(nf.label, Some("Person".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_edge_frame_creation() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let ef = hg.edges(Some("KNOWS")).unwrap();
+            assert_eq!(ef.label, Some("KNOWS".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_hyperedge_frame_creation() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let hef = hg.hyperedges(Some("Collaboration")).unwrap();
+            assert_eq!(hef.label, Some("Collaboration".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_frame_schema() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let nf = hg.nodes(Some("Person")).unwrap();
+            let schema = nf.schema().unwrap();
+            assert_eq!(schema.entity_type(), "node");
+            assert_eq!(schema.label(), Some("Person".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_transaction_creation() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let tx = hg.transaction().unwrap();
+            assert!(tx.is_active());
+            assert_eq!(tx.pending_count(), 0);
+        });
+    }
+
+    #[test]
+    fn test_transaction_operations() {
+        Python::with_gil(|py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let mut tx = hg.transaction().unwrap();
+            
+            // Create a node
+            let node_id = tx.create_node("Person", None).unwrap();
+            assert!(node_id.starts_with("node_"));
+            assert_eq!(tx.pending_count(), 1);
+            
+            // Create an edge
+            let edge_id = tx.create_edge("KNOWS", "node1", "node2", None).unwrap();
+            assert!(edge_id.starts_with("edge_"));
+            assert_eq!(tx.pending_count(), 2);
+            
+            // Create a hyperedge
+            let bindings = PyDict::new(py);
+            bindings.set_item("author", "node1").unwrap();
+            bindings.set_item("paper", "node2").unwrap();
+            let he_id = tx.create_hyperedge("Authored", bindings.clone().into_bound(py), None).unwrap();
+            assert!(he_id.starts_with("hyperedge_"));
+            assert_eq!(tx.pending_count(), 3);
+            
+            // Rollback
+            tx.rollback().unwrap();
+            assert!(!tx.is_active());
+            assert_eq!(tx.pending_count(), 0);
+        });
+    }
+
+    #[test]
+    fn test_transaction_commit() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let mut tx = hg.transaction().unwrap();
+            
+            tx.create_node("Person", None).unwrap();
+            tx.commit().unwrap();
+            assert!(!tx.is_active());
+        });
+    }
+
+    #[test]
+    fn test_value_conversion() {
+        // Test value_to_py conversion
+        Python::with_gil(|py| {
+            // Test null
+            let null_obj = value_to_py(py, &Value::Null);
+            assert!(null_obj.is_none(py));
+            
+            // Test bool
+            let bool_obj = value_to_py(py, &Value::Bool(true));
+            assert!(bool_obj.extract::<bool>(py).unwrap());
+            
+            // Test int
+            let int_obj = value_to_py(py, &Value::Int64(42));
+            assert_eq!(int_obj.extract::<i64>(py).unwrap(), 42);
+            
+            // Test float
+            let float_obj = value_to_py(py, &Value::Float64(3.14));
+            assert!((float_obj.extract::<f64>(py).unwrap() - 3.14).abs() < 0.001);
+            
+            // Test string
+            let str_obj = value_to_py(py, &Value::String("hello".to_string()));
+            assert_eq!(str_obj.extract::<String>(py).unwrap(), "hello");
+        });
+    }
+
+    #[test]
+    fn test_node_frame_explain() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let nf = hg.nodes(Some("Person")).unwrap();
+            let explain = nf.explain("logical").unwrap();
+            assert!(explain.contains("Scan"));
+        });
+    }
+
+    #[test]
+    fn test_node_frame_filter() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let nf = hg.nodes(Some("Person")).unwrap();
+            
+            // Create a filter expression
+            let expr = PyExpr::column("age");
+            let filtered = nf.filter(&expr).unwrap();
+            
+            let explain = filtered.explain("logical").unwrap();
+            assert!(explain.contains("Filter"));
+        });
+    }
+
+    #[test]
+    fn test_node_frame_limit() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let nf = hg.nodes(Some("Person")).unwrap();
+            let limited = nf.limit(10).unwrap();
+            
+            let explain = limited.explain("logical").unwrap();
+            assert!(explain.contains("Limit"));
         });
     }
 }
