@@ -124,3 +124,15 @@ check: fmt-check lint test python-lint
 
 # Full CI check
 ci: fmt-check lint test python-typecheck python-test
+
+# ============================================================================
+# Benchmarks
+# ============================================================================
+
+# Run E2E logical plan benchmark (validates all 200 queries can construct plans)
+bench-e2e-logical: python-dev
+	python bench/run_logical_benchmark.py
+
+# Run E2E logical plan benchmark with verbose output
+bench-e2e-logical-verbose: python-dev
+	python bench/run_logical_benchmark.py --verbose

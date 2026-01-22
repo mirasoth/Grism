@@ -14,7 +14,7 @@ use pyo3::prelude::*;
 
 // Re-export types for use by other Rust code
 pub use executor::{PyExecutor, PyLocalExecutor, PyRayExecutor};
-pub use expressions::{PyAggExpr, PyExpr};
+pub use expressions::{PyAggExpr, PyExpr, PyPattern};
 pub use hypergraph::{
     PyEdgeFrame, PyFrameSchema, PyGroupedFrame, PyHyperedgeFrame, PyHypergraph, PyNodeFrame,
     PyTransaction,
@@ -34,6 +34,7 @@ pub fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // ========== Expression Classes ==========
     m.add_class::<PyExpr>()?;
     m.add_class::<PyAggExpr>()?;
+    m.add_class::<PyPattern>()?;
 
     // ========== Executor Classes ==========
     m.add_class::<PyExecutor>()?;
@@ -95,6 +96,23 @@ pub fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // ========== Vector/AI Functions ==========
     m.add_function(wrap_pyfunction!(expressions::sim, m)?)?;
+
+    // ========== String Functions (standalone) ==========
+    m.add_function(wrap_pyfunction!(expressions::substring, m)?)?;
+    m.add_function(wrap_pyfunction!(expressions::replace, m)?)?;
+    m.add_function(wrap_pyfunction!(expressions::split, m)?)?;
+
+    // ========== Conditional Functions (additional) ==========
+    m.add_function(wrap_pyfunction!(expressions::when, m)?)?;
+
+    // ========== Predicate Functions ==========
+    m.add_function(wrap_pyfunction!(expressions::exists_fn, m)?)?;
+    m.add_function(wrap_pyfunction!(expressions::any_fn, m)?)?;
+    m.add_function(wrap_pyfunction!(expressions::all_fn, m)?)?;
+
+    // ========== Path Functions ==========
+    m.add_function(wrap_pyfunction!(expressions::shortest_path, m)?)?;
+    m.add_function(wrap_pyfunction!(expressions::all_paths, m)?)?;
 
     Ok(())
 }
