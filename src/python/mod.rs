@@ -15,7 +15,10 @@ use pyo3::prelude::*;
 // Re-export types for use by other Rust code
 pub use executor::{PyExecutor, PyLocalExecutor, PyRayExecutor};
 pub use expressions::{PyAggExpr, PyExpr};
-pub use hypergraph::{PyEdgeFrame, PyGroupedFrame, PyHyperedgeFrame, PyHypergraph, PyNodeFrame};
+pub use hypergraph::{
+    PyEdgeFrame, PyFrameSchema, PyGroupedFrame, PyHyperedgeFrame, PyHypergraph, PyNodeFrame,
+    PyTransaction,
+};
 
 /// Register all Python bindings with the module.
 pub fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -25,6 +28,8 @@ pub fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyEdgeFrame>()?;
     m.add_class::<PyHyperedgeFrame>()?;
     m.add_class::<PyGroupedFrame>()?;
+    m.add_class::<PyFrameSchema>()?;
+    m.add_class::<PyTransaction>()?;
 
     // ========== Expression Classes ==========
     m.add_class::<PyExpr>()?;

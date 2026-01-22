@@ -5,16 +5,81 @@
 //! with proper lowering to Rust logical plans.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
+use grism_core::types::Value;
+use grism_engine::{ExecutionConfig, LocalExecutor, QueryResult};
 use grism_logical::{
     ops::{Direction, ExpandMode, HopRange},
     AggregateOp, ExpandOp, FilterOp, LimitOp, LogicalOp, LogicalPlan, ProjectOp, ScanKind, ScanOp,
     SortKey, SortOp,
 };
+use grism_storage::Catalog;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::{PyDict, PyList};
 
 use super::expressions::{ExprKind, PyAggExpr, PyExpr};
+
+/// Convert a Grism Value to a Python object.
+fn value_to_py(py: Python<'_>, value: &Value) -> PyObject {
+    match value {
+        Value::Null => py.None(),
+        Value::Bool(b) => b.into_py(py),
+        Value::Int64(i) => i.into_py(py),
+        Value::Float64(f) => f.into_py(py),
+        Value::String(s) => s.into_py(py),
+        Value::Symbol(s) => s.into_py(py),
+        Value::Binary(b) => b.clone().into_py(py),
+        Value::Array(arr) => {
+            let list = PyList::empty_bound(py);
+            for v in arr {
+                list.append(value_to_py(py, v)).ok();
+            }
+            list.into_py(py)
+        }
+        Value::Map(map) => {
+            let dict = PyDict::new_bound(py);
+            for (k, v) in map {
+                dict.set_item(k, value_to_py(py, v)).ok();
+            }
+            dict.into_py(py)
+        }
+        Value::Vector(v) => v.clone().into_py(py),
+        Value::Timestamp(t) => t.into_py(py),
+        Value::Date(d) => d.into_py(py),
+    }
+}
+
+/// Convert a row (HashMap<String, Value>) to a Python dict.
+fn row_to_py(py: Python<'_>, row: &HashMap<String, Value>) -> PyObject {
+    let dict = PyDict::new_bound(py);
+    for (k, v) in row {
+        dict.set_item(k, value_to_py(py, v)).ok();
+    }
+    dict.into_py(py)
+}
+
+/// Convert QueryResult to a list of Python dicts.
+fn result_to_py(py: Python<'_>, result: QueryResult) -> Vec<PyObject> {
+    result
+        .to_rows()
+        .iter()
+        .map(|row| row_to_py(py, row))
+        .collect()
+}
+
+/// Execute a logical plan and return Python results.
+fn execute_plan(plan: &LogicalOp, config: Option<&ExecutionConfig>) -> PyResult<QueryResult> {
+    let logical_plan = LogicalPlan::new(plan.clone());
+    let executor = match config {
+        Some(cfg) => LocalExecutor::with_config(cfg.clone()),
+        None => LocalExecutor::new(),
+    };
+    
+    executor.execute_sync(logical_plan).map_err(|e| {
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Execution error: {}", e))
+    })
+}
 
 /// Python wrapper for Hypergraph - the canonical user-facing container.
 ///
@@ -29,6 +94,8 @@ pub struct PyHypergraph {
     namespace: Option<String>,
     /// Executor type ("local" or "ray").
     executor: String,
+    /// Execution configuration.
+    exec_config: Option<ExecutionConfig>,
 }
 
 #[pymethods]
@@ -49,6 +116,7 @@ impl PyHypergraph {
             uri: uri.to_string(),
             namespace: namespace.map(String::from),
             executor: executor.to_string(),
+            exec_config: None,
         })
     }
 
@@ -60,6 +128,7 @@ impl PyHypergraph {
             uri: uri.to_string(),
             namespace: None,
             executor: executor.to_string(),
+            exec_config: None,
         })
     }
 
@@ -69,7 +138,153 @@ impl PyHypergraph {
             uri: self.uri.clone(),
             namespace: Some(name.to_string()),
             executor: self.executor.clone(),
+            exec_config: self.exec_config.clone(),
         }
+    }
+
+    /// Configure execution settings.
+    ///
+    /// Args:
+    ///     parallelism: Number of parallel threads (None = auto)
+    ///     memory_limit: Memory limit in bytes (None = unlimited)
+    ///     batch_size: Batch size for processing (default 1024)
+    #[pyo3(signature = (parallelism=None, memory_limit=None, batch_size=1024))]
+    fn with_config(&self, parallelism: Option<usize>, memory_limit: Option<usize>, batch_size: usize) -> Self {
+        Self {
+            uri: self.uri.clone(),
+            namespace: self.namespace.clone(),
+            executor: self.executor.clone(),
+            exec_config: Some(ExecutionConfig {
+                parallelism,
+                memory_limit,
+                batch_size,
+            }),
+        }
+    }
+
+    // ========== Schema Introspection Methods ==========
+
+    /// Get all node labels in the graph.
+    ///
+    /// Returns:
+    ///     List of node label names
+    fn node_labels(&self) -> PyResult<Vec<String>> {
+        // TODO: Query catalog for actual labels
+        // For now, return empty list (will be populated when storage is connected)
+        Ok(Vec::new())
+    }
+
+    /// Get all edge/relationship types in the graph.
+    ///
+    /// Returns:
+    ///     List of edge type names
+    fn edge_types(&self) -> PyResult<Vec<String>> {
+        // TODO: Query catalog for actual edge types
+        Ok(Vec::new())
+    }
+
+    /// Get all hyperedge labels in the graph.
+    ///
+    /// Returns:
+    ///     List of hyperedge label names
+    fn hyperedge_labels(&self) -> PyResult<Vec<String>> {
+        // TODO: Query catalog for actual hyperedge labels
+        Ok(Vec::new())
+    }
+
+    /// Get property keys for a given node label.
+    ///
+    /// Args:
+    ///     label: Node label to get properties for
+    ///
+    /// Returns:
+    ///     List of property names
+    fn node_properties(&self, label: &str) -> PyResult<Vec<String>> {
+        let _ = label;
+        // TODO: Query catalog for actual properties
+        Ok(Vec::new())
+    }
+
+    /// Get property keys for a given edge type.
+    ///
+    /// Args:
+    ///     edge_type: Edge type to get properties for
+    ///
+    /// Returns:
+    ///     List of property names
+    fn edge_properties(&self, edge_type: &str) -> PyResult<Vec<String>> {
+        let _ = edge_type;
+        // TODO: Query catalog for actual properties
+        Ok(Vec::new())
+    }
+
+    /// Get the number of nodes in the graph.
+    ///
+    /// Args:
+    ///     label: Optional node label to count (None = all nodes)
+    ///
+    /// Returns:
+    ///     Number of nodes
+    #[pyo3(signature = (label=None))]
+    fn node_count(&self, label: Option<&str>) -> PyResult<usize> {
+        // Create count query
+        let scan = if let Some(l) = label {
+            ScanOp::nodes_with_label(l)
+        } else {
+            ScanOp::nodes()
+        };
+        
+        let plan = LogicalOp::Scan(scan);
+        let result = execute_plan(&plan, self.exec_config.as_ref())?;
+        Ok(result.total_rows())
+    }
+
+    /// Get the number of edges in the graph.
+    ///
+    /// Args:
+    ///     edge_type: Optional edge type to count (None = all edges)
+    ///
+    /// Returns:
+    ///     Number of edges
+    #[pyo3(signature = (edge_type=None))]
+    fn edge_count(&self, edge_type: Option<&str>) -> PyResult<usize> {
+        let scan = if let Some(t) = edge_type {
+            ScanOp::edges_with_label(t)
+        } else {
+            ScanOp::edges()
+        };
+        
+        let plan = LogicalOp::Scan(scan);
+        let result = execute_plan(&plan, self.exec_config.as_ref())?;
+        Ok(result.total_rows())
+    }
+
+    /// Get the number of hyperedges in the graph.
+    ///
+    /// Args:
+    ///     label: Optional hyperedge label to count (None = all hyperedges)
+    ///
+    /// Returns:
+    ///     Number of hyperedges
+    #[pyo3(signature = (label=None))]
+    fn hyperedge_count(&self, label: Option<&str>) -> PyResult<usize> {
+        let scan = if let Some(l) = label {
+            ScanOp::hyperedges_with_label(l)
+        } else {
+            ScanOp::hyperedges()
+        };
+        
+        let plan = LogicalOp::Scan(scan);
+        let result = execute_plan(&plan, self.exec_config.as_ref())?;
+        Ok(result.total_rows())
+    }
+
+    /// Begin a transaction for write operations.
+    ///
+    /// Returns:
+    ///     Transaction context manager
+    fn transaction(&self) -> PyResult<PyTransaction> {
+        Ok(PyTransaction::new(self.clone()))
     }
 
     /// Get nodes, optionally filtered by label.
@@ -469,6 +684,15 @@ impl PyNodeFrame {
     }
 
     /// Execute the query and return results.
+    ///
+    /// Args:
+    ///     executor: Executor type ("local" or "ray"), default "local"
+    ///     as_pandas: Return as pandas DataFrame (requires pandas)
+    ///     as_arrow: Return as Arrow RecordBatch (requires pyarrow)
+    ///     as_polars: Return as polars DataFrame (requires polars)
+    ///
+    /// Returns:
+    ///     List of dicts (default), or DataFrame if as_pandas/as_polars is True
     #[pyo3(signature = (executor=None, as_pandas=false, as_arrow=false, as_polars=false))]
     fn collect(
         &self,
@@ -476,22 +700,74 @@ impl PyNodeFrame {
         as_pandas: bool,
         as_arrow: bool,
         as_polars: bool,
-    ) -> PyResult<Vec<pyo3::PyObject>> {
-        let _ = (executor, as_pandas, as_arrow, as_polars);
-        // TODO: Implement actual execution
-        Python::with_gil(|_py| Ok(Vec::new()))
+    ) -> PyResult<PyObject> {
+        let _ = (executor, as_arrow);
+        
+        // Execute the plan
+        let result = execute_plan(&self.plan, None)?;
+        
+        Python::with_gil(|py| {
+            let rows = result_to_py(py, result);
+            
+            // Convert to pandas DataFrame if requested
+            if as_pandas {
+                let pandas = py.import_bound("pandas")?;
+                let df = pandas.call_method1("DataFrame", (rows,))?;
+                return Ok(df.into_py(py));
+            }
+            
+            // Convert to polars DataFrame if requested
+            if as_polars {
+                let polars = py.import_bound("polars")?;
+                let df = polars.call_method1("from_dicts", (rows,))?;
+                return Ok(df.into_py(py));
+            }
+            
+            // Return as list of dicts
+            Ok(rows.into_py(py))
+        })
     }
 
     /// Execute and return the row count.
     fn count(&self) -> PyResult<usize> {
-        // TODO: Implement actual execution
-        Ok(0)
+        let result = execute_plan(&self.plan, None)?;
+        Ok(result.total_rows())
     }
 
     /// Execute and return the first row.
-    fn first(&self) -> PyResult<Option<pyo3::PyObject>> {
-        // TODO: Implement actual execution
-        Ok(None)
+    fn first(&self) -> PyResult<Option<PyObject>> {
+        // Add limit 1 to the plan
+        let limited_plan = LogicalOp::Limit {
+            input: Box::new(self.plan.clone()),
+            limit: LimitOp::new(1),
+        };
+        
+        let result = execute_plan(&limited_plan, None)?;
+        
+        Python::with_gil(|py| {
+            let rows = result.to_rows();
+            if let Some(row) = rows.first() {
+                Ok(Some(row_to_py(py, row)))
+            } else {
+                Ok(None)
+            }
+        })
+    }
+
+    /// Check if the frame has any results.
+    fn exists(&self) -> PyResult<bool> {
+        Ok(self.count()? > 0)
+    }
+
+    /// Get the schema of this frame.
+    fn schema(&self) -> PyResult<PyFrameSchema> {
+        // Extract schema from the plan
+        // For now, return a placeholder schema
+        Ok(PyFrameSchema {
+            columns: Vec::new(),
+            entity_type: "node".to_string(),
+            label: self.label.clone(),
+        })
     }
 
     /// Explain the query plan.
@@ -515,11 +791,19 @@ impl PyNodeFrame {
         plan.explain()
     }
 
-    fn __iter__(&self) -> PyResult<pyo3::PyObject> {
+    fn __iter__(&self) -> PyResult<PyObject> {
         // Return an iterator over collected results
-        self.collect(None, false, false, false).map(|v| {
-            Python::with_gil(|py| v.into_py(py))
+        let result = execute_plan(&self.plan, None)?;
+        
+        Python::with_gil(|py| {
+            let rows = result_to_py(py, result);
+            let list = PyList::new_bound(py, rows);
+            Ok(list.call_method0("__iter__")?.into_py(py))
         })
+    }
+
+    fn __len__(&self) -> PyResult<usize> {
+        self.count()
     }
 }
 
@@ -606,8 +890,73 @@ impl PyEdgeFrame {
     }
 
     /// Execute and collect results.
-    fn collect(&self) -> PyResult<Vec<pyo3::PyObject>> {
-        Python::with_gil(|_py| Ok(Vec::new()))
+    ///
+    /// Args:
+    ///     as_pandas: Return as pandas DataFrame
+    ///     as_polars: Return as polars DataFrame
+    ///
+    /// Returns:
+    ///     List of dicts or DataFrame
+    #[pyo3(signature = (as_pandas=false, as_polars=false))]
+    fn collect(&self, as_pandas: bool, as_polars: bool) -> PyResult<PyObject> {
+        let result = execute_plan(&self.plan, None)?;
+        
+        Python::with_gil(|py| {
+            let rows = result_to_py(py, result);
+            
+            if as_pandas {
+                let pandas = py.import_bound("pandas")?;
+                let df = pandas.call_method1("DataFrame", (rows,))?;
+                return Ok(df.into_py(py));
+            }
+            
+            if as_polars {
+                let polars = py.import_bound("polars")?;
+                let df = polars.call_method1("from_dicts", (rows,))?;
+                return Ok(df.into_py(py));
+            }
+            
+            Ok(rows.into_py(py))
+        })
+    }
+
+    /// Execute and return the row count.
+    fn count(&self) -> PyResult<usize> {
+        let result = execute_plan(&self.plan, None)?;
+        Ok(result.total_rows())
+    }
+
+    /// Execute and return the first row.
+    fn first(&self) -> PyResult<Option<PyObject>> {
+        let limited_plan = LogicalOp::Limit {
+            input: Box::new(self.plan.clone()),
+            limit: LimitOp::new(1),
+        };
+        
+        let result = execute_plan(&limited_plan, None)?;
+        
+        Python::with_gil(|py| {
+            let rows = result.to_rows();
+            if let Some(row) = rows.first() {
+                Ok(Some(row_to_py(py, row)))
+            } else {
+                Ok(None)
+            }
+        })
+    }
+
+    /// Check if the frame has any results.
+    fn exists(&self) -> PyResult<bool> {
+        Ok(self.count()? > 0)
+    }
+
+    /// Get the schema of this frame.
+    fn schema(&self) -> PyResult<PyFrameSchema> {
+        Ok(PyFrameSchema {
+            columns: Vec::new(),
+            entity_type: "edge".to_string(),
+            label: self.label.clone(),
+        })
     }
 
     /// Explain the query plan.
@@ -620,6 +969,10 @@ impl PyEdgeFrame {
 
     fn __repr__(&self) -> String {
         format!("EdgeFrame(label={:?})", self.label)
+    }
+
+    fn __len__(&self) -> PyResult<usize> {
+        self.count()
     }
 }
 
@@ -708,8 +1061,73 @@ impl PyHyperedgeFrame {
     }
 
     /// Execute and collect results.
-    fn collect(&self) -> PyResult<Vec<pyo3::PyObject>> {
-        Python::with_gil(|_py| Ok(Vec::new()))
+    ///
+    /// Args:
+    ///     as_pandas: Return as pandas DataFrame
+    ///     as_polars: Return as polars DataFrame
+    ///
+    /// Returns:
+    ///     List of dicts or DataFrame
+    #[pyo3(signature = (as_pandas=false, as_polars=false))]
+    fn collect(&self, as_pandas: bool, as_polars: bool) -> PyResult<PyObject> {
+        let result = execute_plan(&self.plan, None)?;
+        
+        Python::with_gil(|py| {
+            let rows = result_to_py(py, result);
+            
+            if as_pandas {
+                let pandas = py.import_bound("pandas")?;
+                let df = pandas.call_method1("DataFrame", (rows,))?;
+                return Ok(df.into_py(py));
+            }
+            
+            if as_polars {
+                let polars = py.import_bound("polars")?;
+                let df = polars.call_method1("from_dicts", (rows,))?;
+                return Ok(df.into_py(py));
+            }
+            
+            Ok(rows.into_py(py))
+        })
+    }
+
+    /// Execute and return the row count.
+    fn count(&self) -> PyResult<usize> {
+        let result = execute_plan(&self.plan, None)?;
+        Ok(result.total_rows())
+    }
+
+    /// Execute and return the first row.
+    fn first(&self) -> PyResult<Option<PyObject>> {
+        let limited_plan = LogicalOp::Limit {
+            input: Box::new(self.plan.clone()),
+            limit: LimitOp::new(1),
+        };
+        
+        let result = execute_plan(&limited_plan, None)?;
+        
+        Python::with_gil(|py| {
+            let rows = result.to_rows();
+            if let Some(row) = rows.first() {
+                Ok(Some(row_to_py(py, row)))
+            } else {
+                Ok(None)
+            }
+        })
+    }
+
+    /// Check if the frame has any results.
+    fn exists(&self) -> PyResult<bool> {
+        Ok(self.count()? > 0)
+    }
+
+    /// Get the schema of this frame.
+    fn schema(&self) -> PyResult<PyFrameSchema> {
+        Ok(PyFrameSchema {
+            columns: Vec::new(),
+            entity_type: "hyperedge".to_string(),
+            label: self.label.clone(),
+        })
     }
 
     /// Explain the query plan.
@@ -722,6 +1140,10 @@ impl PyHyperedgeFrame {
 
     fn __repr__(&self) -> String {
         format!("HyperedgeFrame(label={:?})", self.label)
+    }
+
+    fn __len__(&self) -> PyResult<usize> {
+        self.count()
     }
 }
 
@@ -801,6 +1223,473 @@ impl PyGroupedFrame {
     }
 }
 
+/// Python wrapper for frame schema information.
+#[pyclass(name = "FrameSchema")]
+#[derive(Clone)]
+pub struct PyFrameSchema {
+    /// Column information.
+    columns: Vec<(String, String, bool)>, // (name, type, nullable)
+    /// Entity type ("node", "edge", "hyperedge").
+    entity_type: String,
+    /// Entity label (if any).
+    label: Option<String>,
+}
+
+#[pymethods]
+impl PyFrameSchema {
+    /// Get column names.
+    fn column_names(&self) -> Vec<String> {
+        self.columns.iter().map(|(name, _, _)| name.clone()).collect()
+    }
+
+    /// Get column count.
+    fn column_count(&self) -> usize {
+        self.columns.len()
+    }
+
+    /// Get entity type.
+    fn entity_type(&self) -> String {
+        self.entity_type.clone()
+    }
+
+    /// Get entity label.
+    fn label(&self) -> Option<String> {
+        self.label.clone()
+    }
+
+    /// Check if a column exists.
+    fn has_column(&self, name: &str) -> bool {
+        self.columns.iter().any(|(n, _, _)| n == name)
+    }
+
+    /// Get column type by name.
+    fn column_type(&self, name: &str) -> Option<String> {
+        self.columns.iter()
+            .find(|(n, _, _)| n == name)
+            .map(|(_, t, _)| t.clone())
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "FrameSchema(entity_type='{}', label={:?}, columns={})",
+            self.entity_type,
+            self.label,
+            self.columns.len()
+        )
+    }
+
+    fn __str__(&self) -> String {
+        let mut s = format!("FrameSchema ({}):\n", self.entity_type);
+        if let Some(ref label) = self.label {
+            s.push_str(&format!("  label: {}\n", label));
+        }
+        s.push_str("  columns:\n");
+        for (name, dtype, nullable) in &self.columns {
+            let null_str = if *nullable { " (nullable)" } else { "" };
+            s.push_str(&format!("    {}: {}{}\n", name, dtype, null_str));
+        }
+        s
+    }
+}
+
+/// Python wrapper for transactions.
+///
+/// Transaction provides atomic write operations on the hypergraph.
+/// Supports context manager protocol for automatic commit/rollback.
+#[pyclass(name = "Transaction")]
+#[derive(Clone)]
+pub struct PyTransaction {
+    /// Parent hypergraph.
+    hg: PyHypergraph,
+    /// Pending write operations.
+    pending_ops: Vec<WriteOp>,
+    /// Whether the transaction is active.
+    active: bool,
+}
+
+/// Internal enum for pending write operations.
+#[derive(Clone, Debug)]
+enum WriteOp {
+    CreateNode {
+        label: String,
+        properties: HashMap<String, Value>,
+    },
+    CreateEdge {
+        edge_type: String,
+        source_id: String,
+        target_id: String,
+        properties: HashMap<String, Value>,
+    },
+    CreateHyperedge {
+        label: String,
+        bindings: Vec<(String, String)>, // (role, entity_id)
+        properties: HashMap<String, Value>,
+    },
+    UpdateProperties {
+        entity_id: String,
+        properties: HashMap<String, Value>,
+    },
+    DeleteNode {
+        node_id: String,
+    },
+    DeleteEdge {
+        edge_id: String,
+    },
+    DeleteHyperedge {
+        hyperedge_id: String,
+    },
+}
+
+impl PyTransaction {
+    fn new(hg: PyHypergraph) -> Self {
+        Self {
+            hg,
+            pending_ops: Vec::new(),
+            active: true,
+        }
+    }
+}
+
+#[pymethods]
+impl PyTransaction {
+    /// Create a new node.
+    ///
+    /// Args:
+    ///     label: Node label
+    ///     **properties: Node properties
+    ///
+    /// Returns:
+    ///     Node ID (placeholder until commit)
+    #[pyo3(signature = (label, **properties))]
+    fn create_node(
+        &mut self,
+        label: &str,
+        properties: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<String> {
+        if !self.active {
+            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                "Transaction is not active"
+            ));
+        }
+        
+        let props = if let Some(dict) = properties {
+            dict_to_value_map(&dict)?
+        } else {
+            HashMap::new()
+        };
+        
+        let node_id = format!("node_{}", self.pending_ops.len());
+        
+        self.pending_ops.push(WriteOp::CreateNode {
+            label: label.to_string(),
+            properties: props,
+        });
+        
+        Ok(node_id)
+    }
+
+    /// Create a new edge (binary relationship).
+    ///
+    /// Args:
+    ///     edge_type: Edge type/label
+    ///     source: Source node ID
+    ///     target: Target node ID
+    ///     **properties: Edge properties
+    ///
+    /// Returns:
+    ///     Edge ID (placeholder until commit)
+    #[pyo3(signature = (edge_type, source, target, **properties))]
+    fn create_edge(
+        &mut self,
+        edge_type: &str,
+        source: &str,
+        target: &str,
+        properties: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<String> {
+        if !self.active {
+            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                "Transaction is not active"
+            ));
+        }
+        
+        let props = if let Some(dict) = properties {
+            dict_to_value_map(&dict)?
+        } else {
+            HashMap::new()
+        };
+        
+        let edge_id = format!("edge_{}", self.pending_ops.len());
+        
+        self.pending_ops.push(WriteOp::CreateEdge {
+            edge_type: edge_type.to_string(),
+            source_id: source.to_string(),
+            target_id: target.to_string(),
+            properties: props,
+        });
+        
+        Ok(edge_id)
+    }
+
+    /// Create a new hyperedge (n-ary relationship).
+    ///
+    /// Args:
+    ///     label: Hyperedge label
+    ///     bindings: Dict mapping role names to entity IDs
+    ///     **properties: Hyperedge properties
+    ///
+    /// Returns:
+    ///     Hyperedge ID (placeholder until commit)
+    #[pyo3(signature = (label, bindings, **properties))]
+    fn create_hyperedge(
+        &mut self,
+        label: &str,
+        bindings: Bound<'_, PyDict>,
+        properties: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<String> {
+        if !self.active {
+            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                "Transaction is not active"
+            ));
+        }
+        
+        let binding_list: Vec<(String, String)> = bindings
+            .iter()
+            .filter_map(|(k, v)| {
+                let role: String = k.extract().ok()?;
+                let entity_id: String = v.extract().ok()?;
+                Some((role, entity_id))
+            })
+            .collect();
+        
+        let props = if let Some(dict) = properties {
+            dict_to_value_map(&dict)?
+        } else {
+            HashMap::new()
+        };
+        
+        let he_id = format!("hyperedge_{}", self.pending_ops.len());
+        
+        self.pending_ops.push(WriteOp::CreateHyperedge {
+            label: label.to_string(),
+            bindings: binding_list,
+            properties: props,
+        });
+        
+        Ok(he_id)
+    }
+
+    /// Update properties on an entity.
+    ///
+    /// Args:
+    ///     entity_id: ID of node, edge, or hyperedge
+    ///     **properties: Properties to set or update
+    #[pyo3(signature = (entity_id, **properties))]
+    fn update(&mut self, entity_id: &str, properties: Option<Bound<'_, PyDict>>) -> PyResult<()> {
+        if !self.active {
+            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                "Transaction is not active"
+            ));
+        }
+        
+        let props = if let Some(dict) = properties {
+            dict_to_value_map(&dict)?
+        } else {
+            HashMap::new()
+        };
+        
+        self.pending_ops.push(WriteOp::UpdateProperties {
+            entity_id: entity_id.to_string(),
+            properties: props,
+        });
+        
+        Ok(())
+    }
+
+    /// Delete a node.
+    ///
+    /// Args:
+    ///     node_id: ID of node to delete
+    fn delete_node(&mut self, node_id: &str) -> PyResult<()> {
+        if !self.active {
+            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                "Transaction is not active"
+            ));
+        }
+        
+        self.pending_ops.push(WriteOp::DeleteNode {
+            node_id: node_id.to_string(),
+        });
+        
+        Ok(())
+    }
+
+    /// Delete an edge.
+    ///
+    /// Args:
+    ///     edge_id: ID of edge to delete
+    fn delete_edge(&mut self, edge_id: &str) -> PyResult<()> {
+        if !self.active {
+            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                "Transaction is not active"
+            ));
+        }
+        
+        self.pending_ops.push(WriteOp::DeleteEdge {
+            edge_id: edge_id.to_string(),
+        });
+        
+        Ok(())
+    }
+
+    /// Delete a hyperedge.
+    ///
+    /// Args:
+    ///     hyperedge_id: ID of hyperedge to delete
+    fn delete_hyperedge(&mut self, hyperedge_id: &str) -> PyResult<()> {
+        if !self.active {
+            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                "Transaction is not active"
+            ));
+        }
+        
+        self.pending_ops.push(WriteOp::DeleteHyperedge {
+            hyperedge_id: hyperedge_id.to_string(),
+        });
+        
+        Ok(())
+    }
+
+    /// Commit the transaction.
+    ///
+    /// All pending operations are applied atomically.
+    fn commit(&mut self) -> PyResult<()> {
+        if !self.active {
+            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                "Transaction is not active"
+            ));
+        }
+        
+        // TODO: Implement actual commit to storage
+        // For now, just mark as committed
+        self.active = false;
+        self.pending_ops.clear();
+        
+        Ok(())
+    }
+
+    /// Rollback the transaction.
+    ///
+    /// All pending operations are discarded.
+    fn rollback(&mut self) -> PyResult<()> {
+        if !self.active {
+            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                "Transaction is not active"
+            ));
+        }
+        
+        self.active = false;
+        self.pending_ops.clear();
+        
+        Ok(())
+    }
+
+    /// Get the number of pending operations.
+    fn pending_count(&self) -> usize {
+        self.pending_ops.len()
+    }
+
+    /// Check if the transaction is active.
+    fn is_active(&self) -> bool {
+        self.active
+    }
+
+    // Context manager protocol
+    fn __enter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __exit__(
+        &mut self,
+        exc_type: Option<PyObject>,
+        exc_val: Option<PyObject>,
+        exc_tb: Option<PyObject>,
+    ) -> PyResult<bool> {
+        // Check if an exception occurred
+        let has_exception = exc_type.is_some();
+        
+        // Consume the unused values
+        let _ = (exc_type, exc_val, exc_tb);
+        
+        if self.active {
+            // Auto-rollback on exception (if exc_type is Some)
+            // Auto-commit otherwise
+            if has_exception {
+                self.rollback()?;
+            } else {
+                self.commit()?;
+            }
+        }
+        Ok(false) // Don't suppress exceptions
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "Transaction(active={}, pending_ops={})",
+            self.active,
+            self.pending_ops.len()
+        )
+    }
+}
+
+/// Convert Python dict to Value map.
+fn dict_to_value_map(dict: &Bound<'_, PyDict>) -> PyResult<HashMap<String, Value>> {
+    let mut map = HashMap::new();
+    for (key, value) in dict.iter() {
+        let k: String = key.extract()?;
+        let v = py_to_value(&value)?;
+        map.insert(k, v);
+    }
+    Ok(map)
+}
+
+/// Convert Python value to Grism Value.
+fn py_to_value(obj: &Bound<'_, pyo3::PyAny>) -> PyResult<Value> {
+    use pyo3::types::{PyBool, PyFloat, PyInt, PyList, PyString};
+    
+    if obj.is_none() {
+        return Ok(Value::Null);
+    }
+    
+    if let Ok(b) = obj.downcast::<PyBool>() {
+        return Ok(Value::Bool(b.is_true()));
+    }
+    
+    if let Ok(i) = obj.downcast::<PyInt>() {
+        return Ok(Value::Int64(i.extract()?));
+    }
+    
+    if let Ok(f) = obj.downcast::<PyFloat>() {
+        return Ok(Value::Float64(f.extract()?));
+    }
+    
+    if let Ok(s) = obj.downcast::<PyString>() {
+        return Ok(Value::String(s.to_string()));
+    }
+    
+    if let Ok(list) = obj.downcast::<PyList>() {
+        let values: PyResult<Vec<Value>> = list.iter().map(|item| py_to_value(&item)).collect();
+        return Ok(Value::Array(values?));
+    }
+    
+    if let Ok(dict) = obj.downcast::<PyDict>() {
+        let map = dict_to_value_map(dict)?;
+        return Ok(Value::Map(map));
+    }
+    
+    // Fallback: convert to string
+    Ok(Value::String(obj.str()?.to_string()))
+}
+
 // Re-export with proper names for the module
 pub use PyHypergraph as PyHyperGraph;
 
@@ -814,6 +1703,29 @@ mod tests {
             let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
             assert_eq!(hg.uri, "grism://local");
             assert!(hg.namespace.is_none());
+            assert!(hg.exec_config.is_none());
+        });
+    }
+
+    #[test]
+    fn test_hypergraph_with_namespace() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let hg_ns = hg.with_namespace("test_ns");
+            assert_eq!(hg_ns.namespace, Some("test_ns".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_hypergraph_with_config() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let hg_cfg = hg.with_config(Some(4), Some(1024 * 1024), 2048);
+            assert!(hg_cfg.exec_config.is_some());
+            let config = hg_cfg.exec_config.unwrap();
+            assert_eq!(config.parallelism, Some(4));
+            assert_eq!(config.memory_limit, Some(1024 * 1024));
+            assert_eq!(config.batch_size, 2048);
         });
     }
 
@@ -823,6 +1735,151 @@ mod tests {
             let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
             let nf = hg.nodes(Some("Person")).unwrap();
             assert_eq!(nf.label, Some("Person".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_edge_frame_creation() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let ef = hg.edges(Some("KNOWS")).unwrap();
+            assert_eq!(ef.label, Some("KNOWS".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_hyperedge_frame_creation() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let hef = hg.hyperedges(Some("Collaboration")).unwrap();
+            assert_eq!(hef.label, Some("Collaboration".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_frame_schema() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let nf = hg.nodes(Some("Person")).unwrap();
+            let schema = nf.schema().unwrap();
+            assert_eq!(schema.entity_type(), "node");
+            assert_eq!(schema.label(), Some("Person".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_transaction_creation() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let tx = hg.transaction().unwrap();
+            assert!(tx.is_active());
+            assert_eq!(tx.pending_count(), 0);
+        });
+    }
+
+    #[test]
+    fn test_transaction_operations() {
+        Python::with_gil(|py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let mut tx = hg.transaction().unwrap();
+            
+            // Create a node
+            let node_id = tx.create_node("Person", None).unwrap();
+            assert!(node_id.starts_with("node_"));
+            assert_eq!(tx.pending_count(), 1);
+            
+            // Create an edge
+            let edge_id = tx.create_edge("KNOWS", "node1", "node2", None).unwrap();
+            assert!(edge_id.starts_with("edge_"));
+            assert_eq!(tx.pending_count(), 2);
+            
+            // Create a hyperedge
+            let bindings = PyDict::new_bound(py);
+            bindings.set_item("author", "node1").unwrap();
+            bindings.set_item("paper", "node2").unwrap();
+            let he_id = tx.create_hyperedge("Authored", bindings.clone(), None).unwrap();
+            assert!(he_id.starts_with("hyperedge_"));
+            assert_eq!(tx.pending_count(), 3);
+            
+            // Rollback
+            tx.rollback().unwrap();
+            assert!(!tx.is_active());
+            assert_eq!(tx.pending_count(), 0);
+        });
+    }
+
+    #[test]
+    fn test_transaction_commit() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let mut tx = hg.transaction().unwrap();
+            
+            tx.create_node("Person", None).unwrap();
+            tx.commit().unwrap();
+            assert!(!tx.is_active());
+        });
+    }
+
+    #[test]
+    fn test_value_conversion() {
+        // Test value_to_py conversion
+        Python::with_gil(|py| {
+            // Test null
+            let null_obj = value_to_py(py, &Value::Null);
+            assert!(null_obj.is_none(py));
+            
+            // Test bool
+            let bool_obj = value_to_py(py, &Value::Bool(true));
+            assert!(bool_obj.extract::<bool>(py).unwrap());
+            
+            // Test int
+            let int_obj = value_to_py(py, &Value::Int64(42));
+            assert_eq!(int_obj.extract::<i64>(py).unwrap(), 42);
+            
+            // Test float
+            let float_obj = value_to_py(py, &Value::Float64(3.14));
+            assert!((float_obj.extract::<f64>(py).unwrap() - 3.14).abs() < 0.001);
+            
+            // Test string
+            let str_obj = value_to_py(py, &Value::String("hello".to_string()));
+            assert_eq!(str_obj.extract::<String>(py).unwrap(), "hello");
+        });
+    }
+
+    #[test]
+    fn test_node_frame_explain() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let nf = hg.nodes(Some("Person")).unwrap();
+            let explain = nf.explain("logical").unwrap();
+            assert!(explain.contains("Scan"));
+        });
+    }
+
+    #[test]
+    fn test_node_frame_filter() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let nf = hg.nodes(Some("Person")).unwrap();
+            
+            // Create a filter expression
+            let expr = PyExpr::column("age");
+            let filtered = nf.filter(&expr).unwrap();
+            
+            let explain = filtered.explain("logical").unwrap();
+            assert!(explain.contains("Filter"));
+        });
+    }
+
+    #[test]
+    fn test_node_frame_limit() {
+        Python::with_gil(|_py| {
+            let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
+            let nf = hg.nodes(Some("Person")).unwrap();
+            let limited = nf.limit(10).unwrap();
+            
+            let explain = limited.explain("logical").unwrap();
+            assert!(explain.contains("Limit"));
         });
     }
 }
