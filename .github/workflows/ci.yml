@@ -19,12 +19,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
 
       - name: Check formatting
-        run: cargo fmt --all -- --check
+        run: make fmt-check
 
   lint:
     name: Clippy Lint
@@ -34,48 +34,70 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
 
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v0-rust-lint"
+          prefix-key: "v0-rust"
+          shared-key: "stable"
 
       - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: make lint
 
   test:
-    name: Unit Tests
+    name: Rust Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v0-rust-test"
+          prefix-key: "v0-rust"
+          shared-key: "stable"
 
       - name: Run tests
-        run: cargo test --all
+        run: make test
+
+  build:
+    name: Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: "v0-rust"
+          shared-key: "stable"
+
+      - name: Build project
+        run: make build
 
   # Summary job that depends on all checks
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
-    needs: [fmt, lint, test]
+    needs: [fmt, lint, test, build]
     if: always()
     steps:
       - name: Check all jobs passed
         run: |
           if [[ "${{ needs.fmt.result }}" != "success" ]] || \
              [[ "${{ needs.lint.result }}" != "success" ]] || \
-             [[ "${{ needs.test.result }}" != "success" ]]; then
+             [[ "${{ needs.test.result }}" != "success" ]] || \
+             [[ "${{ needs.build.result }}" != "success" ]]; then
             echo "One or more jobs failed"
             exit 1
           fi
