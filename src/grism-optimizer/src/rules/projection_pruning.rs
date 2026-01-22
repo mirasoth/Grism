@@ -292,7 +292,7 @@ fn prune_projections(op: LogicalOp, used: &HashSet<String>) -> (LogicalOp, bool)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use grism_logical::{FilterOp, PlanBuilder, ScanOp, col, lit};
+    use grism_logical::{FilterOp, PlanBuilder, ProjectOp, ScanOp, col, lit};
 
     #[test]
     fn test_collect_used_columns() {
