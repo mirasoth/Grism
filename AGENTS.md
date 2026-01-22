@@ -52,9 +52,9 @@ From the architecture and RFCs, these principles must be followed:
 
 ---
 
-## Recording Work Progress
+## Recording Work Progress (Must Comply)
 
-AI agents should record work progress in the `_workdir/` directory for each development session.
+**AI agents MUST record work progress in the `_workdir/` directory before completing any development session.** This is a mandatory requirement to maintain project continuity and knowledge transfer between sessions.
 
 ### File Naming
 
@@ -95,6 +95,17 @@ status: completed | in-progress | blocked
 5. **Next steps** - Always indicate what comes next, even if "none"
 
 See `_workdir/_template.md` for the complete template and field descriptions.
+
+### Session Completion Checklist
+
+Before ending a development session, AI agents MUST:
+
+1. **Create progress file** - Write `_workdir/progress-YYYY-MM-DD-NNN.md`
+2. **Document all changes** - List every file created, modified, or deleted
+3. **Record test results** - Include pass/fail counts
+4. **Note next steps** - Even if "none", explicitly state this
+
+Failure to record progress creates knowledge gaps and makes future work harder.
 
 ---
 

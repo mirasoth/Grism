@@ -7,13 +7,13 @@ designed for modern agentic and LLM-driven workflows.
 Example usage:
 
     >>> import grism as gr
-    >>> 
+    >>>
     >>> # Connect to a hypergraph
     >>> hg = gr.Hypergraph.connect("grism://local")
-    >>> 
+    >>>
     >>> # Query nodes
     >>> persons = hg.nodes("Person").filter(gr.col("age") > 18).collect()
-    >>> 
+    >>>
     >>> # Graph traversal
     >>> friends = (
     ...     hg.nodes("Person")
@@ -21,7 +21,7 @@ Example usage:
     ...     .expand("KNOWS", direction="out")
     ...     .collect()
     ... )
-    >>> 
+    >>>
     >>> # Aggregations
     >>> stats = (
     ...     hg.nodes("Person")
@@ -37,83 +37,83 @@ from __future__ import annotations
 
 # Import the native Rust module
 from grism._grism import (
-    # Core classes
-    Hypergraph,
-    NodeFrame,
-    EdgeFrame,
-    HyperedgeFrame,
-    GroupedFrame,
-    FrameSchema,
-    Transaction,
-    # Expression classes
-    Expr,
     AggExpr,
-    # Pattern class
-    Pattern,
+    EdgeFrame,
     # Executor classes
     Executor,
+    # Expression classes
+    Expr,
+    FrameSchema,
+    GroupedFrame,
+    HyperedgeFrame,
+    # Core classes
+    Hypergraph,
     LocalExecutor,
+    NodeFrame,
+    # Pattern class
+    Pattern,
     RayExecutor,
+    Transaction,
+    # Version
+    __version__,
+    # Math functions
+    abs_,
+    all_,
+    all_paths,
+    any_,
+    avg,
+    ceil,
+    # Conditional functions
+    coalesce,
     # Expression functions
     col,
-    lit,
-    prop,
+    collect,
+    collect_distinct,
+    # String functions
+    concat,
+    contains,
     # Aggregation functions
     count,
     count_distinct,
-    sum_,
-    avg,
-    min_,
-    max_,
-    collect,
-    collect_distinct,
-    first,
-    last,
-    # String functions
-    concat,
-    length,
-    lower,
-    upper,
-    trim,
-    contains,
-    substring,
-    replace,
-    split,
-    # Math functions
-    abs_,
-    ceil,
-    floor,
-    round_,
-    sqrt,
-    power,
     # Date/time functions
     date,
-    year,
-    month,
     day,
-    # Conditional functions
-    coalesce,
-    if_,
-    when,
-    # Graph functions
-    labels,
-    type_,
-    id_,
-    properties,
-    nodes,
-    relationships,
-    path_length,
     # Predicate functions
     exists,
-    any_,
-    all_,
+    first,
+    floor,
+    id_,
+    if_,
+    # Graph functions
+    labels,
+    last,
+    length,
+    lit,
+    lower,
+    max_,
+    min_,
+    month,
+    nodes,
+    path_length,
+    power,
+    prop,
+    properties,
+    relationships,
+    replace,
+    round_,
     # Path functions
     shortest_path,
-    all_paths,
     # Vector/AI functions
     sim,
-    # Version
-    __version__,
+    split,
+    sqrt,
+    substring,
+    sum_,
+    trim,
+    type_,
+    upper,
+    when,
+    year,
 )
 
 # Re-export with standard Python names
@@ -125,6 +125,7 @@ round = round_  # noqa: A001
 type = type_  # noqa: A001
 id = id_  # noqa: A001
 
+
 # Convenience functions
 def connect(
     uri: str = "grism://local",
@@ -133,17 +134,17 @@ def connect(
 ) -> Hypergraph:
     """
     Connect to a Grism hypergraph.
-    
+
     This is a convenience function equivalent to Hypergraph.connect().
-    
+
     Args:
         uri: Connection URI (e.g., "grism://local", "grism:///path/to/data")
         executor: Execution backend ("local" or "ray")
         namespace: Optional namespace for logical graph isolation
-    
+
     Returns:
         Hypergraph instance (immutable, lazy, snapshot-bound)
-    
+
     Example:
         >>> import grism as gr
         >>> hg = gr.connect("grism://local")
@@ -155,16 +156,16 @@ def connect(
 def create(uri: str, executor: str = "local") -> Hypergraph:
     """
     Create a new Grism hypergraph.
-    
+
     This is a convenience function equivalent to Hypergraph.create().
-    
+
     Args:
         uri: Storage URI for the new hypergraph
         executor: Execution backend ("local" or "ray")
-    
+
     Returns:
         Hypergraph instance
-    
+
     Example:
         >>> import grism as gr
         >>> hg = gr.create("grism:///data/new_graph")

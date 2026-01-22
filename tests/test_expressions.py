@@ -1,6 +1,5 @@
 """Tests for expression system."""
 
-import pytest
 import grism as gr
 
 
