@@ -24,9 +24,9 @@ pub enum DataType {
     /// Date (days since epoch).
     Date,
     /// Array of elements with specified type.
-    Array(Box<DataType>),
+    Array(Box<Self>),
     /// Map from string keys to values.
-    Map(Box<DataType>),
+    Map(Box<Self>),
     /// Symbol (interned string reference).
     Symbol,
 }

@@ -58,7 +58,7 @@ pub enum LogicalOp {
     /// Expand - traversal over hyperedges.
     Expand {
         /// Input plan.
-        input: Box<LogicalOp>,
+        input: Box<Self>,
         /// Expand operation parameters.
         expand: ExpandOp,
     },
@@ -66,7 +66,7 @@ pub enum LogicalOp {
     /// Filter - restriction by predicate.
     Filter {
         /// Input plan.
-        input: Box<LogicalOp>,
+        input: Box<Self>,
         /// Filter operation parameters.
         filter: FilterOp,
     },
@@ -74,7 +74,7 @@ pub enum LogicalOp {
     /// Project - column selection.
     Project {
         /// Input plan.
-        input: Box<LogicalOp>,
+        input: Box<Self>,
         /// Project operation parameters.
         project: ProjectOp,
     },
@@ -82,7 +82,7 @@ pub enum LogicalOp {
     /// Aggregate - grouping and aggregation.
     Aggregate {
         /// Input plan.
-        input: Box<LogicalOp>,
+        input: Box<Self>,
         /// Aggregate operation parameters.
         aggregate: AggregateOp,
     },
@@ -90,7 +90,7 @@ pub enum LogicalOp {
     /// Limit - row count restriction.
     Limit {
         /// Input plan.
-        input: Box<LogicalOp>,
+        input: Box<Self>,
         /// Limit operation parameters.
         limit: LimitOp,
     },
@@ -98,7 +98,7 @@ pub enum LogicalOp {
     /// Sort - row ordering.
     Sort {
         /// Input plan.
-        input: Box<LogicalOp>,
+        input: Box<Self>,
         /// Sort operation parameters.
         sort: SortOp,
     },
@@ -106,9 +106,9 @@ pub enum LogicalOp {
     /// Union - combine two plans.
     Union {
         /// Left input plan.
-        left: Box<LogicalOp>,
+        left: Box<Self>,
         /// Right input plan.
-        right: Box<LogicalOp>,
+        right: Box<Self>,
         /// Union operation parameters.
         union: UnionOp,
     },
@@ -116,7 +116,7 @@ pub enum LogicalOp {
     /// Rename - column renaming.
     Rename {
         /// Input plan.
-        input: Box<LogicalOp>,
+        input: Box<Self>,
         /// Rename operation parameters.
         rename: RenameOp,
     },
@@ -124,7 +124,7 @@ pub enum LogicalOp {
     /// Infer - declarative rule application.
     Infer {
         /// Input plan.
-        input: Box<LogicalOp>,
+        input: Box<Self>,
         /// Infer operation parameters.
         infer: InferOp,
     },

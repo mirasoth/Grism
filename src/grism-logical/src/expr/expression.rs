@@ -36,11 +36,11 @@ pub enum LogicalExpr {
     /// A binary operation.
     Binary {
         /// Left operand.
-        left: Box<LogicalExpr>,
+        left: Box<Self>,
         /// Binary operator.
         op: BinaryOp,
         /// Right operand.
-        right: Box<LogicalExpr>,
+        right: Box<Self>,
     },
 
     /// A unary operation.
@@ -48,7 +48,7 @@ pub enum LogicalExpr {
         /// Unary operator.
         op: UnaryOp,
         /// Operand.
-        expr: Box<LogicalExpr>,
+        expr: Box<Self>,
     },
 
     /// A function call.
@@ -60,19 +60,19 @@ pub enum LogicalExpr {
     /// A CASE WHEN expression.
     Case {
         /// Optional operand for simple CASE.
-        operand: Option<Box<LogicalExpr>>,
+        operand: Option<Box<Self>>,
         /// WHEN clauses: (condition, result).
-        when_clauses: Vec<(LogicalExpr, LogicalExpr)>,
+        when_clauses: Vec<(Self, Self)>,
         /// ELSE clause.
-        else_result: Option<Box<LogicalExpr>>,
+        else_result: Option<Box<Self>>,
     },
 
     /// An IN expression.
     InList {
         /// Expression to check.
-        expr: Box<LogicalExpr>,
+        expr: Box<Self>,
         /// List of values.
-        list: Vec<LogicalExpr>,
+        list: Vec<Self>,
         /// Whether this is NOT IN.
         negated: bool,
     },
@@ -80,11 +80,11 @@ pub enum LogicalExpr {
     /// A BETWEEN expression.
     Between {
         /// Expression to check.
-        expr: Box<LogicalExpr>,
+        expr: Box<Self>,
         /// Lower bound.
-        low: Box<LogicalExpr>,
+        low: Box<Self>,
         /// Upper bound.
-        high: Box<LogicalExpr>,
+        high: Box<Self>,
         /// Whether this is NOT BETWEEN.
         negated: bool,
     },
@@ -92,7 +92,7 @@ pub enum LogicalExpr {
     /// An aliased expression.
     Alias {
         /// Original expression.
-        expr: Box<LogicalExpr>,
+        expr: Box<Self>,
         /// Alias name.
         alias: String,
     },
@@ -125,7 +125,7 @@ pub enum LogicalExpr {
     /// A sort key expression.
     SortKey {
         /// Expression to sort by.
-        expr: Box<LogicalExpr>,
+        expr: Box<Self>,
         /// Ascending or descending.
         ascending: bool,
         /// Nulls first or last.

@@ -46,9 +46,9 @@ pub enum Value {
     /// Date (days since Unix epoch).
     Date(i32),
     /// Array of values.
-    Array(Vec<Value>),
+    Array(Vec<Self>),
     /// Map of string keys to values.
-    Map(HashMap<String, Value>),
+    Map(HashMap<String, Self>),
 }
 
 impl Value {

@@ -29,7 +29,7 @@ impl<'a> DisplayTree<'a> {
         Self { root, indent: 0 }
     }
 
-    #[allow(clippy::only_used_in_recursion)]
+    #[allow(clippy::self_only_used_in_recursion)]
     fn fmt_node(
         &self,
         f: &mut fmt::Formatter<'_>,

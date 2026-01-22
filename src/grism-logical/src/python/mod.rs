@@ -27,24 +27,24 @@ pub enum ExprKind {
     Literal(Value),
     /// Binary operation.
     Binary {
-        left: Box<ExprKind>,
+        left: Box<Self>,
         op: BinaryOp,
-        right: Box<ExprKind>,
+        right: Box<Self>,
     },
     /// Unary operation.
-    Unary { op: UnaryOp, expr: Box<ExprKind> },
+    Unary { op: UnaryOp, expr: Box<Self> },
     /// Function call.
-    Function { name: String, args: Vec<ExprKind> },
+    Function { name: String, args: Vec<Self> },
     /// Aggregate expression.
-    Aggregate { func: AggFunc, expr: Box<ExprKind> },
+    Aggregate { func: AggFunc, expr: Box<Self> },
     /// Alias.
-    Alias { expr: Box<ExprKind>, alias: String },
+    Alias { expr: Box<Self>, alias: String },
     /// Wildcard (*).
     Wildcard,
     /// Ascending sort marker.
-    SortAsc(Box<ExprKind>),
+    SortAsc(Box<Self>),
     /// Descending sort marker.
-    SortDesc(Box<ExprKind>),
+    SortDesc(Box<Self>),
 }
 
 impl ExprKind {
