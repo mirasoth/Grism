@@ -1,22 +1,37 @@
 [package]
-name = "grism-distributed"
+name = "grism-ray"
 edition = { workspace = true }
 version = { workspace = true }
 description = "Ray distributed execution backend for Grism"
 
 [dependencies]
+# Internal crates
 common-error = { workspace = true }
 common-runtime = { workspace = true }
 grism-core = { workspace = true }
 grism-logical = { workspace = true }
 grism-engine = { workspace = true }
-async-trait = { workspace = true }
-serde = { workspace = true }
-tokio = { workspace = true }
-futures = { workspace = true }
-arrow-ipc = { workspace = true }
+grism-storage = { workspace = true }
+
+# Arrow ecosystem
+arrow = { workspace = true }
 arrow-array = { workspace = true }
 arrow-schema = { workspace = true }
+arrow-ipc = { workspace = true }
+
+# Async runtime
+async-trait = { workspace = true }
+tokio = { workspace = true }
+futures = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Utilities
+thiserror = { workspace = true }
+
+# Python bindings
 pyo3 = { workspace = true, optional = true }
 
 [features]

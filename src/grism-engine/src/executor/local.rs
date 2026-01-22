@@ -1,4 +1,7 @@
 //! Local single-node executor implementation.
+//!
+//! This module provides the `LocalExecutor` for executing physical plans
+//! on a single machine using a pull-based pipeline model.
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -6,6 +9,7 @@ use std::time::Instant;
 use common_error::{GrismError, GrismResult};
 use grism_storage::{SnapshotId, Storage};
 
+use crate::executor::traits::ExecutionContextTrait;
 use crate::executor::{CancellationHandle, ExecutionContext, ExecutionResult, RuntimeConfig};
 use crate::memory::{MemoryManager, TrackingMemoryManager};
 use crate::metrics::MetricsSink;
@@ -14,7 +18,26 @@ use crate::physical::PhysicalPlan;
 /// Local single-node executor.
 ///
 /// Executes physical plans using a pull-based pipeline model.
-/// This is the **reference execution backend** for Grism.
+/// This is the **reference execution backend** for Grism per RFC-0102.
+///
+/// # Execution Model
+///
+/// The executor uses a pull-based streaming model:
+/// 1. Create execution context with storage and configuration
+/// 2. Initialize operator tree from physical plan
+/// 3. Pull batches from root operator until exhausted
+/// 4. Collect results into `ExecutionResult`
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let executor = LocalExecutor::new();
+/// let result = executor.execute(plan, storage, snapshot).await?;
+///
+/// for batch in result.batches {
+///     println!("Got {} rows", batch.num_rows());
+/// }
+/// ```
 #[derive(Debug)]
 pub struct LocalExecutor {
     /// Execution configuration.
@@ -38,6 +61,13 @@ impl LocalExecutor {
     pub fn with_batch_size(batch_size: usize) -> Self {
         Self {
             config: RuntimeConfig::default().with_batch_size(batch_size),
+        }
+    }
+
+    /// Create with memory limit.
+    pub fn with_memory_limit(limit: usize) -> Self {
+        Self {
+            config: RuntimeConfig::default().with_memory_limit(limit),
         }
     }
 
@@ -72,14 +102,23 @@ impl LocalExecutor {
             Arc::new(TrackingMemoryManager::unlimited())
         };
 
-        // Create metrics sink
-        let metrics = MetricsSink::new();
+        // Create metrics sink if enabled
+        let metrics = if self.config.collect_metrics {
+            Some(MetricsSink::new())
+        } else {
+            None
+        };
 
         // Create execution context
         let mut ctx = ExecutionContext::new(storage, snapshot)
             .with_config(self.config.clone())
-            .with_memory(memory)
-            .with_metrics(metrics.clone());
+            .with_memory(memory);
+
+        if let Some(m) = metrics.clone() {
+            ctx = ctx.with_metrics(m);
+        } else {
+            ctx = ctx.without_metrics();
+        }
 
         // Set up cancellation if provided
         if let Some(handle) = cancel_handle {
@@ -124,7 +163,9 @@ impl LocalExecutor {
 
         let elapsed = start.elapsed();
 
-        Ok(ExecutionResult::new(batches, schema, metrics, elapsed))
+        // Build result with metrics
+        let result_metrics = metrics.unwrap_or_default();
+        Ok(ExecutionResult::new(batches, schema, result_metrics, elapsed))
     }
 
     /// Execute synchronously (blocking).
@@ -171,7 +212,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_with_memory_limit() {
-        let config = RuntimeConfig::default().with_memory_limit(1024 * 1024);
+        let executor = LocalExecutor::with_memory_limit(1024 * 1024);
+
+        let storage = Arc::new(InMemoryStorage::new());
+        let snapshot = SnapshotId::default();
+
+        let plan = PhysicalPlan::new(Arc::new(EmptyExec::new()));
+        let result = executor.execute(plan, storage, snapshot).await.unwrap();
+
+        assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_execute_without_metrics() {
+        let config = RuntimeConfig::default().with_metrics(false);
         let executor = LocalExecutor::with_config(config);
 
         let storage = Arc::new(InMemoryStorage::new());

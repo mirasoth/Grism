@@ -162,7 +162,8 @@ pub mod python;
 
 // Re-export commonly used types
 pub use executor::{
-    CancellationHandle, ExecutionContext, ExecutionResult, LocalExecutor, RuntimeConfig,
+    CancellationHandle, ExecutionContext, ExecutionContextExt, ExecutionContextTrait,
+    ExecutionResult, LocalExecutor, RuntimeConfig,
 };
 pub use memory::{MemoryManager, MemoryReservation, NoopMemoryManager, TrackingMemoryManager};
 pub use metrics::{ExecutionTimer, MetricsSink, OperatorMetrics};

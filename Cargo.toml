@@ -20,7 +20,7 @@ grism-core = { path = "src/grism-core", default-features = false }
 grism-logical = { path = "src/grism-logical", default-features = false }
 grism-optimizer = { path = "src/grism-optimizer", default-features = false }
 grism-engine = { path = "src/grism-engine", default-features = false }
-grism-distributed = { path = "src/grism-distributed", default-features = false }
+grism-ray = { path = "src/grism-ray", default-features = false }
 grism-storage = { path = "src/grism-storage", default-features = false }
 
 # External dependencies
@@ -40,7 +40,7 @@ python = [
     "grism-core/python",
     "grism-logical/python",
     "grism-engine/python",
-    "grism-distributed/python",
+    "grism-ray/python",
     "grism-storage/python",
 ]
 
@@ -54,8 +54,9 @@ members = [
     "src/grism-logical",
     "src/grism-optimizer",
     "src/grism-engine",
-    "src/grism-distributed",
+    "src/grism-ray",
     "src/grism-storage",
+    "src/grism-playground",
 ]
 
 [workspace.package]
@@ -106,7 +107,7 @@ grism-core = { path = "src/grism-core" }
 grism-logical = { path = "src/grism-logical" }
 grism-optimizer = { path = "src/grism-optimizer" }
 grism-engine = { path = "src/grism-engine" }
-grism-distributed = { path = "src/grism-distributed" }
+grism-ray = { path = "src/grism-ray" }
 grism-storage = { path = "src/grism-storage" }
 
 [workspace.lints.clippy]

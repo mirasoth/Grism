@@ -1,12 +1,20 @@
 //! Execution context for query execution.
+//!
+//! This module provides the execution context that operators use to access
+//! storage, memory management, and other runtime resources.
 
 use std::sync::Arc;
 
 use grism_storage::{SnapshotId, Storage};
 use tokio::sync::watch;
 
+use crate::executor::traits::ExecutionContextTrait;
 use crate::memory::{MemoryManager, NoopMemoryManager};
 use crate::metrics::MetricsSink;
+
+// ============================================================================
+// Runtime Configuration
+// ============================================================================
 
 /// Runtime configuration for execution.
 #[derive(Debug, Clone)]
@@ -50,12 +58,28 @@ impl RuntimeConfig {
         self.collect_metrics = enabled;
         self
     }
+
+    /// Set parallelism level.
+    pub fn with_parallelism(mut self, parallelism: usize) -> Self {
+        self.parallelism = parallelism;
+        self
+    }
 }
 
-/// Execution context passed to all operators.
+// ============================================================================
+// Local Execution Context
+// ============================================================================
+
+/// Local execution context passed to all operators.
 ///
+/// Implements [`ExecutionContextTrait`] for local single-machine execution.
 /// The context is **read-only** to operators and shared across the pipeline.
-/// Per RFC-0008, Section 5.1.
+///
+/// # Contract (RFC-0008, Section 5.1)
+///
+/// - Context is shared across all operators in a pipeline
+/// - Operators must not modify context state
+/// - Context provides cooperative cancellation
 #[derive(Clone)]
 pub struct ExecutionContext {
     /// Snapshot for consistent reads.
@@ -66,8 +90,8 @@ pub struct ExecutionContext {
     pub memory: Arc<dyn MemoryManager>,
     /// Cancellation receiver.
     cancel_rx: watch::Receiver<bool>,
-    /// Metrics sink for operator statistics.
-    pub metrics: MetricsSink,
+    /// Metrics sink for operator statistics (public for access).
+    pub metrics: Option<MetricsSink>,
     /// Runtime configuration.
     pub config: RuntimeConfig,
 }
@@ -77,6 +101,7 @@ impl std::fmt::Debug for ExecutionContext {
         f.debug_struct("ExecutionContext")
             .field("snapshot", &self.snapshot)
             .field("config", &self.config)
+            .field("metrics_enabled", &self.metrics.is_some())
             .finish_non_exhaustive()
     }
 }
@@ -90,13 +115,17 @@ impl ExecutionContext {
             storage,
             memory: Arc::new(NoopMemoryManager::new()),
             cancel_rx,
-            metrics: MetricsSink::new(),
+            metrics: Some(MetricsSink::new()),
             config: RuntimeConfig::default(),
         }
     }
 
     /// Create with custom configuration.
     pub fn with_config(mut self, config: RuntimeConfig) -> Self {
+        // If metrics are disabled in config, set metrics to None
+        if !config.collect_metrics {
+            self.metrics = None;
+        }
         self.config = config;
         self
     }
@@ -109,7 +138,13 @@ impl ExecutionContext {
 
     /// Create with metrics sink.
     pub fn with_metrics(mut self, metrics: MetricsSink) -> Self {
-        self.metrics = metrics;
+        self.metrics = Some(metrics);
+        self
+    }
+
+    /// Disable metrics collection.
+    pub fn without_metrics(mut self) -> Self {
+        self.metrics = None;
         self
     }
 
@@ -119,25 +154,20 @@ impl ExecutionContext {
         self
     }
 
-    /// Check if execution is cancelled.
-    pub fn is_cancelled(&self) -> bool {
-        *self.cancel_rx.borrow()
+    /// Get the runtime configuration.
+    pub fn config(&self) -> &RuntimeConfig {
+        &self.config
     }
 
-    /// Get batch size from config.
-    pub fn batch_size(&self) -> usize {
-        self.config.batch_size
-    }
-
-    /// Get storage handle.
-    pub fn storage(&self) -> &Arc<dyn Storage> {
-        &self.storage
+    /// Get the metrics sink (if enabled).
+    pub fn metrics(&self) -> Option<&MetricsSink> {
+        self.metrics.as_ref()
     }
 
     /// Record operator metrics.
     pub fn record_metrics(&self, operator_id: &str, metrics: crate::metrics::OperatorMetrics) {
-        if self.config.collect_metrics {
-            self.metrics.record(operator_id, metrics);
+        if let Some(ref sink) = self.metrics {
+            sink.record(operator_id, metrics);
         }
     }
 
@@ -146,13 +176,47 @@ impl ExecutionContext {
     where
         F: FnOnce(&mut crate::metrics::OperatorMetrics),
     {
-        if self.config.collect_metrics {
-            self.metrics.update(operator_id, f);
+        if let Some(ref sink) = self.metrics {
+            sink.update(operator_id, f);
         }
     }
 }
 
+// Implement the runtime-agnostic trait
+impl ExecutionContextTrait for ExecutionContext {
+    fn storage(&self) -> Arc<dyn Storage> {
+        Arc::clone(&self.storage)
+    }
+
+    fn snapshot_id(&self) -> SnapshotId {
+        self.snapshot
+    }
+
+    fn memory_manager(&self) -> Arc<dyn MemoryManager> {
+        Arc::clone(&self.memory)
+    }
+
+    fn metrics_sink(&self) -> Option<&MetricsSink> {
+        self.metrics.as_ref()
+    }
+
+    fn is_cancelled(&self) -> bool {
+        *self.cancel_rx.borrow()
+    }
+
+    fn batch_size(&self) -> usize {
+        self.config.batch_size
+    }
+}
+
+// ============================================================================
+// Cancellation Handle
+// ============================================================================
+
 /// Handle for cancelling query execution.
+///
+/// This handle is separate from the execution context and can be used
+/// to signal cancellation from outside the query execution pipeline.
 #[derive(Debug, Clone)]
 pub struct CancellationHandle {
     cancel_tx: watch::Sender<bool>,
@@ -182,6 +246,10 @@ impl Default for CancellationHandle {
     }
 }
 
+// ============================================================================
+// Tests
+// ============================================================================
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -204,6 +272,26 @@ mod tests {
 
         assert!(!ctx.is_cancelled());
         assert_eq!(ctx.batch_size(), 8192);
+    }
+
+    #[test]
+    fn test_context_trait() {
+        let storage = Arc::new(InMemoryStorage::new());
+        let ctx = ExecutionContext::new(storage, SnapshotId::default());
+
+        // Test through the trait
+        let trait_ctx: &dyn ExecutionContextTrait = &ctx;
+        assert!(!trait_ctx.is_cancelled());
+        assert_eq!(trait_ctx.batch_size(), 8192);
+        assert!(trait_ctx.metrics_sink().is_some());
+    }
+
+    #[test]
+    fn test_context_without_metrics() {
+        let storage = Arc::new(InMemoryStorage::new());
+        let ctx = ExecutionContext::new(storage, SnapshotId::default()).without_metrics();
+
+        assert!(ctx.metrics_sink().is_none());
     }
 
     #[test]
