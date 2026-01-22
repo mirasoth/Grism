@@ -935,3 +935,103 @@ def path_length(expr: Expr) -> Expr:
 def sim(left: Expr, right: Any) -> Expr:
     """Similarity function for vectors."""
     ...
+
+
+# ============================================================================
+# String Functions (standalone)
+# ============================================================================
+
+def substring(expr: Expr, start: int, length: int | None = None) -> Expr:
+    """Extract substring."""
+    ...
+
+
+def replace(expr: Expr, old: str, new: str) -> Expr:
+    """Replace substring occurrences."""
+    ...
+
+
+def split(expr: Expr, delimiter: str) -> Expr:
+    """Split string into array."""
+    ...
+
+
+# ============================================================================
+# Conditional Functions (additional)
+# ============================================================================
+
+def when(condition: Expr, then: Any, else_: Any) -> Expr:
+    """When expression (alias for if_)."""
+    ...
+
+
+# ============================================================================
+# Predicate Functions
+# ============================================================================
+
+def exists(expr: Any) -> Expr:
+    """Check if a subquery/pattern exists."""
+    ...
+
+
+def any_(expr: Expr, predicate: Expr | None = None) -> Expr:
+    """Check if any element in a collection satisfies a predicate."""
+    ...
+
+
+def all_(expr: Expr, predicate: Expr | None = None) -> Expr:
+    """Check if all elements in a collection satisfy a predicate."""
+    ...
+
+
+# ============================================================================
+# Path Functions
+# ============================================================================
+
+def shortest_path(
+    start: Expr,
+    end: Expr,
+    edge_type: str | None = None,
+    max_hops: int | None = None,
+) -> Expr:
+    """Find the shortest path between two nodes."""
+    ...
+
+
+def all_paths(
+    start: Expr,
+    end: Expr,
+    edge_type: str | None = None,
+    min_hops: int | None = None,
+    max_hops: int | None = None,
+) -> Expr:
+    """Find all paths between two nodes."""
+    ...
+
+
+# ============================================================================
+# Pattern Class
+# ============================================================================
+
+class Pattern:
+    """Pattern for graph matching."""
+    
+    def __init__(self, spec: str | None = None) -> None:
+        """Create a new pattern."""
+        ...
+    
+    def start(self, label: str) -> Pattern:
+        """Set the start node label."""
+        ...
+    
+    def end(self, label: str) -> Pattern:
+        """Set the end node label."""
+        ...
+    
+    def via(self, edge_type: str) -> Pattern:
+        """Set the edge type filter."""
+        ...
+    
+    def hops(self, min_hops: int = 1, max_hops: int | None = None) -> Pattern:
+        """Set the hop range."""
+        ...

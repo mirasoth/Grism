@@ -48,6 +48,8 @@ from grism._grism import (
     # Expression classes
     Expr,
     AggExpr,
+    # Pattern class
+    Pattern,
     # Executor classes
     Executor,
     LocalExecutor,
@@ -74,6 +76,9 @@ from grism._grism import (
     upper,
     trim,
     contains,
+    substring,
+    replace,
+    split,
     # Math functions
     abs_,
     ceil,
@@ -89,6 +94,7 @@ from grism._grism import (
     # Conditional functions
     coalesce,
     if_,
+    when,
     # Graph functions
     labels,
     type_,
@@ -97,6 +103,13 @@ from grism._grism import (
     nodes,
     relationships,
     path_length,
+    # Predicate functions
+    exists,
+    any_,
+    all_,
+    # Path functions
+    shortest_path,
+    all_paths,
     # Vector/AI functions
     sim,
     # Version
@@ -174,6 +187,8 @@ __all__ = [
     # Expression classes
     "Expr",
     "AggExpr",
+    # Pattern class
+    "Pattern",
     # Executor classes
     "Executor",
     "LocalExecutor",
@@ -206,6 +221,9 @@ __all__ = [
     "upper",
     "trim",
     "contains",
+    "substring",
+    "replace",
+    "split",
     # Math functions
     "abs",
     "abs_",
@@ -223,6 +241,7 @@ __all__ = [
     # Conditional functions
     "coalesce",
     "if_",
+    "when",
     # Graph functions
     "labels",
     "type",
@@ -233,6 +252,13 @@ __all__ = [
     "nodes",
     "relationships",
     "path_length",
+    # Predicate functions
+    "exists",
+    "any_",
+    "all_",
+    # Path functions
+    "shortest_path",
+    "all_paths",
     # Vector/AI functions
     "sim",
 ]

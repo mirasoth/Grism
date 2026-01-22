@@ -1071,6 +1071,228 @@ pub fn path_length(expr: &PyExpr) -> PyExpr {
     })
 }
 
+// ========== String Functions (standalone) ==========
+
+/// Extract substring (standalone function).
+#[pyfunction]
+#[pyo3(signature = (expr, start, length=None))]
+pub fn substring(expr: &PyExpr, start: i64, length: Option<i64>) -> PyExpr {
+    expr.substring(start, length)
+}
+
+/// Replace substring occurrences (standalone function).
+#[pyfunction]
+pub fn replace(expr: &PyExpr, old: &str, new: &str) -> PyExpr {
+    expr.replace(old, new)
+}
+
+/// Split string into array (standalone function).
+#[pyfunction]
+pub fn split(expr: &PyExpr, delimiter: &str) -> PyExpr {
+    expr.split(delimiter)
+}
+
+// ========== Conditional Functions (additional) ==========
+
+/// When expression (alias for if_).
+/// Used for conditional expressions: when(condition, then_value, else_value)
+#[pyfunction]
+pub fn when(
+    condition: &PyExpr,
+    then: &Bound<'_, PyAny>,
+    else_: &Bound<'_, PyAny>,
+) -> PyResult<PyExpr> {
+    if_expr(condition, then, else_)
+}
+
+// ========== Predicate Functions ==========
+
+/// Check if a subquery/pattern exists.
+/// Returns an expression that evaluates to true if the pattern exists.
+#[pyfunction]
+#[pyo3(name = "exists")]
+pub fn exists_fn(expr: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
+    let e = py_any_to_expr(expr)?;
+    Ok(PyExpr::new(ExprKind::Function {
+        name: "exists".to_string(),
+        args: vec![e],
+    }))
+}
+
+/// Check if any element in a collection satisfies a predicate.
+#[pyfunction]
+#[pyo3(name = "any_")]
+pub fn any_fn(expr: &PyExpr, predicate: Option<&PyExpr>) -> PyExpr {
+    let args = match predicate {
+        Some(p) => vec![expr.inner.clone(), p.inner.clone()],
+        None => vec![expr.inner.clone()],
+    };
+    PyExpr::new(ExprKind::Function {
+        name: "any".to_string(),
+        args,
+    })
+}
+
+/// Check if all elements in a collection satisfy a predicate.
+#[pyfunction]
+#[pyo3(name = "all_")]
+pub fn all_fn(expr: &PyExpr, predicate: Option<&PyExpr>) -> PyExpr {
+    let args = match predicate {
+        Some(p) => vec![expr.inner.clone(), p.inner.clone()],
+        None => vec![expr.inner.clone()],
+    };
+    PyExpr::new(ExprKind::Function {
+        name: "all".to_string(),
+        args,
+    })
+}
+
+// ========== Path Functions ==========
+
+/// Find the shortest path between two nodes.
+#[pyfunction]
+#[pyo3(signature = (start, end, edge_type=None, max_hops=None))]
+pub fn shortest_path(
+    start: &PyExpr,
+    end: &PyExpr,
+    edge_type: Option<&str>,
+    max_hops: Option<i64>,
+) -> PyExpr {
+    let mut args = vec![start.inner.clone(), end.inner.clone()];
+    if let Some(et) = edge_type {
+        args.push(ExprKind::Literal(Value::String(et.to_string())));
+    }
+    if let Some(mh) = max_hops {
+        args.push(ExprKind::Literal(Value::Int64(mh)));
+    }
+    PyExpr::new(ExprKind::Function {
+        name: "shortest_path".to_string(),
+        args,
+    })
+}
+
+/// Find all paths between two nodes.
+#[pyfunction]
+#[pyo3(signature = (start, end, edge_type=None, min_hops=None, max_hops=None))]
+pub fn all_paths(
+    start: &PyExpr,
+    end: &PyExpr,
+    edge_type: Option<&str>,
+    min_hops: Option<i64>,
+    max_hops: Option<i64>,
+) -> PyExpr {
+    let mut args = vec![start.inner.clone(), end.inner.clone()];
+    if let Some(et) = edge_type {
+        args.push(ExprKind::Literal(Value::String(et.to_string())));
+    }
+    if let Some(mn) = min_hops {
+        args.push(ExprKind::Literal(Value::Int64(mn)));
+    }
+    if let Some(mx) = max_hops {
+        args.push(ExprKind::Literal(Value::Int64(mx)));
+    }
+    PyExpr::new(ExprKind::Function {
+        name: "all_paths".to_string(),
+        args,
+    })
+}
+
+// ========== Pattern Class ==========
+
+/// Pattern for graph matching.
+///
+/// Pattern represents a graph pattern that can be used in queries
+/// for complex graph matching operations.
+#[pyclass(name = "Pattern")]
+#[derive(Clone)]
+pub struct PyPattern {
+    /// Pattern specification.
+    pub(crate) spec: String,
+    /// Optional start node.
+    pub(crate) start: Option<String>,
+    /// Optional end node.
+    pub(crate) end: Option<String>,
+    /// Edge type filter.
+    pub(crate) edge_type: Option<String>,
+    /// Minimum hops.
+    pub(crate) min_hops: Option<u32>,
+    /// Maximum hops.
+    pub(crate) max_hops: Option<u32>,
+}
+
+#[pymethods]
+impl PyPattern {
+    /// Create a new pattern.
+    #[new]
+    #[pyo3(signature = (spec=None))]
+    fn new(spec: Option<&str>) -> Self {
+        Self {
+            spec: spec.unwrap_or("").to_string(),
+            start: None,
+            end: None,
+            edge_type: None,
+            min_hops: None,
+            max_hops: None,
+        }
+    }
+
+    /// Set the start node label.
+    fn start(&self, label: &str) -> Self {
+        Self {
+            spec: self.spec.clone(),
+            start: Some(label.to_string()),
+            end: self.end.clone(),
+            edge_type: self.edge_type.clone(),
+            min_hops: self.min_hops,
+            max_hops: self.max_hops,
+        }
+    }
+
+    /// Set the end node label.
+    fn end(&self, label: &str) -> Self {
+        Self {
+            spec: self.spec.clone(),
+            start: self.start.clone(),
+            end: Some(label.to_string()),
+            edge_type: self.edge_type.clone(),
+            min_hops: self.min_hops,
+            max_hops: self.max_hops,
+        }
+    }
+
+    /// Set the edge type filter.
+    fn via(&self, edge_type: &str) -> Self {
+        Self {
+            spec: self.spec.clone(),
+            start: self.start.clone(),
+            end: self.end.clone(),
+            edge_type: Some(edge_type.to_string()),
+            min_hops: self.min_hops,
+            max_hops: self.max_hops,
+        }
+    }
+
+    /// Set the hop range.
+    #[pyo3(signature = (min_hops=1, max_hops=None))]
+    fn hops(&self, min_hops: u32, max_hops: Option<u32>) -> Self {
+        Self {
+            spec: self.spec.clone(),
+            start: self.start.clone(),
+            end: self.end.clone(),
+            edge_type: self.edge_type.clone(),
+            min_hops: Some(min_hops),
+            max_hops: max_hops.or(Some(min_hops)),
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "Pattern(spec='{}', start={:?}, end={:?}, edge_type={:?}, hops={:?}..{:?})",
+            self.spec, self.start, self.end, self.edge_type, self.min_hops, self.max_hops
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
