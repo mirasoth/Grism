@@ -1,268 +1,178 @@
-# Design: Engine-Runtime Separation & Distributed Execution
+# Implementation: Engine-Runtime Separation
 
-*(Bridge from Local Engine to Ray Distributed Execution)*
-
----
-
-## 0. Design Objective
-
-Week-7 delivered a **fully executable local physical plan** with streaming, Arrow-native operators. This document extends that foundation to support **distributed execution on Ray** while maintaining a clean architecture separation.
-
-### Goals
-
-1. **Runtime Separation**: Extract common engine components that work across local and distributed execution
-2. **Local Runtime**: Dedicated crate for single-machine execution with in-memory and Lance storage
-3. **Ray Runtime**: Dedicated crate for distributed execution using Ray as orchestration layer
-4. **Zero Semantic Drift**: Distribution MUST NOT change query results
-
-### Key Principle
-
-> **The engine defines what to compute. The runtime defines how to execute.**
+*(Implementation guide for RFC-0102: Execution Engine Architecture)*
 
 ---
 
-## 1. Crate Architecture
+## 1. Overview
 
-### 1.1 Architecture Overview
+This document provides implementation-specific details for the engine architecture defined in **RFC-0102**. It covers:
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                            Application Layer                                 │
-│                     (Python API, gRPC, CLI)                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          grism-engine (Common)                               │
-│  ┌─────────────┐  ┌──────────────┐  ┌───────────────┐  ┌────────────────┐  │
-│  │  Physical   │  │  Operators   │  │  Expression   │  │   Physical     │  │
-│  │  Plan Model │  │  (Exec)      │  │  Evaluator    │  │   Schema       │  │
-│  └─────────────┘  └──────────────┘  └───────────────┘  └────────────────┘  │
-│  ┌─────────────┐  ┌──────────────┐  ┌───────────────┐                      │
-│  │  Operator   │  │  Schema      │  │   Memory &    │                      │
-│  │  Traits     │  │  Inference   │  │   Metrics     │                      │
-│  └─────────────┘  └──────────────┘  └───────────────┘                      │
-└─────────────────────────────────────────────────────────────────────────────┘
-                │                                    │
-                ▼                                    ▼
-┌───────────────────────────────┐    ┌───────────────────────────────────────┐
-│      grism-local (Runtime)    │    │         grism-ray (Runtime)           │
-│  ┌────────────────────────┐   │    │  ┌─────────────────────────────────┐  │
-│  │   LocalExecutor        │   │    │  │   RayExecutor                   │  │
-│  │   - Pull-based         │   │    │  │   - Stage-based                 │  │
-│  │   - Single-threaded    │   │    │  │   - Parallel workers            │  │
-│  └────────────────────────┘   │    │  └─────────────────────────────────┘  │
-│  ┌────────────────────────┐   │    │  ┌─────────────────────────────────┐  │
-│  │   LocalPhysicalPlanner │   │    │  │   DistributedPlanner            │  │
-│  │   - No Exchange ops    │   │    │  │   - Exchange insertion          │  │
-│  │   - Direct execution   │   │    │  │   - Stage splitting             │  │
-│  └────────────────────────┘   │    │  └─────────────────────────────────┘  │
-│  ┌────────────────────────┐   │    │  ┌─────────────────────────────────┐  │
-│  │   ExecutionContext     │   │    │  │   StageExecutor                 │  │
-│  │   - InMemoryStorage    │   │    │  │   - Ray task management         │  │
-│  │   - LanceStorage       │   │    │  │   - Arrow IPC transport         │  │
-│  └────────────────────────┘   │    │  └─────────────────────────────────┘  │
-└───────────────────────────────┘    └───────────────────────────────────────┘
-                │                                    │
-                └────────────────┬───────────────────┘
-                                 ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           grism-storage                                      │
-│                  (InMemoryStorage, LanceStorage, Catalog)                    │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+* Current code structure and status
+* Migration path to target architecture
+* Implementation considerations and technical decisions
+* Concrete code examples and patterns
 
-### 1.2 Crate Responsibilities
-
-| Crate | Responsibility | Dependencies |
-|-------|----------------|--------------|
-| **grism-engine** | Physical plan model, operators, expressions, schema inference | grism-core, grism-logical |
-| **grism-local** | Local single-machine execution runtime | grism-engine, grism-storage |
-| **grism-ray** | Distributed Ray-based execution runtime | grism-engine, grism-storage, ray |
+**For architectural design, see [RFC-0102: Execution Engine Architecture](rfc-0102.md).**
 
 ---
 
-## 2. grism-engine (Common Components)
+## 2. Current Code Status
 
-The `grism-engine` crate contains all **runtime-agnostic** components that both local and distributed execution share.
+### 2.1 Existing Crate Structure
 
-### 2.1 Physical Plan Model
-
-```rust
-// Core plan structures (runtime-agnostic)
-pub struct PhysicalPlan {
-    pub root: Box<dyn PhysicalOperator>,
-    pub properties: PlanProperties,
-}
-
-pub struct PlanProperties {
-    pub execution_mode: ExecutionMode,
-    pub partitioning: PartitioningSpec,
-    pub blocking: bool,
-}
+```
+src/
+├── grism-engine/          # Currently contains BOTH engine AND local runtime
+│   ├── executor/          # LocalExecutor, ExecutionContext
+│   ├── expr/              # ExprEvaluator
+│   ├── memory/            # MemoryManager implementations
+│   ├── metrics/           # MetricsSink
+│   ├── operators/         # All physical operators (*Exec)
+│   ├── physical/          # PhysicalPlan, PhysicalSchema, PlanProperties
+│   └── planner/           # LocalPhysicalPlanner, schema_inference
+│
+├── grism-distributed/     # Partial Ray integration (to be renamed grism-ray)
+│   ├── planner/           # RayPlanner, Stage definitions
+│   ├── transport/         # Arrow IPC transport
+│   └── worker/            # Worker task definitions
 ```
 
-### 2.2 Physical Operators
+### 2.2 What Works Today
 
-All physical operators implement the `PhysicalOperator` trait:
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Physical Plan Model | ✅ Complete | `PhysicalPlan`, `PhysicalSchema`, `PlanProperties` |
+| All Physical Operators | ✅ Complete | 12 operators fully implemented and tested |
+| Expression Evaluator | ✅ Complete | Full support for all expression types |
+| Schema Inference | ✅ Complete | Type inference for all operators |
+| LocalExecutor | ✅ Complete | Pull-based pipeline execution |
+| LocalPhysicalPlanner | ✅ Complete | Logical to physical conversion |
+| Memory Management | ✅ Complete | `MemoryManager` trait with implementations |
+| Metrics Collection | ✅ Complete | `MetricsSink` trait |
+| InMemoryStorage | ✅ Complete | For testing |
+| Ray Stage Definitions | ⚠️ Partial | Basic Stage and StageId types |
+| Exchange Operator | ❌ Not Started | Required for distributed execution |
+| DistributedPlanner | ❌ Not Started | Stage splitting not implemented |
+| RayExecutor | ❌ Not Started | Ray task submission not implemented |
 
-```rust
-#[async_trait]
-pub trait PhysicalOperator: Send + Sync {
-    /// Execute this operator, pulling from children
-    async fn execute(
-        &self,
-        ctx: &dyn ExecutionContextTrait,
-    ) -> Result<Box<dyn RecordBatchStream>, GrismError>;
+### 2.3 Test Coverage
 
-    /// Operator's output schema
-    fn schema(&self) -> &PhysicalSchema;
-
-    /// Operator capabilities
-    fn capabilities(&self) -> OperatorCaps;
-
-    /// Child operators
-    fn children(&self) -> Vec<&dyn PhysicalOperator>;
-}
+```
+grism-engine: 97 unit tests + 33 integration tests (all passing)
+grism-distributed: 0 tests (skeleton only)
 ```
 
-**Operators in grism-engine:**
+---
 
-| Operator | Description | Blocking |
-|----------|-------------|----------|
-| `NodeScanExec` | Scan nodes by label | No |
-| `HyperedgeScanExec` | Scan hyperedges by label | No |
-| `FilterExec` | Filter rows by predicate | No |
-| `ProjectExec` | Project/compute columns | No |
-| `LimitExec` | Limit rows with offset | No |
-| `SortExec` | Multi-key sorting | **Yes** |
-| `HashAggregateExec` | Aggregation with GROUP BY | **Yes** |
-| `AdjacencyExpandExec` | Binary edge traversal | No |
-| `RoleExpandExec` | N-ary hyperedge traversal | No |
-| `UnionExec` | Union of two inputs | No |
-| `RenameExec` | Rename columns | No |
-| `EmptyExec` | Empty result | No |
+## 3. Migration Plan
 
-### 2.3 Expression Evaluator
+### 3.1 Phase 1: Extract Common Traits
 
-The `ExprEvaluator` converts `LogicalExpr` to Arrow arrays:
+**Goal**: Define runtime-agnostic interfaces in `grism-engine`.
+
+**Tasks**:
+
+1. Define `ExecutionContextTrait` in `grism-engine`:
 
 ```rust
-pub struct ExprEvaluator;
+// src/grism-engine/src/executor/traits.rs
 
-impl ExprEvaluator {
-    pub fn evaluate(
-        expr: &LogicalExpr,
-        batch: &RecordBatch,
-    ) -> Result<ArrayRef, GrismError>;
-}
-```
-
-**Supported expressions:**
-- Literals: Int64, Float64, String, Bool, Null
-- Column references: Direct and qualified
-- Binary operations: +, -, *, /, %, =, <>, <, <=, >, >=, AND, OR
-- Unary operations: NOT, IS NULL, IS NOT NULL, NEG
-- CASE expressions, IN lists, BETWEEN
-
-### 2.4 Schema Inference
-
-```rust
-pub mod schema_inference {
-    pub fn infer_expr_type(expr: &LogicalExpr, input_schema: &Schema) -> DataType;
-    pub fn build_project_schema(exprs: &[LogicalExpr], input: &Schema) -> Schema;
-    pub fn build_aggregate_schema(aggs: &[AggExpr], groups: &[LogicalExpr]) -> Schema;
-}
-```
-
-### 2.5 Operator Capabilities
-
-```rust
-pub struct OperatorCaps {
-    pub streaming: bool,
-    pub blocking: bool,
-    pub parallel_safe: bool,
-    pub requires_partitioning: Option<PartitioningSpec>,
-}
-```
-
-### 2.6 Memory & Metrics
-
-```rust
-// Memory management trait
-pub trait MemoryManager: Send + Sync {
-    fn try_reserve(&self, bytes: usize) -> Result<MemoryReservation, GrismError>;
-    fn current_usage(&self) -> usize;
-}
-
-// Metrics collection trait
-pub trait MetricsSink: Send + Sync {
-    fn record_rows(&self, operator: &str, rows: usize);
-    fn record_batches(&self, operator: &str, count: usize);
-    fn record_time(&self, operator: &str, duration: Duration);
-}
-```
-
-### 2.7 Execution Context Trait
-
-```rust
-/// Trait for execution context - implemented by both local and ray runtimes
+/// Runtime-agnostic execution context trait
 #[async_trait]
 pub trait ExecutionContextTrait: Send + Sync {
+    /// Access to storage layer
     fn storage(&self) -> &dyn Storage;
+    
+    /// Current snapshot for consistent reads
     fn snapshot_id(&self) -> SnapshotId;
+    
+    /// Memory management interface
     fn memory_manager(&self) -> &dyn MemoryManager;
+    
+    /// Optional metrics collection
     fn metrics_sink(&self) -> Option<&dyn MetricsSink>;
+    
+    /// Check if execution has been cancelled
     fn is_cancelled(&self) -> bool;
 }
 ```
 
----
-
-## 3. grism-local (Local Runtime)
-
-The `grism-local` crate provides single-machine execution with support for both in-memory and persistent storage.
-
-### 3.1 LocalExecutor
+2. Define `PhysicalPlanner` trait in `grism-engine`:
 
 ```rust
-pub struct LocalExecutor {
-    config: RuntimeConfig,
+// src/grism-engine/src/planner/traits.rs
+
+/// Runtime-agnostic physical planner trait
+pub trait PhysicalPlanner {
+    type Output;
+    
+    /// Convert logical plan to physical representation
+    fn plan(&self, logical: &LogicalPlan) -> Result<Self::Output, GrismError>;
 }
+```
 
-impl LocalExecutor {
-    pub fn new() -> Self;
-    pub fn with_config(config: RuntimeConfig) -> Self;
+3. Update `PhysicalOperator` trait to use trait objects:
 
-    pub async fn execute(
+```rust
+// Change from concrete ExecutionContext to trait
+#[async_trait]
+pub trait PhysicalOperator: Send + Sync {
+    async fn execute(
         &self,
-        plan: PhysicalPlan,
-        storage: Arc<dyn Storage>,
-        snapshot: SnapshotId,
-    ) -> Result<ExecutionResult, GrismError>;
+        ctx: &dyn ExecutionContextTrait,  // Changed from &ExecutionContext
+    ) -> Result<Box<dyn RecordBatchStream>, GrismError>;
+    
+    // ... rest unchanged
 }
 ```
 
-### 3.2 LocalPhysicalPlanner
+**Files to Modify**:
+- `src/grism-engine/src/executor/mod.rs` - Add traits module
+- `src/grism-engine/src/operators/traits.rs` - Update operator trait
+- All operator files - Update execute() signature
 
-```rust
-pub struct LocalPhysicalPlanner {
-    config: PlannerConfig,
-}
+### 3.2 Phase 2: Create grism-local
 
-impl PhysicalPlanner for LocalPhysicalPlanner {
-    fn plan(&self, logical: &LogicalPlan) -> Result<PhysicalPlan, GrismError>;
-}
+**Goal**: Move local runtime components to dedicated crate.
+
+**Tasks**:
+
+1. Create new crate structure:
+
+```
+src/grism-local/
+├── Cargo.toml
+└── src/
+    ├── lib.rs
+    ├── executor.rs      # LocalExecutor (moved from grism-engine)
+    ├── context.rs       # LocalExecutionContext (moved from grism-engine)
+    ├── planner.rs       # LocalPhysicalPlanner (moved from grism-engine)
+    └── result.rs        # ExecutionResult (moved from grism-engine)
 ```
 
-**Key characteristics:**
-- No Exchange operators inserted
-- Direct operator tree execution
-- Pull-based batch streaming
+2. Update `Cargo.toml` for grism-local:
 
-### 3.3 LocalExecutionContext
+```toml
+[package]
+name = "grism-local"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+grism-engine = { path = "../grism-engine" }
+grism-storage = { path = "../grism-storage" }
+grism-logical = { path = "../grism-logical" }
+arrow = "53"
+async-trait = "0.1"
+tokio = { version = "1", features = ["rt"] }
+```
+
+3. Implement `LocalExecutionContext`:
 
 ```rust
+// src/grism-local/src/context.rs
+
 pub struct LocalExecutionContext {
     storage: Arc<dyn Storage>,
     snapshot_id: SnapshotId,
@@ -272,398 +182,559 @@ pub struct LocalExecutionContext {
 }
 
 impl ExecutionContextTrait for LocalExecutionContext {
-    // Implement all trait methods
+    fn storage(&self) -> &dyn Storage {
+        self.storage.as_ref()
+    }
+    
+    fn snapshot_id(&self) -> SnapshotId {
+        self.snapshot_id
+    }
+    
+    fn memory_manager(&self) -> &dyn MemoryManager {
+        self.memory_manager.as_ref()
+    }
+    
+    fn metrics_sink(&self) -> Option<&dyn MetricsSink> {
+        self.metrics_sink.as_ref().map(|s| s.as_ref())
+    }
+    
+    fn is_cancelled(&self) -> bool {
+        self.cancellation.is_cancelled()
+    }
 }
 ```
 
-### 3.4 Storage Support
-
-| Storage Backend | Description | Use Case |
-|-----------------|-------------|----------|
-| `InMemoryStorage` | Hash-map based storage | Testing, small datasets |
-| `LanceStorage` | Lance format file storage | Production, large datasets |
+4. Add re-exports for backward compatibility in grism-engine:
 
 ```rust
-// Example usage with InMemoryStorage
-let storage = InMemoryStorage::new();
-let executor = LocalExecutor::new();
-let result = executor.execute(plan, Arc::new(storage), SnapshotId::default()).await?;
+// src/grism-engine/src/lib.rs
 
-// Example usage with LanceStorage
-let storage = LanceStorage::open("/data/graph.lance").await?;
-let executor = LocalExecutor::new();
-let result = executor.execute(plan, Arc::new(storage), SnapshotId::default()).await?;
+// Re-export from grism-local for backward compatibility
+// TODO: Add deprecation warnings in future version
+#[cfg(feature = "local-runtime")]
+pub use grism_local::{LocalExecutor, LocalPhysicalPlanner, ExecutionContext};
 ```
 
----
+### 3.3 Phase 3: Rename grism-distributed to grism-ray
 
-## 4. grism-ray (Distributed Runtime)
+**Goal**: Rename and restructure for Ray-specific implementation.
 
-The `grism-ray` crate provides distributed execution using Ray as the orchestration layer.
+**Tasks**:
 
-### 4.1 Core Concepts
+1. Rename directory:
 
-#### Exchange Operator
+```bash
+git mv src/grism-distributed src/grism-ray
+```
 
-Exchange is a **first-class physical operator** that:
-- Repartitions data
-- Introduces a synchronization boundary
-- Separates execution stages
+2. Update `Cargo.toml`:
+
+```toml
+[package]
+name = "grism-ray"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+grism-engine = { path = "../grism-engine" }
+grism-storage = { path = "../grism-storage" }
+grism-logical = { path = "../grism-logical" }
+arrow = "53"
+arrow-ipc = "53"
+async-trait = "0.1"
+tokio = { version = "1", features = ["rt", "net"] }
+# ray = "..." # Ray Rust bindings when available
+```
+
+3. Update workspace `Cargo.toml`:
+
+```toml
+[workspace]
+members = [
+    "src/grism-core",
+    "src/grism-logical",
+    "src/grism-optimizer",
+    "src/grism-engine",
+    "src/grism-local",      # New
+    "src/grism-ray",        # Renamed from grism-distributed
+    "src/grism-storage",
+    # ...
+]
+```
+
+4. Update all imports across the codebase.
+
+### 3.4 Phase 4: Implement Exchange Operator
+
+**Goal**: Add Exchange operator for data repartitioning.
+
+**Tasks**:
+
+1. Add Exchange types to grism-ray:
 
 ```rust
+// src/grism-ray/src/operators/exchange.rs
+
+/// Exchange modes for data repartitioning
+#[derive(Debug, Clone)]
+pub enum ExchangeMode {
+    /// Repartition data by hash of keys
+    Shuffle,
+    /// Replicate data to all workers
+    Broadcast,
+    /// Collect all data to coordinator
+    Gather,
+}
+
+/// Exchange operator for distributed data movement
 pub struct ExchangeExec {
+    pub child: Arc<dyn PhysicalOperator>,
     pub partitioning: PartitioningSpec,
     pub mode: ExchangeMode,
-    pub child: Box<dyn PhysicalOperator>,
 }
 
-pub enum ExchangeMode {
-    Shuffle,    // repartition across workers
-    Broadcast,  // replicate to all workers
-    Gather,     // many → one
+impl PhysicalOperator for ExchangeExec {
+    async fn execute(
+        &self,
+        ctx: &dyn ExecutionContextTrait,
+    ) -> Result<Box<dyn RecordBatchStream>, GrismError> {
+        // In local execution, Exchange is a no-op passthrough
+        // In distributed execution, this is handled by the stage executor
+        self.child.execute(ctx).await
+    }
+    
+    fn schema(&self) -> &PhysicalSchema {
+        self.child.schema()
+    }
+    
+    fn capabilities(&self) -> OperatorCaps {
+        OperatorCaps {
+            streaming: false,  // Exchange is a barrier
+            blocking: true,
+            parallel_safe: true,
+            requires_partitioning: Some(self.partitioning.clone()),
+        }
+    }
+    
+    fn children(&self) -> Vec<&dyn PhysicalOperator> {
+        vec![self.child.as_ref()]
+    }
 }
 ```
 
-#### Execution Stage
-
-A **Stage** is a connected sub-DAG of physical operators executed as a unit:
+2. Add partitioning specification:
 
 ```rust
+// src/grism-ray/src/planner/partitioning.rs
+
+/// Specification for how data is partitioned
+#[derive(Debug, Clone)]
+pub enum PartitioningSpec {
+    /// Hash partitioning by key columns
+    Hash {
+        keys: Vec<String>,
+        num_partitions: usize,
+    },
+    /// Range partitioning by key
+    Range {
+        key: String,
+        ranges: Vec<(Value, Value)>,
+    },
+    /// Partitioning by graph adjacency (keeps neighbors together)
+    Adjacency {
+        entity_type: EntityType,
+    },
+    /// Single partition (no distribution)
+    Single,
+    /// Round-robin distribution
+    RoundRobin {
+        num_partitions: usize,
+    },
+}
+
+impl PartitioningSpec {
+    /// Calculate partition for a given row
+    pub fn partition_for(&self, batch: &RecordBatch, row: usize) -> usize {
+        match self {
+            Self::Hash { keys, num_partitions } => {
+                let mut hasher = DefaultHasher::new();
+                for key in keys {
+                    // Hash the value at this column
+                    let col = batch.column_by_name(key).unwrap();
+                    hash_array_value(col, row, &mut hasher);
+                }
+                (hasher.finish() as usize) % num_partitions
+            }
+            Self::Single => 0,
+            Self::RoundRobin { num_partitions } => row % num_partitions,
+            // ... other cases
+        }
+    }
+}
+```
+
+### 3.5 Phase 5: Implement Stage Splitting
+
+**Goal**: Implement algorithm to split physical plans into stages.
+
+**Tasks**:
+
+1. Implement stage builder:
+
+```rust
+// src/grism-ray/src/planner/stage.rs
+
+/// Unique identifier for an execution stage
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct StageId(pub usize);
+
+/// An execution stage containing a sub-plan
 pub struct ExecutionStage {
     pub stage_id: StageId,
-    pub plan: PhysicalSubPlan,
+    pub root: Arc<dyn PhysicalOperator>,
     pub input_partitioning: Option<PartitioningSpec>,
     pub output_partitioning: Option<PartitioningSpec>,
 }
+
+/// Builder for constructing stages
+pub struct StageBuilder {
+    operators: Vec<Arc<dyn PhysicalOperator>>,
+    input_partitioning: Option<PartitioningSpec>,
+}
+
+impl StageBuilder {
+    pub fn new() -> Self {
+        Self {
+            operators: vec![],
+            input_partitioning: None,
+        }
+    }
+    
+    pub fn with_input_partitioning(mut self, spec: PartitioningSpec) -> Self {
+        self.input_partitioning = Some(spec);
+        self
+    }
+    
+    pub fn add(&mut self, op: Arc<dyn PhysicalOperator>) {
+        self.operators.push(op);
+    }
+    
+    pub fn finish(self, stage_id: StageId) -> ExecutionStage {
+        // Build operator tree from collected operators
+        let root = self.build_tree();
+        ExecutionStage {
+            stage_id,
+            root,
+            input_partitioning: self.input_partitioning,
+            output_partitioning: None, // Set by planner
+        }
+    }
+}
 ```
 
-### 4.2 DistributedPlanner
+2. Implement stage splitting algorithm:
 
 ```rust
+// src/grism-ray/src/planner/splitter.rs
+
+pub struct StageSplitter;
+
+impl StageSplitter {
+    /// Split a physical plan into execution stages
+    pub fn split(plan: &PhysicalPlan) -> Vec<ExecutionStage> {
+        let mut stages = vec![];
+        let mut current = StageBuilder::new();
+        let mut stage_id = 0;
+        
+        // Topological traversal of operator tree
+        for node in Self::topo_order(&plan.root) {
+            if Self::is_stage_boundary(node.as_ref()) {
+                // Finish current stage
+                if !current.is_empty() {
+                    stages.push(current.finish(StageId(stage_id)));
+                    stage_id += 1;
+                }
+                
+                // Handle Exchange specially
+                if let Some(exchange) = node.as_any().downcast_ref::<ExchangeExec>() {
+                    // Exchange defines output partitioning of previous stage
+                    // and input partitioning of next stage
+                    if let Some(last) = stages.last_mut() {
+                        last.output_partitioning = Some(exchange.partitioning.clone());
+                    }
+                    current = StageBuilder::new()
+                        .with_input_partitioning(exchange.partitioning.clone());
+                } else {
+                    current = StageBuilder::new();
+                }
+            }
+            
+            current.add(node.clone());
+        }
+        
+        // Final stage
+        if !current.is_empty() {
+            stages.push(current.finish(StageId(stage_id)));
+        }
+        
+        stages
+    }
+    
+    fn is_stage_boundary(op: &dyn PhysicalOperator) -> bool {
+        // Exchange always creates a boundary
+        if op.as_any().is::<ExchangeExec>() {
+            return true;
+        }
+        
+        // Blocking operators create boundaries in distributed mode
+        let caps = op.capabilities();
+        caps.blocking
+    }
+}
+```
+
+### 3.6 Phase 6: Implement Distributed Planner
+
+**Goal**: Create DistributedPlanner that inserts Exchange operators.
+
+```rust
+// src/grism-ray/src/planner/distributed.rs
+
 pub struct DistributedPlanner {
-    config: DistributedPlannerConfig,
+    pub config: DistributedPlannerConfig,
+}
+
+pub struct DistributedPlannerConfig {
+    pub default_parallelism: usize,
+    pub prefer_adjacency_partitioning: bool,
 }
 
 impl DistributedPlanner {
-    /// Plan a logical plan into distributed stages
-    pub fn plan(&self, logical: &LogicalPlan) -> Result<DistributedPlan, GrismError>;
-
-    /// Split physical plan into stages
-    pub fn split_into_stages(&self, plan: PhysicalPlan) -> Vec<ExecutionStage>;
-}
-```
-
-### 4.3 Partitioning Specification
-
-```rust
-pub enum PartitioningSpec {
-    Hash {
-        keys: Vec<PhysicalExpr>,
-        partitions: usize,
-    },
-    Range {
-        key: PhysicalExpr,
-        ranges: Vec<Range>,
-    },
-    Adjacency {
-        entity: EntityType, // Node | Hyperedge
-    },
-    Single,
-    RoundRobin {
-        partitions: usize,
-    },
-}
-```
-
-### 4.4 RayExecutor
-
-```rust
-pub struct RayExecutor {
-    config: RayExecutorConfig,
-}
-
-impl RayExecutor {
-    pub async fn execute(
-        &self,
-        stages: Vec<ExecutionStage>,
-        storage: Arc<dyn Storage>,
-    ) -> Result<ExecutionResult, GrismError>;
-}
-```
-
-### 4.5 Stage Execution Flow
-
-```text
-┌──────────────────────────────────────────────────────────────────────┐
-│                        DistributedPlan                               │
-├──────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  Stage 0 (parallel)          Stage 1 (parallel)       Stage 2       │
-│  ┌─────────────────┐         ┌─────────────────┐    ┌──────────┐    │
-│  │ Scan → Filter   │───────▶ │ Expand → Agg    │───▶│ Collect  │    │
-│  │ → Project       │ Exchange│ (partial)       │    │ (final)  │    │
-│  └─────────────────┘ (Hash)  └─────────────────┘    └──────────┘    │
-│         │                           │                    │           │
-│         ▼                           ▼                    ▼           │
-│  ┌─────────────┐            ┌─────────────┐       ┌──────────┐      │
-│  │ Worker 1    │            │ Worker 1    │       │ Driver   │      │
-│  │ Worker 2    │            │ Worker 2    │       │          │      │
-│  │ Worker 3    │            │ Worker 3    │       │          │      │
-│  └─────────────┘            └─────────────┘       └──────────┘      │
-│                                                                      │
-└──────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 5. Stage Splitting Algorithm
-
-### 5.1 Stage Boundary Rules
-
-A **new stage MUST start** at:
-
-1. Any `ExchangeExec` operator
-2. Any **blocking operator** when distribution is enabled
-3. Any operator that requires global state
-
-### 5.2 Splitting Algorithm
-
-```rust
-fn split_into_stages(plan: PhysicalPlan) -> Vec<ExecutionStage> {
-    let mut stages = vec![];
-    let mut current = StageBuilder::new();
-
-    for node in plan.topo_order() {
-        if node.is_exchange() || node.is_blocking() {
-            stages.push(current.finish());
-            current = StageBuilder::new();
-        }
-        current.add(node);
+    /// Plan a logical plan for distributed execution
+    pub fn plan(&self, logical: &LogicalPlan) -> Result<DistributedPlan, GrismError> {
+        // First, create a basic physical plan
+        let physical = self.create_physical_plan(logical)?;
+        
+        // Insert Exchange operators where needed
+        let with_exchanges = self.insert_exchanges(physical)?;
+        
+        // Split into stages
+        let stages = StageSplitter::split(&with_exchanges);
+        
+        Ok(DistributedPlan { stages })
     }
-
-    stages.push(current.finish());
-    stages
+    
+    fn insert_exchanges(&self, plan: PhysicalPlan) -> Result<PhysicalPlan, GrismError> {
+        // Walk the plan and insert Exchange operators at:
+        // 1. Before blocking operators (Aggregate, Sort)
+        // 2. Before Expand operators that need repartitioning
+        // 3. Before the final Collect
+        
+        self.transform_plan(&plan.root, None)
+    }
+    
+    fn transform_plan(
+        &self,
+        op: &Arc<dyn PhysicalOperator>,
+        required_partitioning: Option<&PartitioningSpec>,
+    ) -> Result<PhysicalPlan, GrismError> {
+        // Check if we need to insert an Exchange
+        let current_partitioning = self.infer_partitioning(op);
+        
+        let result = if let Some(required) = required_partitioning {
+            if !self.partitioning_satisfies(&current_partitioning, required) {
+                // Need Exchange
+                Arc::new(ExchangeExec {
+                    child: op.clone(),
+                    partitioning: required.clone(),
+                    mode: ExchangeMode::Shuffle,
+                })
+            } else {
+                op.clone()
+            }
+        } else {
+            op.clone()
+        };
+        
+        // ... recursively transform children
+        Ok(PhysicalPlan::new(result))
+    }
 }
 ```
 
 ---
 
-## 6. Exchange Semantics
+## 4. Implementation Considerations
 
-### 6.1 Guarantees
+### 4.1 Backward Compatibility
 
-| Property | Guarantee |
-|----------|-----------|
-| Completeness | All rows forwarded |
-| Disjointness | Each row appears once (except Broadcast) |
-| Determinism | Same input → same partition |
-| Barrier | Downstream waits for upstream readiness |
+To maintain backward compatibility during migration:
 
-### 6.2 Exchange Execution Steps (Shuffle)
+1. **Feature Flags**: Use Cargo features to control crate dependencies
 
-1. Upstream stage emits `RecordBatch`
-2. Batch partitioned using `PartitioningSpec`
-3. Sub-batches sent to Ray object store via Arrow IPC
-4. Downstream tasks pull assigned partitions
-
----
-
-## 7. Blocking Operators in Distributed Context
-
-### 7.1 Aggregate (Two-Phase)
-
-```text
-Stage 0: PartialAggregate (parallel)
-   ↓ Exchange(Hash by group key)
-Stage 1: FinalAggregate
+```toml
+# grism-engine/Cargo.toml
+[features]
+default = ["local-runtime"]
+local-runtime = ["grism-local"]
 ```
 
-### 7.2 Sort (Two-Phase)
+2. **Re-exports**: Re-export moved types from original locations with deprecation warnings
 
-```text
-Stage 0: LocalSort (parallel)
-   ↓ Exchange(Range)
-Stage 1: MergeSort
-```
+3. **Version Pinning**: Maintain API compatibility within minor versions
 
----
+### 4.2 Testing Strategy
 
-## 8. Expand-Aware Partitioning
-
-### 8.1 Adjacency Partitioning
-
-For graph traversal workloads, adjacency-based partitioning keeps most expansions local:
+1. **Unit Tests**: Each component has comprehensive unit tests
+2. **Integration Tests**: End-to-end tests for both local and distributed execution
+3. **Equivalence Tests**: Verify local and distributed produce identical results
 
 ```rust
-PartitioningSpec::Adjacency {
-    entity: EntityType::Node,
+#[test]
+fn test_local_distributed_equivalence() {
+    let logical_plan = create_test_plan();
+    
+    // Execute locally
+    let local_result = LocalExecutor::new()
+        .execute(local_plan, storage.clone())
+        .await?;
+    
+    // Execute distributed (single worker for comparison)
+    let ray_result = RayExecutor::new_local()
+        .execute(distributed_plan, storage.clone())
+        .await?;
+    
+    assert_batches_equal(&local_result.batches, &ray_result.batches);
 }
 ```
 
-### 8.2 N-ary Expand
+### 4.3 Performance Considerations
 
-N-ary hyperedge expansion often requires shuffle:
+1. **Zero-Copy Where Possible**: Use Arrow's zero-copy semantics
+2. **Batch Size Tuning**: Configurable batch sizes for different workloads
+3. **Memory Budgets**: Respect memory limits in blocking operators
+4. **Metrics Collection**: Optional to avoid overhead in production
 
-```text
-Stage 0: Scan nodes
-   ↓ Exchange(Adjacency)
-Stage 1: RoleExpand (hyperedges co-located with nodes)
-```
-
----
-
-## 9. Control Plane vs Data Plane
-
-| Plane | Responsibility | Owner |
-|-------|----------------|-------|
-| Control | Stage graph, scheduling, progress | Ray |
-| Data | Arrow batch movement, execution | Rust |
-
-**Ray orchestrates, Rust executes.**
-
----
-
-## 10. Failure & Retry Semantics
-
-Stage boundaries define **failure domains**:
-
-| Failure | Recovery |
-|---------|----------|
-| Worker crash | Retry stage |
-| Exchange failure | Re-run upstream stage |
-| Blocking stage failure | Restart stage |
-
-No partial stage result is reused unless idempotent.
-
----
-
-## 11. Explainability
-
-### 11.1 EXPLAIN DISTRIBUTED
-
-```text
-Stage 0:
-  NodeScan(Person) → Filter(age > 21) → Project(name, age)
-  Parallelism: 8
-  Output: HashPartition(node_id)
-
-    ↓ Exchange(Shuffle, Hash(node_id))
-
-Stage 1:
-  Aggregate(COUNT(*), GROUP BY city)
-  Parallelism: 4
-  Output: HashPartition(city)
-
-    ↓ Exchange(Gather)
-
-Stage 2:
-  Collect
-  Parallelism: 1
-```
-
----
-
-## 12. Migration Path
-
-### 12.1 Current State
-
-```
-grism-engine/      # Contains both engine AND local runtime
-grism-distributed/ # Partial Ray integration
-```
-
-### 12.2 Target State
-
-```
-grism-engine/      # Common: operators, expressions, schemas, traits
-grism-local/       # Runtime: LocalExecutor, LocalPhysicalPlanner
-grism-ray/         # Runtime: RayExecutor, DistributedPlanner, Exchange
-```
-
-### 12.3 Migration Steps
-
-1. **Extract common traits** from `grism-engine` into stable interfaces
-2. **Create `grism-local`** by moving `LocalExecutor`, `LocalPhysicalPlanner`, `ExecutionContext`
-3. **Rename `grism-distributed`** to `grism-ray`
-4. **Implement Exchange operator** in `grism-ray`
-5. **Implement stage splitting** in `grism-ray`
-6. **Keep current local engine functionality unchanged** - users should see no difference
-
----
-
-## 13. API Compatibility
-
-### 13.1 Local Execution (Unchanged)
+### 4.4 Error Handling
 
 ```rust
-// Before and after: identical API
-use grism_local::{LocalExecutor, LocalPhysicalPlanner};
-
-let planner = LocalPhysicalPlanner::new();
-let plan = planner.plan(&logical_plan)?;
-
-let executor = LocalExecutor::new();
-let result = executor.execute(plan, storage, snapshot).await?;
-```
-
-### 13.2 Distributed Execution (New)
-
-```rust
-use grism_ray::{RayExecutor, DistributedPlanner};
-
-let planner = DistributedPlanner::new();
-let stages = planner.plan(&logical_plan)?;
-
-let executor = RayExecutor::connect("ray://cluster:10001")?;
-let result = executor.execute(stages, storage).await?;
+/// Execution-layer errors
+#[derive(Debug, thiserror::Error)]
+pub enum ExecutionError {
+    #[error("Memory limit exceeded: requested {requested}, limit {limit}")]
+    MemoryExceeded { requested: usize, limit: usize },
+    
+    #[error("Execution cancelled")]
+    Cancelled,
+    
+    #[error("Stage {0} failed: {1}")]
+    StageFailed(StageId, String),
+    
+    #[error("Exchange failed: {0}")]
+    ExchangeFailed(String),
+    
+    #[error("Worker {0} unreachable")]
+    WorkerUnreachable(String),
+}
 ```
 
 ---
 
-## 14. Implementation Checklist
+## 5. File Changes Summary
 
-### Phase 1: Engine Separation
+### New Files to Create
+
+| File | Description |
+|------|-------------|
+| `src/grism-local/Cargo.toml` | New crate manifest |
+| `src/grism-local/src/lib.rs` | Crate entry point |
+| `src/grism-local/src/executor.rs` | LocalExecutor |
+| `src/grism-local/src/context.rs` | LocalExecutionContext |
+| `src/grism-local/src/planner.rs` | LocalPhysicalPlanner |
+| `src/grism-engine/src/executor/traits.rs` | ExecutionContextTrait |
+| `src/grism-engine/src/planner/traits.rs` | PhysicalPlanner trait |
+| `src/grism-ray/src/operators/exchange.rs` | ExchangeExec |
+| `src/grism-ray/src/planner/distributed.rs` | DistributedPlanner |
+| `src/grism-ray/src/planner/splitter.rs` | StageSplitter |
+
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `Cargo.toml` (workspace) | Add new crate members |
+| `src/grism-engine/src/lib.rs` | Export traits, add re-exports |
+| `src/grism-engine/src/operators/*.rs` | Update execute() signatures |
+| `src/grism-ray/Cargo.toml` | Rename from grism-distributed |
+| `src/grism-ray/src/lib.rs` | Update exports |
+
+### Files to Move
+
+| From | To |
+|------|-----|
+| `src/grism-engine/src/executor/local.rs` | `src/grism-local/src/executor.rs` |
+| `src/grism-engine/src/executor/context.rs` | `src/grism-local/src/context.rs` |
+| `src/grism-engine/src/executor/result.rs` | `src/grism-local/src/result.rs` |
+| `src/grism-engine/src/planner/local.rs` | `src/grism-local/src/planner.rs` |
+
+---
+
+## 6. Implementation Checklist
+
+### Phase 1: Extract Common Traits
 - [ ] Define `ExecutionContextTrait` in grism-engine
 - [ ] Define `PhysicalPlanner` trait in grism-engine
-- [ ] Ensure all operators depend only on traits, not concrete types
+- [ ] Update `PhysicalOperator` trait to use `dyn ExecutionContextTrait`
+- [ ] Update all operator implementations
+- [ ] Verify all tests pass
 
 ### Phase 2: Create grism-local
-- [ ] Move `LocalExecutor` to grism-local
-- [ ] Move `LocalPhysicalPlanner` to grism-local
-- [ ] Move `ExecutionContext` implementation to grism-local
-- [ ] Add re-exports for backward compatibility
+- [ ] Create `src/grism-local/` directory structure
+- [ ] Create `Cargo.toml` with dependencies
+- [ ] Move `LocalExecutor` from grism-engine
+- [ ] Move `LocalPhysicalPlanner` from grism-engine
+- [ ] Move `ExecutionContext` as `LocalExecutionContext`
+- [ ] Implement `ExecutionContextTrait` for `LocalExecutionContext`
+- [ ] Add re-exports to grism-engine for compatibility
+- [ ] Update workspace Cargo.toml
+- [ ] Verify all tests pass
 
 ### Phase 3: Rename to grism-ray
-- [ ] Rename `grism-distributed` to `grism-ray`
-- [ ] Update all imports and references
-- [ ] Implement `ExchangeExec` operator
-- [ ] Implement `DistributedPlanner` with stage splitting
-- [ ] Implement Ray task submission
+- [ ] Rename directory from grism-distributed to grism-ray
+- [ ] Update package name in Cargo.toml
+- [ ] Update workspace Cargo.toml
+- [ ] Update all imports across codebase
+- [ ] Verify compilation
 
-### Phase 4: Integration
-- [ ] Integrate with Ray object store for Arrow IPC
-- [ ] Implement two-phase aggregation
-- [ ] Implement range-partitioned sort
-- [ ] Add distributed EXPLAIN support
+### Phase 4: Implement Exchange
+- [ ] Add `ExchangeMode` enum
+- [ ] Add `PartitioningSpec` enum
+- [ ] Implement `ExchangeExec` operator
+- [ ] Add hash partitioning logic
+- [ ] Add unit tests for Exchange
+
+### Phase 5: Implement Stage Splitting
+- [ ] Implement `StageBuilder`
+- [ ] Implement `StageSplitter`
+- [ ] Add unit tests for stage splitting
+- [ ] Verify correct boundary detection
+
+### Phase 6: Implement Distributed Planner
+- [ ] Implement `DistributedPlanner`
+- [ ] Implement Exchange insertion logic
+- [ ] Implement partitioning inference
+- [ ] Add integration tests
+
+### Phase 7: Implement Ray Integration
+- [ ] Add Ray task submission
+- [ ] Implement Arrow IPC transport
+- [ ] Implement stage execution on workers
+- [ ] Add distributed execution tests
 
 ---
 
-## 15. Summary
+## 7. References
 
-| Crate | What It Contains | Key Types |
-|-------|------------------|-----------|
-| **grism-engine** | Runtime-agnostic physical layer | `PhysicalPlan`, `PhysicalOperator`, `ExprEvaluator`, `OperatorCaps` |
-| **grism-local** | Single-machine execution | `LocalExecutor`, `LocalPhysicalPlanner`, `LocalExecutionContext` |
-| **grism-ray** | Distributed Ray execution | `RayExecutor`, `DistributedPlanner`, `ExchangeExec`, `ExecutionStage` |
-
-### Architectural Guarantees
-
-1. **Zero semantic drift**: Local and distributed execution produce identical results
-2. **Local engine unchanged**: Current local execution API remains stable
-3. **Explicit distribution**: Exchange operators are visible in plans
-4. **Hypergraph-correct**: Expand operators preserve adjacency semantics
-5. **Explainable**: Distributed plans can be inspected and debugged
-
-> **Exchange is the only way data moves across stages.**
-> **Stages are the only unit of distribution.**
-> **Operators never know they are distributed.**
+* **RFC-0102**: Execution Engine Architecture (authoritative design)
+* **RFC-0008**: Physical Plan & Operator Interfaces
+* **RFC-0010**: Distributed & Parallel Execution
+* **RFC-0100**: Architecture Design Document
