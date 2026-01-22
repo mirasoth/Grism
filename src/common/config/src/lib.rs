@@ -13,20 +13,13 @@ pub mod python;
 /// Global Grism configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "python", pyclass)]
+#[derive(Default)]
+#[allow(clippy::unsafe_derive_deserialize)]
 pub struct GrismConfig {
     /// Execution configuration.
     pub execution: ExecutionConfig,
     /// Storage configuration.
     pub storage: StorageConfig,
-}
-
-impl Default for GrismConfig {
-    fn default() -> Self {
-        Self {
-            execution: ExecutionConfig::default(),
-            storage: StorageConfig::default(),
-        }
-    }
 }
 
 /// Execution backend configuration.
@@ -51,9 +44,10 @@ impl Default for ExecutionConfig {
 }
 
 /// Executor type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ExecutorType {
     /// Local single-machine executor.
+    #[default]
     Local,
     /// Ray distributed executor.
     Ray,

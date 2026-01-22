@@ -76,7 +76,7 @@
 //!
 //! # Crate Features
 //!
-//! - `python` - Enable PyO3 bindings for Python integration
+//! - `python` - Enable `PyO3` bindings for Python integration
 
 pub mod hypergraph;
 pub mod schema;

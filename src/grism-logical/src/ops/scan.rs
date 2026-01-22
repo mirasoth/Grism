@@ -19,7 +19,7 @@ pub enum ScanKind {
 
 impl ScanKind {
     /// Get the name for display.
-    pub fn name(&self) -> &'static str {
+    pub const fn name(&self) -> &'static str {
         match self {
             Self::Node => "Node",
             Self::Hyperedge => "Hyperedge",
@@ -69,7 +69,7 @@ pub struct ScanOp {
 
 impl ScanOp {
     /// Create a new node scan.
-    pub fn nodes() -> Self {
+    pub const fn nodes() -> Self {
         Self {
             kind: ScanKind::Node,
             label: None,
@@ -93,7 +93,7 @@ impl ScanOp {
     }
 
     /// Create a new hyperedge scan.
-    pub fn hyperedges() -> Self {
+    pub const fn hyperedges() -> Self {
         Self {
             kind: ScanKind::Hyperedge,
             label: None,
@@ -117,7 +117,7 @@ impl ScanOp {
     }
 
     /// Create a new edge scan (binary projection).
-    pub fn edges() -> Self {
+    pub const fn edges() -> Self {
         Self {
             kind: ScanKind::Edge,
             label: None,
@@ -141,30 +141,35 @@ impl ScanOp {
     }
 
     /// Set the label filter.
+    #[must_use]
     pub fn with_label(mut self, label: impl Into<String>) -> Self {
         self.label = Some(label.into());
         self
     }
 
     /// Set the namespace.
+    #[must_use]
     pub fn with_namespace(mut self, namespace: impl Into<String>) -> Self {
         self.namespace = Some(namespace.into());
         self
     }
 
     /// Set the alias.
+    #[must_use]
     pub fn with_alias(mut self, alias: impl Into<String>) -> Self {
         self.alias = Some(alias.into());
         self
     }
 
     /// Set an inline predicate.
+    #[must_use]
     pub fn with_predicate(mut self, predicate: LogicalExpr) -> Self {
         self.predicate = Some(predicate);
         self
     }
 
     /// Set columns to project.
+    #[must_use]
     pub fn with_projection(mut self, columns: Vec<String>) -> Self {
         self.projection = columns;
         self
@@ -172,13 +177,14 @@ impl ScanOp {
 
     /// Get the effective name for this scan (alias or label or kind).
     pub fn effective_name(&self) -> String {
-        if let Some(ref alias) = self.alias {
-            alias.clone()
-        } else if let Some(ref label) = self.label {
-            label.clone()
-        } else {
-            self.kind.name().to_string()
-        }
+        self.alias.as_ref().map_or_else(
+            || {
+                self.label
+                    .as_ref()
+                    .map_or_else(|| self.kind.name().to_string(), std::clone::Clone::clone)
+            },
+            std::clone::Clone::clone,
+        )
     }
 }
 
@@ -187,15 +193,15 @@ impl std::fmt::Display for ScanOp {
         write!(f, "Scan({})", self.kind)?;
 
         if let Some(ref label) = self.label {
-            write!(f, ", label={}", label)?;
+            write!(f, ", label={label}")?;
         }
 
         if let Some(ref ns) = self.namespace {
-            write!(f, ", namespace={}", ns)?;
+            write!(f, ", namespace={ns}")?;
         }
 
         if let Some(ref alias) = self.alias {
-            write!(f, " AS {}", alias)?;
+            write!(f, " AS {alias}")?;
         }
 
         Ok(())

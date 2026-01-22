@@ -8,8 +8,8 @@
 
 mod column_ref;
 mod entity;
-mod schema;
+mod schema_impl;
 
 pub use column_ref::ColumnRef;
 pub use entity::{EntityInfo, EntityKind};
-pub use schema::{ColumnInfo, PropertySchema, Schema, SchemaViolation};
+pub use schema_impl::{ColumnInfo, PropertySchema, Schema, SchemaViolation};

@@ -21,7 +21,7 @@ impl std::fmt::Display for InferMode {
         match self {
             Self::Standard => write!(f, "STANDARD"),
             Self::Fixpoint => write!(f, "FIXPOINT"),
-            Self::Bounded(n) => write!(f, "BOUNDED({})", n),
+            Self::Bounded(n) => write!(f, "BOUNDED({n})"),
         }
     }
 }
@@ -37,7 +37,7 @@ impl std::fmt::Display for InferMode {
 ///
 /// - Infer MUST be monotonic unless explicitly stated
 /// - Fixpoint semantics MAY apply (defined in RFC-0013)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InferOp {
     /// Name of the ruleset to apply.
     pub ruleset: String,
@@ -60,24 +60,28 @@ impl InferOp {
     }
 
     /// Set inference mode.
-    pub fn with_mode(mut self, mode: InferMode) -> Self {
+    #[must_use]
+    pub const fn with_mode(mut self, mode: InferMode) -> Self {
         self.mode = mode;
         self
     }
 
     /// Use fixpoint iteration.
-    pub fn fixpoint(mut self) -> Self {
+    #[must_use]
+    pub const fn fixpoint(mut self) -> Self {
         self.mode = InferMode::Fixpoint;
         self
     }
 
     /// Use bounded iterations.
-    pub fn bounded(mut self, iterations: u32) -> Self {
+    #[must_use]
+    pub const fn bounded(mut self, iterations: u32) -> Self {
         self.mode = InferMode::Bounded(iterations);
         self
     }
 
     /// Add a parameter.
+    #[must_use]
     pub fn with_param(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.parameters.insert(key.into(), value.into());
         self
@@ -92,10 +96,10 @@ impl std::fmt::Display for InferOp {
             let params = self
                 .parameters
                 .iter()
-                .map(|(k, v)| format!("{}={}", k, v))
+                .map(|(k, v)| format!("{k}={v}"))
                 .collect::<Vec<_>>()
                 .join(", ");
-            write!(f, ", params=[{}]", params)?;
+            write!(f, ", params=[{params}]")?;
         }
 
         Ok(())

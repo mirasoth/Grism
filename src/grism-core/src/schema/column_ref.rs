@@ -46,17 +46,15 @@ impl ColumnRef {
     }
 
     /// Check if this reference is qualified.
-    pub fn is_qualified(&self) -> bool {
+    pub const fn is_qualified(&self) -> bool {
         self.qualifier.is_some()
     }
 
     /// Get the full display name.
     pub fn display_name(&self) -> String {
-        if let Some(ref q) = self.qualifier {
-            format!("{}.{}", q, self.name)
-        } else {
-            self.name.clone()
-        }
+        self.qualifier
+            .as_ref()
+            .map_or_else(|| self.name.clone(), |q| format!("{q}.{}", self.name))
     }
 
     /// Resolve this column reference against a schema.
@@ -68,13 +66,13 @@ impl ColumnRef {
     /// 2. If qualifier is absent:
     ///    - Search all entities in reverse order (most recent first)
     ///    - If exactly one match, return it
-    ///    - If multiple matches, return AmbiguousColumn error
-    ///    - If no match, return ColumnNotFound error
+    ///    - If multiple matches, return ambiguous column error
+    ///    - If no match, return column not found error
     pub fn resolve(&self, schema: &Schema) -> GrismResult<usize> {
         if let Some(ref qualifier) = self.qualifier {
             // Qualified lookup
             let entity = schema.find_entity(qualifier).ok_or_else(|| {
-                GrismError::SchemaError(format!("Entity '{}' not found in schema", qualifier))
+                GrismError::SchemaError(format!("Entity '{qualifier}' not found in schema"))
             })?;
 
             schema

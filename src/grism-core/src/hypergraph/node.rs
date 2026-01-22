@@ -36,18 +36,21 @@ impl Node {
     }
 
     /// Add a label to this node.
+    #[must_use]
     pub fn with_label(mut self, label: impl Into<Label>) -> Self {
         self.labels.push(label.into());
         self
     }
 
     /// Add labels to this node.
+    #[must_use]
     pub fn with_labels(mut self, labels: impl IntoIterator<Item = impl Into<Label>>) -> Self {
         self.labels.extend(labels.into_iter().map(Into::into));
         self
     }
 
     /// Add properties to this node.
+    #[must_use]
     pub fn with_properties(mut self, properties: PropertyMap) -> Self {
         self.properties = properties;
         self

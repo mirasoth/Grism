@@ -1,3 +1,7 @@
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::needless_collect)]
+#![allow(clippy::uninlined_format_args)]
 //! Schema definition for Grism frames.
 
 use std::collections::HashMap;
@@ -36,7 +40,7 @@ impl fmt::Display for SchemaViolation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MissingEntity { name, kind } => {
-                write!(f, "Missing {} '{}' declared in schema", kind, name)
+                write!(f, "Missing {kind} '{name}' declared in schema")
             }
             Self::TypeMismatch {
                 entity,
@@ -46,29 +50,22 @@ impl fmt::Display for SchemaViolation {
             } => {
                 write!(
                     f,
-                    "Type mismatch for {}.{}: expected {}, got {}",
-                    entity, property, expected, actual
+                    "Type mismatch for {entity}.{property}: expected {expected}, got {actual}"
                 )
             }
             Self::UndeclaredProperty { entity, property } => {
-                write!(
-                    f,
-                    "Undeclared property '{}' on entity '{}'",
-                    property, entity
-                )
+                write!(f, "Undeclared property '{property}' on entity '{entity}'")
             }
             Self::MissingRequiredProperty { entity, property } => {
                 write!(
                     f,
-                    "Missing required property '{}' on entity '{}'",
-                    property, entity
+                    "Missing required property '{property}' on entity '{entity}'"
                 )
             }
             Self::NullNotAllowed { entity, property } => {
                 write!(
                     f,
-                    "Property '{}.{}' is null but schema declares it as non-nullable",
-                    entity, property
+                    "Property '{entity}.{property}' is null but schema declares it as non-nullable"
                 )
             }
         }
@@ -92,6 +89,7 @@ pub struct ColumnInfo {
 
 impl ColumnInfo {
     /// Create a new column info.
+    #[must_use]
     pub fn new(name: impl Into<String>, data_type: DataType) -> Self {
         Self {
             name: name.into(),
@@ -102,24 +100,24 @@ impl ColumnInfo {
     }
 
     /// Set the qualifier for this column.
+    #[must_use]
     pub fn with_qualifier(mut self, qualifier: impl Into<String>) -> Self {
         self.qualifier = Some(qualifier.into());
         self
     }
 
     /// Set nullable for this column.
-    pub fn with_nullable(mut self, nullable: bool) -> Self {
+    #[must_use]
+    pub const fn with_nullable(mut self, nullable: bool) -> Self {
         self.nullable = nullable;
         self
     }
 
     /// Get the full qualified name.
     pub fn qualified_name(&self) -> String {
-        if let Some(ref q) = self.qualifier {
-            format!("{}.{}", q, self.name)
-        } else {
-            self.name.clone()
-        }
+        self.qualifier
+            .as_ref()
+            .map_or_else(|| self.name.clone(), |q| format!("{}.{q}", self.name))
     }
 }
 
@@ -148,12 +146,14 @@ impl PropertySchema {
     }
 
     /// Set whether this property can be null.
+    #[must_use]
     pub fn with_nullable(mut self, nullable: bool) -> Self {
         self.nullable = nullable;
         self
     }
 
     /// Set whether this property is required.
+    #[must_use]
     pub fn with_required(mut self, required: bool) -> Self {
         self.required = required;
         self
@@ -168,7 +168,7 @@ pub struct Schema {
     /// Entities (labels/aliases) in scope.
     pub entities: Vec<EntityInfo>,
     /// Property schemas per entity label.
-    /// Maps label -> property_name -> PropertySchema
+    /// Maps label to `property_name` to `PropertySchema`
     #[serde(default)]
     pub property_schemas: HashMap<String, HashMap<String, PropertySchema>>,
 }
@@ -287,19 +287,16 @@ impl Schema {
         strict: bool,
     ) -> Result<(), SchemaViolation> {
         // Check if property is declared in schema
-        let property_schema = match self.get_property_schema(label, property_name) {
-            Some(schema) => schema,
-            None => {
-                // In strict mode, undeclared properties are violations
-                if strict {
-                    return Err(SchemaViolation::UndeclaredProperty {
-                        entity: label.to_string(),
-                        property: property_name.to_string(),
-                    });
-                }
-                // In non-strict mode, undeclared properties are allowed
-                return Ok(());
+        let Some(property_schema) = self.get_property_schema(label, property_name) else {
+            // In strict mode, undeclared properties are violations
+            if strict {
+                return Err(SchemaViolation::UndeclaredProperty {
+                    entity: label.to_string(),
+                    property: property_name.to_string(),
+                });
             }
+            // In non-strict mode, undeclared properties are allowed
+            return Ok(());
         };
 
         // Check null values
@@ -397,26 +394,30 @@ impl Schema {
 
     /// Get all qualified column names.
     pub fn qualified_column_names(&self) -> Vec<String> {
-        self.columns.iter().map(|c| c.qualified_name()).collect()
+        self.columns
+            .iter()
+            .map(ColumnInfo::qualified_name)
+            .collect()
     }
 
     /// Check if the schema is empty.
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.columns.is_empty()
     }
 
     /// Get the number of columns.
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.columns.len()
     }
 
     /// Merge another schema into this one.
-    pub fn merge(&mut self, other: &Schema) {
+    pub fn merge(&mut self, other: &Self) {
         self.columns.extend(other.columns.iter().cloned());
         self.entities.extend(other.entities.iter().cloned());
     }
 
     /// Create a projection of this schema with only selected columns.
+    #[must_use]
     pub fn project(&self, indices: &[usize]) -> Self {
         let columns = indices
             .iter()
@@ -457,30 +458,22 @@ impl std::fmt::Display for Schema {
     }
 }
 
-/// Check if a Value is compatible with a DataType.
+/// Check if a Value is compatible with a `DataType`.
 ///
 /// This function checks if a runtime value matches an expected schema type,
 /// with support for type coercion (e.g., Int64 -> Float64).
 fn value_matches_type(value: &Value, expected: &DataType) -> bool {
     match (value, expected) {
-        // Null matches nullable types
-        (Value::Null, _) => true,
-
-        // Exact type matches
-        (Value::Bool(_), DataType::Bool) => true,
-        (Value::Int64(_), DataType::Int64) => true,
-        (Value::Float64(_), DataType::Float64) => true,
-        (Value::String(_), DataType::String) => true,
-        (Value::Binary(_), DataType::Binary) => true,
-        (Value::Symbol(_), DataType::Symbol) => true,
-        (Value::Timestamp(_), DataType::Timestamp) => true,
-        (Value::Date(_), DataType::Date) => true,
-
-        // Type coercion: Int64 can coerce to Float64
-        (Value::Int64(_), DataType::Float64) => true,
-
-        // Type coercion: Symbol can coerce to String
-        (Value::Symbol(_), DataType::String) => true,
+        // Null matches nullable types, exact type matches and type coercion
+        (Value::Null, _)
+        | (Value::Bool(_), DataType::Bool)
+        | (Value::Int64(_), DataType::Int64 | DataType::Float64)
+        | (Value::Float64(_), DataType::Float64)
+        | (Value::String(_) | Value::Symbol(_), DataType::String)
+        | (Value::Binary(_), DataType::Binary)
+        | (Value::Symbol(_), DataType::Symbol)
+        | (Value::Timestamp(_), DataType::Timestamp)
+        | (Value::Date(_), DataType::Date) => true,
 
         // Vector type: check dimension if specified
         (Value::Vector(v), DataType::Vector(dim)) => *dim == 0 || v.len() == *dim,

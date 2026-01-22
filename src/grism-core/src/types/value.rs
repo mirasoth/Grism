@@ -1,5 +1,13 @@
 //! Runtime value representation.
 
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_lossless)]
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::needless_collect)]
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -45,12 +53,12 @@ pub enum Value {
 
 impl Value {
     /// Check if this value is null.
-    pub fn is_null(&self) -> bool {
+    pub const fn is_null(&self) -> bool {
         matches!(self, Self::Null)
     }
 
     /// Try to get as boolean.
-    pub fn as_bool(&self) -> Option<bool> {
+    pub const fn as_bool(&self) -> Option<bool> {
         match self {
             Self::Bool(b) => Some(*b),
             _ => None,
@@ -58,7 +66,7 @@ impl Value {
     }
 
     /// Try to get as i64.
-    pub fn as_int64(&self) -> Option<i64> {
+    pub const fn as_int64(&self) -> Option<i64> {
         match self {
             Self::Int64(i) => Some(*i),
             _ => None,
@@ -66,7 +74,7 @@ impl Value {
     }
 
     /// Try to get as f64.
-    pub fn as_float64(&self) -> Option<f64> {
+    pub const fn as_float64(&self) -> Option<f64> {
         match self {
             Self::Float64(f) => Some(*f),
             Self::Int64(i) => Some(*i as f64),
@@ -91,7 +99,7 @@ impl Value {
     }
 
     /// Get the type name for error messages.
-    pub fn type_name(&self) -> &'static str {
+    pub const fn type_name(&self) -> &'static str {
         match self {
             Self::Null => "Null",
             Self::Bool(_) => "Bool",
@@ -109,6 +117,7 @@ impl Value {
     }
 
     /// Convert this value to an Arrow scalar value.
+    #[must_use]
     pub fn to_arrow_scalar(&self) -> Option<ArrayRef> {
         match self {
             Self::Null => None,
@@ -120,7 +129,7 @@ impl Value {
             Self::Vector(v) => {
                 // Convert vector to a list of floats
                 let float_array =
-                    Float64Array::from(v.iter().map(|&x| x as f64).collect::<Vec<_>>());
+                    Float64Array::from(v.iter().map(|&x| f64::from(x)).collect::<Vec<_>>());
                 let field = Arc::new(Field::new("item", ArrowDataType::Float64, false));
                 let offsets = vec![0, v.len() as i32];
                 Some(Arc::new(ListArray::new(
@@ -164,8 +173,7 @@ impl Value {
                 }
 
                 // For simplicity, convert all values to their string representation
-                let string_values: Vec<String> =
-                    values.iter().map(|v| format!("{:?}", v)).collect();
+                let string_values: Vec<String> = values.iter().map(|v| format!("{v:?}")).collect();
                 let string_array = StringArray::from(string_values);
                 let field = Arc::new(Field::new("item", ArrowDataType::Utf8, false));
                 let offsets: Vec<i32> = std::iter::once(0)
@@ -228,12 +236,11 @@ impl Value {
             Self::Bool(_) => ArrowDataType::Boolean,
             Self::Int64(_) => ArrowDataType::Int64,
             Self::Float64(_) => ArrowDataType::Float64,
-            Self::String(_) => ArrowDataType::Utf8,
+            Self::String(_) | Self::Symbol(_) => ArrowDataType::Utf8,
             Self::Binary(_) => ArrowDataType::Binary,
             Self::Vector(_) => {
                 ArrowDataType::List(Arc::new(Field::new("item", ArrowDataType::Float64, false)))
             }
-            Self::Symbol(_) => ArrowDataType::Utf8,
             Self::Timestamp(_) => {
                 ArrowDataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None)
             }
@@ -303,7 +310,7 @@ impl Value {
                     // For other list types, convert to array of values
                     let mut result = Vec::new();
                     for i in start..end {
-                        if let Some(value) = Self::from_arrow_array(&values, i) {
+                        if let Some(value) = Self::from_arrow_array(values, i) {
                             result.push(value);
                         }
                     }
@@ -328,7 +335,7 @@ impl Value {
                 let columns = struct_array.columns();
                 for (i, column) in columns.iter().enumerate() {
                     // Use a generic field name based on index for now
-                    let field_name = format!("field_{}", i);
+                    let field_name = format!("field_{i}");
                     if let Some(value) = Self::from_arrow_array(column, index) {
                         map.insert(field_name, value);
                     }

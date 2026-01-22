@@ -5,15 +5,31 @@ version = { workspace = true }
 description = "Local execution engine for Grism"
 
 [dependencies]
+# Internal crates
 common-error = { workspace = true }
 common-runtime = { workspace = true }
 grism-core = { workspace = true }
 grism-logical = { workspace = true }
+grism-storage = { workspace = true }
+
+# Arrow ecosystem
+arrow = { workspace = true }
+arrow-array = { workspace = true }
+arrow-schema = { workspace = true }
+
+# Async runtime
 async-trait = { workspace = true }
 tokio = { workspace = true }
 futures = { workspace = true }
-arrow-array = { workspace = true }
+
+# Utilities
+thiserror = { workspace = true }
+
+# Python bindings
 pyo3 = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 
 [features]
 default = []

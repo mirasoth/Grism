@@ -8,7 +8,7 @@ use super::{EdgeId, Label, NodeId, PropertyMap, Role};
 
 /// A binding between a role and an entity (node or hyperedge).
 ///
-/// RoleBindings are the fundamental building blocks of hyperedges, allowing
+/// Role bindings are the fundamental building blocks of hyperedges, allowing
 /// hyperedges to connect entities through explicitly named roles.
 ///
 /// # Example
@@ -53,17 +53,17 @@ impl RoleBinding {
     }
 
     /// Get the target entity reference.
-    pub fn target(&self) -> &EntityRef {
+    pub const fn target(&self) -> &EntityRef {
         &self.target
     }
 
     /// Get the target node ID if this binding points to a node.
-    pub fn target_node(&self) -> Option<NodeId> {
+    pub const fn target_node(&self) -> Option<NodeId> {
         self.target.as_node()
     }
 
     /// Get the target edge ID if this binding points to a hyperedge.
-    pub fn target_hyperedge(&self) -> Option<EdgeId> {
+    pub const fn target_hyperedge(&self) -> Option<EdgeId> {
         self.target.as_hyperedge()
     }
 }
@@ -153,6 +153,7 @@ impl Hyperedge {
     ///     .with_binding(EntityRef::Node(1), "source")
     ///     .with_binding(EntityRef::Hyperedge(42), "evidence");
     /// ```
+    #[must_use]
     pub fn with_binding(mut self, entity: EntityRef, role: impl Into<Role>) -> Self {
         self.bindings.push(RoleBinding::new(role, entity));
         self
@@ -171,6 +172,7 @@ impl Hyperedge {
     ///     .with_node(1, "source")
     ///     .with_node(2, "target");
     /// ```
+    #[must_use]
     pub fn with_node(mut self, node_id: NodeId, role: impl Into<Role>) -> Self {
         self.bindings.push(RoleBinding::to_node(role, node_id));
         self
@@ -192,6 +194,7 @@ impl Hyperedge {
     ///     .with_hyperedge(42, "conclusion")
     ///     .with_node(100, "rule");
     /// ```
+    #[must_use]
     pub fn with_hyperedge(mut self, edge_id: EdgeId, role: impl Into<Role>) -> Self {
         self.bindings.push(RoleBinding::to_hyperedge(role, edge_id));
         self
@@ -207,6 +210,7 @@ impl Hyperedge {
     /// let edge = Hyperedge::new("MEETING")
     ///     .with_nodes([(1, "host"), (2, "attendee"), (3, "attendee")]);
     /// ```
+    #[must_use]
     pub fn with_nodes(
         mut self,
         nodes: impl IntoIterator<Item = (NodeId, impl Into<Role>)>,
@@ -218,6 +222,7 @@ impl Hyperedge {
     }
 
     /// Add properties to this hyperedge.
+    #[must_use]
     pub fn with_properties(mut self, properties: PropertyMap) -> Self {
         self.properties = properties;
         self
@@ -228,12 +233,12 @@ impl Hyperedge {
     // =========================================================================
 
     /// Get the arity (number of role bindings).
-    pub fn arity(&self) -> usize {
+    pub const fn arity(&self) -> usize {
         self.bindings.len()
     }
 
     /// Check if this is a binary edge (arity == 2).
-    pub fn is_binary(&self) -> bool {
+    pub const fn is_binary(&self) -> bool {
         self.arity() == 2
     }
 
@@ -242,7 +247,7 @@ impl Hyperedge {
         if self.arity() != 2 {
             return false;
         }
-        let roles: Vec<&str> = self.bindings.iter().map(|b| b.role()).collect();
+        let roles: Vec<&str> = self.bindings.iter().map(RoleBinding::role).collect();
         roles.contains(&ROLE_SOURCE) && roles.contains(&ROLE_TARGET)
     }
 
@@ -253,8 +258,8 @@ impl Hyperedge {
 
     /// Get all unique roles in this hyperedge.
     pub fn roles(&self) -> Vec<&str> {
-        let mut roles: Vec<&str> = self.bindings.iter().map(|b| b.role()).collect();
-        roles.sort();
+        let mut roles: Vec<&str> = self.bindings.iter().map(RoleBinding::role).collect();
+        roles.sort_unstable();
         roles.dedup();
         roles
     }
@@ -290,14 +295,14 @@ impl Hyperedge {
 
     /// Get all entity references involved in this hyperedge.
     pub fn involved_entities(&self) -> Vec<&EntityRef> {
-        self.bindings.iter().map(|b| b.target()).collect()
+        self.bindings.iter().map(RoleBinding::target).collect()
     }
 
     /// Get all node IDs involved in this hyperedge.
     pub fn involved_nodes(&self) -> Vec<NodeId> {
         self.bindings
             .iter()
-            .filter_map(|b| b.target_node())
+            .filter_map(RoleBinding::target_node)
             .collect()
     }
 
@@ -305,7 +310,7 @@ impl Hyperedge {
     pub fn involved_hyperedges(&self) -> Vec<EdgeId> {
         self.bindings
             .iter()
-            .filter_map(|b| b.target_hyperedge())
+            .filter_map(RoleBinding::target_hyperedge)
             .collect()
     }
 
@@ -318,7 +323,7 @@ impl Hyperedge {
         self.bindings
             .iter()
             .filter(|b| b.role() == role)
-            .map(|b| b.target())
+            .map(RoleBinding::target)
             .collect()
     }
 
@@ -327,7 +332,7 @@ impl Hyperedge {
         self.bindings
             .iter()
             .filter(|b| b.role() == role)
-            .filter_map(|b| b.target_node())
+            .filter_map(RoleBinding::target_node)
             .collect()
     }
 
@@ -336,7 +341,7 @@ impl Hyperedge {
         self.bindings
             .iter()
             .filter(|b| b.role() == role)
-            .filter_map(|b| b.target_hyperedge())
+            .filter_map(RoleBinding::target_hyperedge)
             .collect()
     }
 

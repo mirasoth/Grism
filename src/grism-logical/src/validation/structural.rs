@@ -10,7 +10,7 @@ use std::collections::HashSet;
 use crate::{LogicalOp, LogicalPlan};
 
 /// A structural validation error.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StructuralValidationError {
     /// The plan contains a cycle.
     CycleDetected {
@@ -51,7 +51,7 @@ impl std::fmt::Display for StructuralValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::CycleDetected { location } => {
-                write!(f, "Cycle detected in plan at: {}", location)
+                write!(f, "Cycle detected in plan at: {location}")
             }
             Self::InvalidArity {
                 operator,
@@ -60,17 +60,16 @@ impl std::fmt::Display for StructuralValidationError {
             } => {
                 write!(
                     f,
-                    "Invalid arity for {}: expected {} inputs, got {}",
-                    operator, expected, actual
+                    "Invalid arity for {operator}: expected {expected} inputs, got {actual}"
                 )
             }
             Self::EmptyPlan => write!(f, "Plan is empty"),
             Self::InvalidOperatorSequence { message } => {
-                write!(f, "Invalid operator sequence: {}", message)
+                write!(f, "Invalid operator sequence: {message}")
             }
             Self::ZeroLimit => write!(f, "Limit cannot be zero"),
             Self::InvalidHopRange { message } => {
-                write!(f, "Invalid hop range: {}", message)
+                write!(f, "Invalid hop range: {message}")
             }
         }
     }
@@ -106,12 +105,12 @@ impl StructuralValidator {
         depth: usize,
     ) {
         // Use pointer address as a simple identity check for cycle detection
-        let ptr = op as *const LogicalOp as usize;
+        let ptr = std::ptr::from_ref::<LogicalOp>(op) as usize;
 
         // Check for cycles (shouldn't happen with Box, but defensive)
         if !visited.insert(ptr) {
             errors.push(StructuralValidationError::CycleDetected {
-                location: format!("depth {}", depth),
+                location: format!("depth {depth}"),
             });
             return;
         }
@@ -134,17 +133,16 @@ impl StructuralValidator {
     /// Validate operator input arity.
     fn validate_arity(op: &LogicalOp, errors: &mut Vec<StructuralValidationError>) {
         let (expected, _actual) = match op {
-            LogicalOp::Scan(_) => (0, 0),
-            LogicalOp::Empty => (0, 0),
-            LogicalOp::Expand { input, .. } => (1, if input.is_leaf() { 0 } else { 1 }),
-            LogicalOp::Filter { .. } => (1, 1),
-            LogicalOp::Project { .. } => (1, 1),
-            LogicalOp::Aggregate { .. } => (1, 1),
-            LogicalOp::Limit { .. } => (1, 1),
-            LogicalOp::Sort { .. } => (1, 1),
+            LogicalOp::Scan(_) | LogicalOp::Empty => (0, 0),
+            LogicalOp::Expand { input, .. } => (1, i32::from(!input.is_leaf())),
+            LogicalOp::Filter { .. }
+            | LogicalOp::Project { .. }
+            | LogicalOp::Aggregate { .. }
+            | LogicalOp::Limit { .. }
+            | LogicalOp::Sort { .. }
+            | LogicalOp::Rename { .. }
+            | LogicalOp::Infer { .. } => (1, 1),
             LogicalOp::Union { .. } => (2, 2),
-            LogicalOp::Rename { .. } => (1, 1),
-            LogicalOp::Infer { .. } => (1, 1),
         };
 
         // For operators with inputs, verify they have children
@@ -192,9 +190,10 @@ impl StructuralValidator {
 }
 
 /// Check if a plan is a valid DAG (no cycles).
+#[allow(dead_code)]
 pub fn is_dag(plan: &LogicalPlan) -> bool {
     fn check_dag(op: &LogicalOp, visited: &mut HashSet<usize>) -> bool {
-        let ptr = op as *const LogicalOp as usize;
+        let ptr = std::ptr::from_ref::<LogicalOp>(op) as usize;
 
         if !visited.insert(ptr) {
             return false;
@@ -214,6 +213,7 @@ pub fn is_dag(plan: &LogicalPlan) -> bool {
 }
 
 /// Count the total number of operators in a plan.
+#[allow(dead_code)]
 pub fn operator_count(plan: &LogicalPlan) -> usize {
     fn count(op: &LogicalOp) -> usize {
         1 + op.inputs().iter().map(|i| count(i)).sum::<usize>()
@@ -222,6 +222,7 @@ pub fn operator_count(plan: &LogicalPlan) -> usize {
 }
 
 /// Get the maximum depth of the plan tree.
+#[allow(dead_code)]
 pub fn plan_depth(plan: &LogicalPlan) -> usize {
     fn depth(op: &LogicalOp) -> usize {
         1 + op.inputs().iter().map(|i| depth(i)).max().unwrap_or(0)

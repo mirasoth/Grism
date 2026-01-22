@@ -26,19 +26,21 @@ pub struct FilterOp {
 
 impl FilterOp {
     /// Create a new filter operation.
-    pub fn new(predicate: LogicalExpr) -> Self {
+    pub const fn new(predicate: LogicalExpr) -> Self {
         Self { predicate }
     }
 
     /// Combine this filter with another using AND.
-    pub fn and(self, other: FilterOp) -> Self {
+    #[must_use]
+    pub fn and(self, other: Self) -> Self {
         Self {
             predicate: self.predicate.and(other.predicate),
         }
     }
 
     /// Combine this filter with another using OR.
-    pub fn or(self, other: FilterOp) -> Self {
+    #[must_use]
+    pub fn or(self, other: Self) -> Self {
         Self {
             predicate: self.predicate.or(other.predicate),
         }

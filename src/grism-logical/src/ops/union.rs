@@ -18,12 +18,12 @@ pub struct UnionOp {
 
 impl UnionOp {
     /// Create a UNION ALL (preserves duplicates).
-    pub fn all() -> Self {
+    pub const fn all() -> Self {
         Self { distinct: false }
     }
 
     /// Create a UNION DISTINCT (removes duplicates).
-    pub fn distinct() -> Self {
+    pub const fn distinct() -> Self {
         Self { distinct: true }
     }
 }

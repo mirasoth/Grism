@@ -74,7 +74,7 @@ impl AggFunc {
     }
 
     /// Get the function name for display.
-    pub fn name(&self) -> &'static str {
+    pub const fn name(&self) -> &'static str {
         match self {
             Self::Count => "COUNT",
             Self::CountDistinct => "COUNT_DISTINCT",
@@ -90,7 +90,7 @@ impl AggFunc {
     }
 
     /// Check if this aggregate is order-dependent.
-    pub fn is_order_dependent(&self) -> bool {
+    pub const fn is_order_dependent(&self) -> bool {
         matches!(self, Self::First | Self::Last)
     }
 }
@@ -126,12 +126,14 @@ impl AggExpr {
     }
 
     /// Set DISTINCT flag.
-    pub fn with_distinct(mut self, distinct: bool) -> Self {
+    #[must_use]
+    pub const fn with_distinct(mut self, distinct: bool) -> Self {
         self.distinct = distinct;
         self
     }
 
     /// Set alias for the result.
+    #[must_use]
     pub fn with_alias(mut self, alias: impl Into<String>) -> Self {
         self.alias = Some(alias.into());
         self
@@ -144,11 +146,10 @@ impl AggExpr {
 
     /// Get the effective output name.
     pub fn output_name(&self) -> String {
-        if let Some(ref alias) = self.alias {
-            alias.clone()
-        } else {
-            format!("{}({})", self.func.name(), self.expr)
-        }
+        self.alias.as_ref().map_or_else(
+            || format!("{}({})", self.func.name(), self.expr),
+            std::clone::Clone::clone,
+        )
     }
 }
 

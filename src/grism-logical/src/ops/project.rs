@@ -36,23 +36,26 @@ impl ProjectOp {
     }
 
     /// Create a new projection with expressions.
-    pub fn new(expressions: Vec<LogicalExpr>) -> Self {
+    pub const fn new(expressions: Vec<LogicalExpr>) -> Self {
         Self { expressions }
     }
 
     /// Add an expression to the projection.
+    #[must_use]
     pub fn with_expr(mut self, expr: LogicalExpr) -> Self {
         self.expressions.push(expr);
         self
     }
 
     /// Add a column to the projection.
+    #[must_use]
     pub fn with_column(mut self, name: impl Into<String>) -> Self {
         self.expressions.push(LogicalExpr::column(name.into()));
         self
     }
 
     /// Add a wildcard to include all columns.
+    #[must_use]
     pub fn with_all(mut self) -> Self {
         self.expressions.push(LogicalExpr::Wildcard);
         self
@@ -60,7 +63,10 @@ impl ProjectOp {
 
     /// Get the output column names.
     pub fn output_names(&self) -> Vec<String> {
-        self.expressions.iter().map(|e| e.output_name()).collect()
+        self.expressions
+            .iter()
+            .map(LogicalExpr::output_name)
+            .collect()
     }
 
     /// Check if this projection includes a wildcard.
@@ -83,7 +89,7 @@ impl ProjectOp {
 impl std::fmt::Display for ProjectOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let cols = self.output_names().join(", ");
-        write!(f, "Project({})", cols)
+        write!(f, "Project({cols})")
     }
 }
 
@@ -103,7 +109,7 @@ mod tests {
     fn test_project_expressions() {
         let project = ProjectOp::new(vec![
             LogicalExpr::column("price")
-                .mul(LogicalExpr::column("quantity"))
+                .mul_expr(LogicalExpr::column("quantity"))
                 .alias("total"),
             LogicalExpr::column("name"),
         ]);

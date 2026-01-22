@@ -29,10 +29,10 @@ impl UnaryOp {
     /// Get the result type of this operator given the input type.
     ///
     /// Returns `None` if the operation is not valid for the given type.
-    pub fn result_type(&self, input: &DataType) -> Option<DataType> {
+    pub const fn result_type(&self, input: &DataType) -> Option<DataType> {
         match self {
-            // Logical NOT requires boolean input
-            Self::Not => {
+            // Logical NOT and truth checks require boolean input
+            Self::Not | Self::IsTrue | Self::IsFalse | Self::IsUnknown => {
                 if matches!(input, DataType::Bool) {
                     Some(DataType::Bool)
                 } else {
@@ -49,20 +49,11 @@ impl UnaryOp {
 
             // NULL checks work on any type, return Bool
             Self::IsNull | Self::IsNotNull => Some(DataType::Bool),
-
-            // Truth checks require boolean input, return Bool
-            Self::IsTrue | Self::IsFalse | Self::IsUnknown => {
-                if matches!(input, DataType::Bool) {
-                    Some(DataType::Bool)
-                } else {
-                    None
-                }
-            }
         }
     }
 
     /// Get the operator name for display.
-    pub fn name(&self) -> &'static str {
+    pub const fn name(&self) -> &'static str {
         match self {
             Self::Not => "NOT",
             Self::Neg => "-",
@@ -75,7 +66,7 @@ impl UnaryOp {
     }
 
     /// Check if this operator is null-safe (always returns non-null).
-    pub fn is_null_safe(&self) -> bool {
+    pub const fn is_null_safe(&self) -> bool {
         matches!(
             self,
             Self::IsNull | Self::IsNotNull | Self::IsTrue | Self::IsFalse | Self::IsUnknown

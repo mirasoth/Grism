@@ -2,7 +2,7 @@
 
 use pyo3::prelude::*;
 
-use crate::{ExecutionConfig, ExecutorType, GrismConfig, StorageConfig};
+use crate::GrismConfig;
 
 #[pymethods]
 impl GrismConfig {

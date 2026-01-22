@@ -71,6 +71,7 @@ impl OptimizationRule for ExpandReordering {
 }
 
 /// Recursively reorder expand operations in the plan tree.
+#[allow(clippy::too_many_lines)]
 fn reorder_expands(op: LogicalOp) -> (LogicalOp, bool) {
     match op {
         // Expand on top of Expand: check if we can reorder
@@ -233,44 +234,44 @@ fn reorder_expands(op: LogicalOp) -> (LogicalOp, bool) {
 /// 2. The outer expand's predicates don't reference the inner expand's introduced columns
 fn are_expands_independent(outer: &ExpandOp, inner: &ExpandOp) -> bool {
     // Check for alias conflicts
-    if let (Some(outer_target), Some(inner_target)) = (&outer.target_alias, &inner.target_alias) {
-        if outer_target == inner_target {
-            return false;
-        }
+    if let (Some(outer_target), Some(inner_target)) = (&outer.target_alias, &inner.target_alias)
+        && outer_target == inner_target
+    {
+        return false;
     }
 
-    if let (Some(outer_edge), Some(inner_edge)) = (&outer.edge_alias, &inner.edge_alias) {
-        if outer_edge == inner_edge {
-            return false;
-        }
+    if let (Some(outer_edge), Some(inner_edge)) = (&outer.edge_alias, &inner.edge_alias)
+        && outer_edge == inner_edge
+    {
+        return false;
     }
 
     // Check if outer's predicates reference inner's introduced columns
     if let Some(ref pred) = outer.edge_predicate {
         let refs = pred.column_refs();
-        if let Some(ref alias) = inner.target_alias {
-            if refs.iter().any(|r| r.starts_with(alias)) {
-                return false;
-            }
+        if let Some(ref alias) = inner.target_alias
+            && refs.iter().any(|r| r.starts_with(alias))
+        {
+            return false;
         }
-        if let Some(ref alias) = inner.edge_alias {
-            if refs.iter().any(|r| r.starts_with(alias)) {
-                return false;
-            }
+        if let Some(ref alias) = inner.edge_alias
+            && refs.iter().any(|r| r.starts_with(alias))
+        {
+            return false;
         }
     }
 
     if let Some(ref pred) = outer.target_predicate {
         let refs = pred.column_refs();
-        if let Some(ref alias) = inner.target_alias {
-            if refs.iter().any(|r| r.starts_with(alias)) {
-                return false;
-            }
+        if let Some(ref alias) = inner.target_alias
+            && refs.iter().any(|r| r.starts_with(alias))
+        {
+            return false;
         }
-        if let Some(ref alias) = inner.edge_alias {
-            if refs.iter().any(|r| r.starts_with(alias)) {
-                return false;
-            }
+        if let Some(ref alias) = inner.edge_alias
+            && refs.iter().any(|r| r.starts_with(alias))
+        {
+            return false;
         }
     }
 
@@ -287,7 +288,7 @@ fn are_expands_independent(outer: &ExpandOp, inner: &ExpandOp) -> bool {
 /// - Has edge predicate: +20
 /// - Has target predicate: +20
 /// - Single hop (vs variable): +5
-fn selectivity_score(expand: &ExpandOp) -> i32 {
+const fn selectivity_score(expand: &ExpandOp) -> i32 {
     let mut score = 0;
 
     if expand.edge_label.is_some() {
@@ -316,7 +317,7 @@ fn selectivity_score(expand: &ExpandOp) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use grism_logical::{Direction, PlanBuilder, ScanOp, col, lit};
+    use grism_logical::{PlanBuilder, ScanOp, col, lit};
 
     #[test]
     fn test_independent_expands() {

@@ -92,13 +92,9 @@ fn collect_used_columns(op: &LogicalOp) -> HashSet<String> {
             used.extend(collect_used_columns(left));
             used.extend(collect_used_columns(right));
         }
-        LogicalOp::Limit { input, .. } => {
-            used.extend(collect_used_columns(input));
-        }
-        LogicalOp::Rename { input, .. } => {
-            used.extend(collect_used_columns(input));
-        }
-        LogicalOp::Infer { input, .. } => {
+        LogicalOp::Limit { input, .. }
+        | LogicalOp::Rename { input, .. }
+        | LogicalOp::Infer { input, .. } => {
             used.extend(collect_used_columns(input));
         }
         LogicalOp::Empty => {}
@@ -108,6 +104,7 @@ fn collect_used_columns(op: &LogicalOp) -> HashSet<String> {
 }
 
 /// Prune unused columns from projections.
+#[allow(clippy::too_many_lines, clippy::only_used_in_recursion)]
 fn prune_projections(op: LogicalOp, used: &HashSet<String>) -> (LogicalOp, bool) {
     match op {
         // Remove redundant projections (project followed by project)
@@ -122,15 +119,14 @@ fn prune_projections(op: LogicalOp, used: &HashSet<String>) -> (LogicalOp, bool)
                 } => {
                     // Combine projects: only keep columns needed by outer
                     let outer_refs = outer_project.column_refs();
-                    let needed_from_inner: Vec<_> = inner_project
+                    let has_needed = inner_project
                         .expressions
-                        .into_iter()
-                        .filter(|e| outer_refs.contains(&e.output_name()))
-                        .collect();
+                        .iter()
+                        .any(|e| outer_refs.contains(&e.output_name()));
 
-                    if needed_from_inner.is_empty() {
-                        // Nothing needed from inner, just use outer
-                        let (new_input, _) = prune_projections(*inner_input, used);
+                    if has_needed {
+                        // Merge into single projection
+                        let (new_input, _child_changed) = prune_projections(*inner_input, used);
                         (
                             LogicalOp::Project {
                                 input: Box::new(new_input),
@@ -139,14 +135,14 @@ fn prune_projections(op: LogicalOp, used: &HashSet<String>) -> (LogicalOp, bool)
                             true,
                         )
                     } else {
-                        // Merge into single projection
-                        let (new_input, child_changed) = prune_projections(*inner_input, used);
+                        // Nothing needed from inner, just use outer
+                        let (new_input, _) = prune_projections(*inner_input, used);
                         (
                             LogicalOp::Project {
                                 input: Box::new(new_input),
                                 project: outer_project,
                             },
-                            child_changed || true,
+                            true,
                         )
                     }
                 }

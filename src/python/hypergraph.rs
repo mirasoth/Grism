@@ -4,16 +4,25 @@
 //! implementing the Frame types (NodeFrame, EdgeFrame, HyperedgeFrame)
 //! with proper lowering to Rust logical plans.
 
-use std::collections::HashMap;
+#![allow(dead_code, unused_imports, unused_variables)] // Python bindings may have unused items
+#![allow(clippy::uninlined_format_args)] // Format args are sometimes clearer inline
+#![allow(clippy::useless_conversion)] // Some conversions are for type clarity
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use arrow::array::StringArray;
+use common_config::ExecutionConfig;
 use grism_core::types::Value;
-use grism_engine::{ExecutionConfig, LocalExecutor, QueryResult};
+use grism_engine::planner::{LocalPhysicalPlanner, PhysicalPlanner};
+use grism_engine::{ExecutionContext, ExecutionResult, LocalExecutor};
 use grism_logical::{
     AggregateOp, ExpandOp, FilterOp, LimitOp, LogicalOp, LogicalPlan, ProjectOp, ScanOp, SortKey,
     SortOp, UnionOp,
     ops::{Direction, HopRange},
     python::{ExprKind, PyAggExpr, PyExpr},
 };
+use grism_storage::{InMemoryStorage, SnapshotId, Storage};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
@@ -56,26 +65,53 @@ fn row_to_py(py: Python<'_>, row: &HashMap<String, Value>) -> PyObject {
     dict.into_py(py)
 }
 
-/// Convert QueryResult to a list of Python dicts.
-fn result_to_py(py: Python<'_>, result: QueryResult) -> Vec<PyObject> {
+/// Convert ExecutionResult to a list of Python dicts.
+fn result_to_py(py: Python<'_>, result: ExecutionResult) -> Vec<PyObject> {
     result
-        .to_rows()
+        .batches
         .iter()
-        .map(|row| row_to_py(py, row))
+        .flat_map(|batch| {
+            (0..batch.num_rows()).map(move |row_idx| {
+                let mut dict: HashMap<String, PyObject> = HashMap::new();
+                for (col_idx, field) in batch.schema().fields().iter().enumerate() {
+                    if let Some(array) = batch
+                        .column(col_idx)
+                        .as_any()
+                        .downcast_ref::<arrow::array::StringArray>()
+                    {
+                        dict.insert(field.name().to_string(), array.value(row_idx).into_py(py));
+                    }
+                }
+                dict.into_py(py)
+            })
+        })
         .collect()
 }
 
 /// Execute a logical plan and return Python results.
-fn execute_plan(plan: &LogicalOp, config: Option<&ExecutionConfig>) -> PyResult<QueryResult> {
+fn execute_plan(plan: &LogicalOp, _config: Option<&ExecutionConfig>) -> PyResult<ExecutionResult> {
     let logical_plan = LogicalPlan::new(plan.clone());
-    let executor = match config {
-        Some(cfg) => LocalExecutor::with_config(cfg.clone()),
-        None => LocalExecutor::new(),
-    };
 
-    executor.execute_sync(logical_plan).map_err(|e| {
-        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Execution error: {}", e))
-    })
+    // Create a simple in-memory storage for execution
+    let storage = Arc::new(crate::storage::InMemoryStorage::new());
+
+    // Create physical plan
+    let planner = LocalPhysicalPlanner::new();
+    let physical_plan = planner.plan(&logical_plan).map_err(|e| {
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Planning error: {}", e))
+    })?;
+
+    // Execute the plan
+    let executor = LocalExecutor::new();
+    executor
+        .execute_sync(
+            physical_plan,
+            storage as Arc<dyn Storage>,
+            SnapshotId::default(),
+        )
+        .map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Execution error: {}", e))
+        })
 }
 
 /// Python wrapper for Hypergraph - the canonical user-facing container.
@@ -145,21 +181,16 @@ impl PyHypergraph {
     ///     parallelism: Number of parallel threads (None = auto)
     ///     memory_limit: Memory limit in bytes (None = unlimited)
     ///     batch_size: Batch size for processing (default 1024)
-    #[pyo3(signature = (parallelism=None, memory_limit=None, batch_size=1024))]
-    fn with_config(
-        &self,
-        parallelism: Option<usize>,
-        memory_limit: Option<usize>,
-        batch_size: usize,
-    ) -> Self {
+    #[pyo3(signature = (parallelism=None, memory_limit=None))]
+    fn with_config(&self, parallelism: Option<usize>, memory_limit: Option<usize>) -> Self {
         Self {
             uri: self.uri.clone(),
             namespace: self.namespace.clone(),
             executor: self.executor.clone(),
             exec_config: Some(ExecutionConfig {
+                default_executor: common_config::ExecutorType::Local,
                 parallelism,
                 memory_limit,
-                batch_size,
             }),
         }
     }
@@ -813,12 +844,8 @@ impl PyNodeFrame {
         let result = execute_plan(&limited_plan, None)?;
 
         Python::with_gil(|py| {
-            let rows = result.to_rows();
-            if let Some(row) = rows.first() {
-                Ok(Some(row_to_py(py, row)))
-            } else {
-                Ok(None)
-            }
+            let rows = result_to_py(py, result);
+            Ok(rows.into_iter().next())
         })
     }
 
@@ -1018,12 +1045,8 @@ impl PyEdgeFrame {
         let result = execute_plan(&limited_plan, None)?;
 
         Python::with_gil(|py| {
-            let rows = result.to_rows();
-            if let Some(row) = rows.first() {
-                Ok(Some(row_to_py(py, row)))
-            } else {
-                Ok(None)
-            }
+            let rows = result_to_py(py, result);
+            Ok(rows.into_iter().next())
         })
     }
 
@@ -1201,12 +1224,8 @@ impl PyHyperedgeFrame {
         let result = execute_plan(&limited_plan, None)?;
 
         Python::with_gil(|py| {
-            let rows = result.to_rows();
-            if let Some(row) = rows.first() {
-                Ok(Some(row_to_py(py, row)))
-            } else {
-                Ok(None)
-            }
+            let rows = result_to_py(py, result);
+            Ok(rows.into_iter().next())
         })
     }
 
@@ -1894,9 +1913,6 @@ pub fn all_paths(
     })
 }
 
-// Re-export with proper names for the module
-pub use PyHypergraph as PyHyperGraph;
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1924,12 +1940,11 @@ mod tests {
     fn test_hypergraph_with_config() {
         Python::with_gil(|_py| {
             let hg = PyHypergraph::connect("grism://local", "local", None).unwrap();
-            let hg_cfg = hg.with_config(Some(4), Some(1024 * 1024), 2048);
+            let hg_cfg = hg.with_config(Some(4), Some(1024 * 1024));
             assert!(hg_cfg.exec_config.is_some());
             let config = hg_cfg.exec_config.unwrap();
             assert_eq!(config.parallelism, Some(4));
             assert_eq!(config.memory_limit, Some(1024 * 1024));
-            assert_eq!(config.batch_size, 2048);
         });
     }
 
@@ -2043,8 +2058,9 @@ mod tests {
             assert_eq!(int_obj.extract::<i64>(py).unwrap(), 42);
 
             // Test float
-            let float_obj = value_to_py(py, &Value::Float64(3.14));
-            assert!((float_obj.extract::<f64>(py).unwrap() - 3.14).abs() < 0.001);
+            let test_value = 2.234213;
+            let float_obj = value_to_py(py, &Value::Float64(test_value));
+            assert!((float_obj.extract::<f64>(py).unwrap() - test_value).abs() < 0.001);
 
             // Test string
             let str_obj = value_to_py(py, &Value::String("hello".to_string()));

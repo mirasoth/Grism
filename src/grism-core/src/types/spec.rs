@@ -5,21 +5,23 @@ use common_error::{GrismError, GrismResult};
 use super::{DataType, Value};
 
 /// Check that a value conforms to the expected data type.
+#[allow(clippy::match_same_arms)]
+#[allow(clippy::unnested_or_patterns)]
 pub fn check_type_invariants(value: &Value, expected: &DataType) -> GrismResult<()> {
     match (value, expected) {
-        // Null matches Null type or any nullable context
-        (Value::Null, DataType::Null) => Ok(()),
-        (Value::Null, _) => Ok(()), // Null is valid for any type in nullable context
-
-        // Direct type matches
-        (Value::Bool(_), DataType::Bool) => Ok(()),
-        (Value::Int64(_), DataType::Int64) => Ok(()),
-        (Value::Float64(_), DataType::Float64) => Ok(()),
-        (Value::String(_), DataType::String) => Ok(()),
-        (Value::Binary(_), DataType::Binary) => Ok(()),
-        (Value::Symbol(_), DataType::Symbol) => Ok(()),
-        (Value::Timestamp(_), DataType::Timestamp) => Ok(()),
-        (Value::Date(_), DataType::Date) => Ok(()),
+        // Null matches, direct type matches, and coercible types
+        (Value::Null, _) | // Null is valid for any type in nullable context
+        (Value::Bool(_), DataType::Bool) |
+        (Value::Int64(_), DataType::Int64) |
+        (Value::Float64(_), DataType::Float64) |
+        (Value::String(_), DataType::String) |
+        (Value::Binary(_), DataType::Binary) |
+        (Value::Symbol(_), DataType::Symbol) |
+        (Value::Timestamp(_), DataType::Timestamp) |
+        (Value::Date(_), DataType::Date) |
+        // Coercible types
+        (Value::Int64(_), DataType::Float64) | // Int can coerce to Float
+        (Value::Symbol(_), DataType::String) => Ok(()), // Symbol can coerce to String
 
         // Vector dimension check
         (Value::Vector(v), DataType::Vector(dim)) => check_vector_invariants(v.len(), *dim),
@@ -42,10 +44,6 @@ pub fn check_type_invariants(value: &Value, expected: &DataType) -> GrismResult<
             Ok(())
         }
 
-        // Coercible types
-        (Value::Int64(_), DataType::Float64) => Ok(()), // Int can coerce to Float
-        (Value::Symbol(_), DataType::String) => Ok(()), // Symbol can coerce to String
-
         // Type mismatch
         (val, ty) => Err(GrismError::type_error(format!(
             "Expected {}, got {}",
@@ -59,8 +57,7 @@ pub fn check_type_invariants(value: &Value, expected: &DataType) -> GrismResult<
 pub fn check_vector_invariants(actual_dim: usize, expected_dim: usize) -> GrismResult<()> {
     if actual_dim != expected_dim {
         return Err(GrismError::oos(format!(
-            "Vector dimension mismatch: expected {}, got {}",
-            expected_dim, actual_dim
+            "Vector dimension mismatch: expected {expected_dim}, got {actual_dim}"
         )));
     }
     Ok(())
@@ -101,8 +98,7 @@ pub fn check_aggregation_type(data_type: &DataType, agg_name: &str) -> GrismResu
         }
         _ => {
             return Err(GrismError::not_implemented(format!(
-                "Unknown aggregation: {}",
-                agg_name
+                "Unknown aggregation: {agg_name}"
             )));
         }
     }
@@ -141,31 +137,29 @@ pub fn check_binary_op_types(left: &DataType, right: &DataType, op: &str) -> Gri
         }
 
         // Arithmetic operators
-        "+" | "-" | "*" | "/" | "%" => {
-            if let Some(result) = left.common_supertype(right) {
+        "+" | "-" | "*" | "/" | "%" => left.common_supertype(right).map_or_else(
+            || {
+                Err(GrismError::type_error(format!(
+                    "Cannot perform {op} on {} and {}",
+                    left.display_name(),
+                    right.display_name()
+                )))
+            },
+            |result| {
                 if result.is_numeric() {
                     Ok(result)
                 } else {
                     Err(GrismError::type_error(format!(
-                        "Arithmetic {} requires numeric operands, got {} and {}",
-                        op,
+                        "Arithmetic {op} requires numeric operands, got {} and {}",
                         left.display_name(),
                         right.display_name()
                     )))
                 }
-            } else {
-                Err(GrismError::type_error(format!(
-                    "Cannot perform {} on {} and {}",
-                    op,
-                    left.display_name(),
-                    right.display_name()
-                )))
-            }
-        }
+            },
+        ),
 
         _ => Err(GrismError::not_implemented(format!(
-            "Unknown binary operator: {}",
-            op
+            "Unknown binary operator: {op}"
         ))),
     }
 }

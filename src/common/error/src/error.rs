@@ -88,33 +88,80 @@ pub enum GrismError {
 
 impl GrismError {
     /// Create a new `TypeError`.
+    #[must_use]
     pub fn type_error<S: Into<String>>(msg: S) -> Self {
         Self::TypeError(msg.into())
     }
 
     /// Create a new `ValueError`.
+    #[must_use]
     pub fn value_error<S: Into<String>>(msg: S) -> Self {
         Self::ValueError(msg.into())
     }
 
     /// Create a new `SchemaError`.
+    #[must_use]
     pub fn schema_error<S: Into<String>>(msg: S) -> Self {
         Self::SchemaError(msg.into())
     }
 
     /// Create a new `NotImplemented` error.
+    #[must_use]
     pub fn not_implemented<S: Into<String>>(msg: S) -> Self {
         Self::NotImplemented(msg.into())
     }
 
     /// Create a new `InternalError`.
+    #[must_use]
     pub fn internal<S: Into<String>>(msg: S) -> Self {
         Self::InternalError(msg.into())
     }
 
     /// Create an out-of-spec error (following Daft's parquet2 pattern).
+    #[must_use]
     pub fn oos<S: Into<String>>(msg: S) -> Self {
         Self::OutOfSpec(msg.into())
+    }
+
+    /// Create a new `ExecutionError`.
+    #[must_use]
+    pub fn execution<S: Into<String>>(msg: S) -> Self {
+        Self::ExecutionError(msg.into())
+    }
+
+    /// Create a new `StorageError`.
+    #[must_use]
+    pub fn storage<S: Into<String>>(msg: S) -> Self {
+        Self::StorageError(msg.into())
+    }
+
+    /// Create a new `GraphError`.
+    #[must_use]
+    pub fn graph<S: Into<String>>(msg: S) -> Self {
+        Self::GraphError(msg.into())
+    }
+
+    /// Create a new `InvalidParameter` error.
+    #[must_use]
+    pub fn invalid_parameter<S: Into<String>>(msg: S) -> Self {
+        Self::InvalidParameter(msg.into())
+    }
+
+    /// Create a cancellation error (using `ExecutionError`).
+    #[must_use]
+    pub fn cancelled<S: Into<String>>(msg: S) -> Self {
+        Self::ExecutionError(format!("Cancelled: {}", msg.into()))
+    }
+
+    /// Create a resource exhausted error (using `ExecutionError`).
+    #[must_use]
+    pub fn resource_exhausted<S: Into<String>>(msg: S) -> Self {
+        Self::ExecutionError(format!("ResourceExhausted: {}", msg.into()))
+    }
+
+    /// Create a planning error (using `ExecutionError`).
+    pub fn planning<S: Into<String>>(msg: S) -> Self {
+        Self::ExecutionError(format!("PlanningError: {}", msg.into()))
     }
 }
 

@@ -1,23 +1,69 @@
-# Grism Development Guide
+# Grism Development Guide for AI Agents
+
+> **This document contains mandatory rules for AI agents working on this codebase.**
+> Read carefully and follow all "Must Comply" sections.
+
+---
+
+## MANDATORY RULES (Must Comply)
+
+**AI agents MUST complete ALL of the following before finishing any development session:**
+
+### 1. Code Quality Gates
+
+Before completing ANY code changes, run these commands and ensure they pass:
+
+```bash
+make test    # All tests must pass
+make lint    # No clippy warnings allowed (fails on any warning)
+```
+
+**If either command fails:**
+- Fix all issues before ending the session
+- Do NOT leave the codebase in a broken state
+- If unable to fix, document the issue clearly in the progress file
+
+### 2. Progress Documentation
+
+Record all work in `_workdir/progress-YYYY-MM-DD-NNN.md` (see [Recording Work Progress](#recording-work-progress-must-comply) section).
+
+### 3. Specification Compliance
+
+Follow the specification hierarchy (see [Specification Hierarchy](#specification-hierarchy) section).
+
+---
+
+## Quick Reference
+
+| Action | Command |
+|--------|---------|
+| Build | `make build` |
+| Run tests | `make test` |
+| Run linter | `make lint` |
+| Format code | `make fmt` |
+| Check before commit | `make check` |
+| Full CI validation | `make ci` |
+
+---
 
 ## Specification Hierarchy
 
-The following specifications define the Grism system. They must be followed in order of priority:
+Specifications define the Grism system. Follow them in priority order:
 
-### 1. Core Standards (Must Comply)
+### Priority 1: Core Standards (Must Comply)
 
-- **`specs/rfc-0100.md`** - Architecture design document, defines core concepts, data model, and system architecture
-- **`specs/rfc-namings.md`** - Authoritative naming reference for all layers (logical, physical, storage)
+- **`specs/rfc-0100.md`** - Architecture design document (core concepts, data model, system architecture)
+- **`specs/rfc-namings.md`** - Authoritative naming reference for all layers
 
-### 2. RFC Specifications (Must Comply)
+### Priority 2: RFC Specifications (Must Comply)
 
-Each RFC defines specific system aspects. See `specs/rfc-index.md`.
+Each RFC defines specific system aspects. Index: `specs/rfc-index.md`
 
-### 3. API References (May Change)
+### Priority 3: API References (May Change)
 
-- **`specs/rfc-0101.md`** - Python API contract for UX interfaces (subject to change)
+- **`specs/rfc-0101.md`** - Python API contract (subject to change)
 
-### 4. Planning Documents
+### Priority 4: Planning Documents
 
 - **`specs/3_dev_schedule.md`** - Development schedule and milestones
 
@@ -25,50 +71,69 @@ Each RFC defines specific system aspects. See `specs/rfc-index.md`.
 
 ## Key Design Principles
 
-From the architecture and RFCs, these principles must be followed:
+These principles are derived from the architecture RFCs and must be followed:
 
-1. **Hypergraph-first semantics** - All relations are hyperedges; binary edges are projections only
-2. **Logical ≠ Physical ≠ Storage** - Layer boundaries must be respected in naming and implementation
-3. **One concept → one canonical name** - Aliases allowed only at public API boundaries
-4. **Operators are semantic, not algorithmic** - Physical algorithms live in `*Exec` names only
-5. **Hyperedges can reference other hyperedges** - Enabling meta-relations, provenance, and inference chains
-
----
-
-## Resources
-
-- Architecture: `specs/rfc-0100.md` for the full design document
-- RFCs: `specs/rfc-*.md` for design decisions and proposals
-- Python API: `specs/rfc-0101.md` for Python interface contract
-- Schedule: `specs/3_dev_schedule.md` for development planning
+| Principle | Description |
+|-----------|-------------|
+| Hypergraph-first | All relations are hyperedges; binary edges are projections only |
+| Layer separation | Logical ≠ Physical ≠ Storage; respect boundaries in naming and implementation |
+| One name per concept | Aliases allowed only at public API boundaries |
+| Semantic operators | Operators define semantics; algorithms live in `*Exec` names only |
+| Meta-relations | Hyperedges can reference other hyperedges (provenance, inference chains) |
 
 ---
 
-## Dev Workflow
+## Development Workflow
 
-1. [Once] Set up Rust toolchain: `rustup default stable`
-2. Build the project: `cargo build`
-3. Run tests: `cargo test`
+### Setup (One-time)
+
+```bash
+rustup default stable
+```
+
+### Build & Test Cycle
+
+```bash
+make build        # Compile the project
+make test         # Run all Rust tests
+make lint         # Check for code issues (clippy)
+make fmt          # Auto-format code
+```
+
+### Before Committing
+
+```bash
+make check        # Runs: fmt-check, lint, test, python-lint
+```
+
+### Testing Specific Crates
+
+```bash
+make test-core        # grism-core tests only
+make test-logical     # grism-logical tests only
+make test-engine      # grism-engine tests only
+make test-storage     # grism-storage tests only
+make test-optimizer   # grism-optimizer tests only
+```
 
 ---
 
 ## Recording Work Progress (Must Comply)
 
-**AI agents MUST record work progress in the `_workdir/` directory before completing any development session.** This is a mandatory requirement to maintain project continuity and knowledge transfer between sessions.
+**AI agents MUST record work progress in `_workdir/` before completing any session.**
 
 ### File Naming
 
-Create progress files named: `progress-YYYY-MM-DD-NNN.md`
-- `YYYY-MM-DD`: Date of the session
-- `NNN`: Sequence number for multiple sessions on the same day (001, 002, etc.)
+Format: `progress-YYYY-MM-DD-NNN.md`
+- `YYYY-MM-DD`: Session date
+- `NNN`: Sequence number (001, 002, etc.)
 
 Example: `_workdir/progress-2026-01-21-001.md`
 
-### Progress File Format
-
-Use the template in `_workdir/_template.md` as a reference. Each progress file should include:
+### Required Format
 
 **Frontmatter (YAML):**
+
 ```yaml
 ---
 date: YYYY-MM-DD
@@ -79,33 +144,29 @@ status: completed | in-progress | blocked
 ```
 
 **Required Sections:**
-- **Objective** - What was the goal of this session
-- **Completed** - List of completed tasks
-- **Files Changed** - List of modified files with brief descriptions
-- **Tests** - Test results (total passed/failed, new tests added)
-- **Notes** - Important observations, decisions, or context
-- **Next Steps** - What comes next (even if "none")
 
-### Guidelines
-
-1. **Be concise** - Focus on outcomes, not process
-2. **List files** - Always document which files were changed
-3. **Note tests** - Include test results when code changes are made
-4. **Link specs** - Reference relevant specs/RFCs when applicable
-5. **Next steps** - Always indicate what comes next, even if "none"
-
-See `_workdir/_template.md` for the complete template and field descriptions.
+| Section | Content |
+|---------|---------|
+| Objective | Goal of this session |
+| Completed | List of completed tasks |
+| Files Changed | Modified files with brief descriptions |
+| Tests | `make test` results (pass/fail counts) |
+| Lint | `make lint` results (pass/fail) |
+| Notes | Important observations, decisions, context |
+| Next Steps | What comes next (even if "none") |
 
 ### Session Completion Checklist
 
-Before ending a development session, AI agents MUST:
+Before ending a session, AI agents MUST:
 
-1. **Create progress file** - Write `_workdir/progress-YYYY-MM-DD-NNN.md`
-2. **Document all changes** - List every file created, modified, or deleted
-3. **Record test results** - Include pass/fail counts
-4. **Note next steps** - Even if "none", explicitly state this
+1. [ ] Run `make test` - all tests pass
+2. [ ] Run `make lint` - no warnings
+3. [ ] Create progress file in `_workdir/`
+4. [ ] Document all files changed
+5. [ ] Record test and lint results
+6. [ ] Note next steps (even if "none")
 
-Failure to record progress creates knowledge gaps and makes future work harder.
+**Template:** `_workdir/_template.md`
 
 ---
 
@@ -114,6 +175,7 @@ Failure to record progress creates knowledge gaps and makes future work harder.
 ```
 grism/
 ├── Cargo.toml              # Workspace root
+├── Makefile                # Build commands (use these!)
 ├── src/
 │   ├── lib.rs              # Main crate with PyO3 bindings
 │   ├── python/             # Python bindings
@@ -125,34 +187,32 @@ grism/
 │   ├── grism-core/         # Core data model (Hyperedge, Node, Schema, Types)
 │   ├── grism-logical/      # Logical plan layer (LogicalOp, Expressions)
 │   ├── grism-optimizer/    # Query optimization (Rewrite rules)
-│   ├── grism-engine/       # Local execution
+│   ├── grism-engine/       # Local execution engine
 │   ├── grism-distributed/  # Ray distributed execution
 │   └── grism-storage/      # Storage layer (Lance backend)
+├── specs/                  # Specifications and RFCs
+├── tests/                  # Python integration tests
+└── _workdir/               # AI agent progress files
 ```
-
----
-
-## Testing
-
-- `cargo test` runs all tests
-- `cargo test -p grism-core` runs tests for a specific crate
-- Tests are located alongside the code in `#[cfg(test)]` modules
 
 ---
 
 ## Code Style
 
-- Follow Rust 2021 edition idioms
-- Use `thiserror` for error types
-- Use `serde` for serialization
-- All public APIs should be documented
-- Follow naming conventions from `specs/rfc-namings.md`
+| Requirement | Details |
+|-------------|---------|
+| Rust edition | 2021 |
+| Error handling | Use `thiserror` |
+| Serialization | Use `serde` |
+| Documentation | All public APIs must be documented |
+| Naming | Follow `specs/rfc-namings.md` |
+| Formatting | Run `make fmt` before committing |
 
 ---
 
 ## Core Data Model (grism-core)
 
-Key types that must align with architecture:
+### Key Types
 
 | Concept | Type | Description |
 |---------|------|-------------|
@@ -165,12 +225,25 @@ Key types that must align with architecture:
 
 ### API Conventions
 
-Building hyperedges:
+**Building hyperedges:**
 - `with_node(node_id, role)` - Add node binding
 - `with_hyperedge(edge_id, role)` - Add hyperedge binding (meta-relations)
 - `with_binding(entity_ref, role)` - Generic binding
 
-Checking involvement:
+**Checking involvement:**
 - `involves_node(node_id)` - Check node involvement
 - `involves_hyperedge(edge_id)` - Check hyperedge involvement
 - `involves_entity(entity_ref)` - Generic check
+
+---
+
+## Resources
+
+| Resource | Location |
+|----------|----------|
+| Architecture | `specs/rfc-0100.md` |
+| All RFCs | `specs/rfc-*.md` |
+| RFC Index | `specs/rfc-index.md` |
+| Python API | `specs/rfc-0101.md` |
+| Schedule | `specs/3_dev_schedule.md` |
+| Progress template | `_workdir/_template.md` |

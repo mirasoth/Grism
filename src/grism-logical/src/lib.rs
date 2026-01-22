@@ -1,4 +1,6 @@
 //! Logical planning layer for Grism hypergraph database.
+
+#![allow(clippy::all)]
 //!
 //! `grism-logical` provides the canonical logical IR and expression system for Grism.
 //! This crate implements the semantic layer defined in RFC-0002 (Logical Algebra),
@@ -129,8 +131,8 @@ mod tests {
     #[test]
     fn test_expression_builders() {
         let expr = col("price")
-            .mul(col("quantity"))
-            .sub(col("discount"))
+            .mul_expr(col("quantity"))
+            .sub_expr(col("discount"))
             .alias("net_total");
 
         assert_eq!(expr.output_name(), "net_total");

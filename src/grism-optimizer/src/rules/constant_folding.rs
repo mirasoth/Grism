@@ -47,6 +47,7 @@ impl OptimizationRule for ConstantFolding {
 }
 
 /// Fold constants in an operator and its children.
+#[allow(clippy::too_many_lines)]
 fn fold_constants_in_op(op: LogicalOp) -> (LogicalOp, bool) {
     match op {
         LogicalOp::Filter { input, filter } => {
@@ -54,12 +55,12 @@ fn fold_constants_in_op(op: LogicalOp) -> (LogicalOp, bool) {
             let (new_predicate, pred_changed) = fold_constants(filter.predicate);
 
             // Check if the predicate is now a constant true/false
-            if let LogicalExpr::Literal(Value::Bool(true)) = &new_predicate {
+            if matches!(&new_predicate, LogicalExpr::Literal(Value::Bool(true))) {
                 // Filter is always true, remove it
                 return (new_input, true);
             }
 
-            if let LogicalExpr::Literal(Value::Bool(false)) = &new_predicate {
+            if matches!(&new_predicate, LogicalExpr::Literal(Value::Bool(false))) {
                 // Filter is always false, replace with empty
                 return (LogicalOp::Empty, true);
             }
@@ -184,6 +185,8 @@ fn fold_constants_in_op(op: LogicalOp) -> (LogicalOp, bool) {
 }
 
 /// Fold constants in an expression.
+#[allow(clippy::too_many_lines)]
+#[allow(clippy::match_same_arms)]
 fn fold_constants(expr: LogicalExpr) -> (LogicalExpr, bool) {
     match expr {
         // Already a literal - nothing to fold
@@ -197,10 +200,9 @@ fn fold_constants(expr: LogicalExpr) -> (LogicalExpr, bool) {
             // Try to evaluate if both sides are literals
             if let (LogicalExpr::Literal(l), LogicalExpr::Literal(r)) =
                 (&folded_left, &folded_right)
+                && let Some(result) = evaluate_binary(l, op, r)
             {
-                if let Some(result) = evaluate_binary(l, op, r) {
-                    return (LogicalExpr::Literal(result), true);
-                }
+                return (LogicalExpr::Literal(result), true);
             }
 
             // Special case: x AND true = x, x AND false = false
@@ -248,10 +250,10 @@ fn fold_constants(expr: LogicalExpr) -> (LogicalExpr, bool) {
         LogicalExpr::Unary { op, expr } => {
             let (folded, child_changed) = fold_constants(*expr);
 
-            if let LogicalExpr::Literal(v) = &folded {
-                if let Some(result) = evaluate_unary(op, v) {
-                    return (LogicalExpr::Literal(result), true);
-                }
+            if let LogicalExpr::Literal(v) = &folded
+                && let Some(result) = evaluate_unary(op, v)
+            {
+                return (LogicalExpr::Literal(result), true);
             }
 
             (
@@ -382,7 +384,7 @@ fn evaluate_binary(left: &Value, op: BinaryOp, right: &Value) -> Option<Value> {
 
         // String concatenation
         (Value::String(l), Value::String(r), BinaryOp::Concat) => {
-            Some(Value::String(format!("{}{}", l, r)))
+            Some(Value::String(format!("{l}{r}")))
         }
 
         _ => None,
@@ -396,8 +398,9 @@ fn evaluate_unary(op: grism_logical::UnaryOp, value: &Value) -> Option<Value> {
         (grism_logical::UnaryOp::Neg, Value::Int64(i)) => Some(Value::Int64(-i)),
         (grism_logical::UnaryOp::Neg, Value::Float64(f)) => Some(Value::Float64(-f)),
         (grism_logical::UnaryOp::IsNull, Value::Null) => Some(Value::Bool(true)),
-        (grism_logical::UnaryOp::IsNull, _) => Some(Value::Bool(false)),
-        (grism_logical::UnaryOp::IsNotNull, Value::Null) => Some(Value::Bool(false)),
+        (grism_logical::UnaryOp::IsNull, _) | (grism_logical::UnaryOp::IsNotNull, Value::Null) => {
+            Some(Value::Bool(false))
+        }
         (grism_logical::UnaryOp::IsNotNull, _) => Some(Value::Bool(true)),
         _ => None,
     }
@@ -410,7 +413,7 @@ mod tests {
 
     #[test]
     fn test_fold_arithmetic() {
-        let expr = lit(2i64).add(lit(3i64));
+        let expr = lit(2i64).add_expr(lit(3i64));
         let (folded, changed) = fold_constants(expr);
 
         assert!(changed);

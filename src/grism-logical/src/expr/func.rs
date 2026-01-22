@@ -31,9 +31,9 @@ pub enum FuncCategory {
 pub enum Determinism {
     /// Always returns same result for same inputs.
     Deterministic,
-    /// Result depends on snapshot (e.g., CURRENT_TIMESTAMP).
+    /// Result depends on snapshot (e.g., `CURRENT_TIMESTAMP`).
     Stable,
-    /// Non-deterministic (e.g., RANDOM()).
+    /// Non-deterministic (e.g., `RANDOM()`).
     Volatile,
 }
 
@@ -176,7 +176,7 @@ pub enum BuiltinFunc {
 
 impl BuiltinFunc {
     /// Get function name.
-    pub fn name(&self) -> &'static str {
+    pub const fn name(&self) -> &'static str {
         match self {
             // String functions
             Self::Length => "LENGTH",
@@ -243,7 +243,7 @@ impl BuiltinFunc {
     }
 
     /// Get function category.
-    pub fn category(&self) -> FuncCategory {
+    pub const fn category(&self) -> FuncCategory {
         match self {
             Self::Length
             | Self::Upper
@@ -296,7 +296,7 @@ impl BuiltinFunc {
     }
 
     /// Get function determinism.
-    pub fn determinism(&self) -> Determinism {
+    pub const fn determinism(&self) -> Determinism {
         match self {
             Self::CurrentDate | Self::CurrentTimestamp => Determinism::Stable,
             _ => Determinism::Deterministic,
@@ -304,7 +304,7 @@ impl BuiltinFunc {
     }
 
     /// Get null behavior.
-    pub fn null_behavior(&self) -> NullBehavior {
+    pub const fn null_behavior(&self) -> NullBehavior {
         match self {
             Self::Coalesce | Self::NullIf | Self::IfNull => NullBehavior::NullAware,
             _ => NullBehavior::NullIfNull,
@@ -338,7 +338,7 @@ pub enum FuncKind {
 
 impl FuncExpr {
     /// Create a new builtin function call.
-    pub fn builtin(func: BuiltinFunc, args: Vec<LogicalExpr>) -> Self {
+    pub const fn builtin(func: BuiltinFunc, args: Vec<LogicalExpr>) -> Self {
         Self {
             func: FuncKind::Builtin(func),
             args,
@@ -362,7 +362,7 @@ impl FuncExpr {
     }
 
     /// Get determinism (assumes UDFs are deterministic unless registered otherwise).
-    pub fn determinism(&self) -> Determinism {
+    pub const fn determinism(&self) -> Determinism {
         match &self.func {
             FuncKind::Builtin(f) => f.determinism(),
             FuncKind::UserDefined(_) => Determinism::Deterministic, // Default assumption
@@ -375,7 +375,7 @@ impl std::fmt::Display for FuncExpr {
         let args = self
             .args
             .iter()
-            .map(|a| a.to_string())
+            .map(std::string::ToString::to_string)
             .collect::<Vec<_>>()
             .join(", ");
         write!(f, "{}({})", self.name(), args)
@@ -393,11 +393,11 @@ impl FuncExpr {
     }
 
     /// Create COALESCE(exprs...).
-    pub fn coalesce(exprs: Vec<LogicalExpr>) -> Self {
+    pub const fn coalesce(exprs: Vec<LogicalExpr>) -> Self {
         Self::builtin(BuiltinFunc::Coalesce, exprs)
     }
 
-    /// Create COSINE_SIMILARITY(vec1, vec2).
+    /// Create `COSINE_SIMILARITY(vec1, vec2)`.
     pub fn cosine_similarity(vec1: LogicalExpr, vec2: LogicalExpr) -> Self {
         Self::builtin(BuiltinFunc::CosineSimilarity, vec![vec1, vec2])
     }

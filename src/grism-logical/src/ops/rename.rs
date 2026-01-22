@@ -32,11 +32,12 @@ impl RenameOp {
     }
 
     /// Create a rename from a mapping.
-    pub fn from_mapping(mapping: HashMap<String, String>) -> Self {
+    pub const fn from_mapping(mapping: HashMap<String, String>) -> Self {
         Self { mapping }
     }
 
     /// Add a rename mapping.
+    #[must_use]
     pub fn with_rename(mut self, from: impl Into<String>, to: impl Into<String>) -> Self {
         self.mapping.insert(from.into(), to.into());
         self
@@ -63,10 +64,10 @@ impl std::fmt::Display for RenameOp {
         let renames = self
             .mapping
             .iter()
-            .map(|(from, to)| format!("{} -> {}", from, to))
+            .map(|(from, to)| format!("{from} -> {to}"))
             .collect::<Vec<_>>()
             .join(", ");
-        write!(f, "Rename({})", renames)
+        write!(f, "Rename({renames})")
     }
 }
 

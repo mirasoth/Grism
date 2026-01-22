@@ -67,28 +67,28 @@ pub enum EntityRef {
 
 impl EntityRef {
     /// Check if this reference points to a node.
-    pub fn is_node(&self) -> bool {
+    pub const fn is_node(&self) -> bool {
         matches!(self, Self::Node(_))
     }
 
     /// Check if this reference points to a hyperedge.
-    pub fn is_hyperedge(&self) -> bool {
+    pub const fn is_hyperedge(&self) -> bool {
         matches!(self, Self::Hyperedge(_))
     }
 
     /// Get the node ID if this is a node reference.
-    pub fn as_node(&self) -> Option<NodeId> {
+    pub const fn as_node(&self) -> Option<NodeId> {
         match self {
             Self::Node(id) => Some(*id),
-            _ => None,
+            Self::Hyperedge(_) => None,
         }
     }
 
     /// Get the edge ID if this is a hyperedge reference.
-    pub fn as_hyperedge(&self) -> Option<EdgeId> {
+    pub const fn as_hyperedge(&self) -> Option<EdgeId> {
         match self {
             Self::Hyperedge(id) => Some(*id),
-            _ => None,
+            Self::Node(_) => None,
         }
     }
 }

@@ -63,6 +63,7 @@ impl OptimizationRule for PredicatePushdown {
 }
 
 /// Recursively push predicates down the plan tree.
+#[allow(clippy::too_many_lines)]
 fn push_down_predicates(op: LogicalOp) -> (LogicalOp, bool) {
     match op {
         // Filter on top of Expand: try to push through

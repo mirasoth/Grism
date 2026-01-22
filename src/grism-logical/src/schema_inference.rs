@@ -8,7 +8,7 @@ use grism_core::{ColumnInfo, DataType, Schema};
 use crate::{LogicalExpr, LogicalOp, LogicalPlan};
 
 /// Error during schema inference.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SchemaInferenceError {
     /// Column not found in input schema.
     ColumnNotFound {
@@ -27,15 +27,11 @@ impl std::fmt::Display for SchemaInferenceError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::ColumnNotFound { column, available } => {
-                write!(
-                    f,
-                    "Column '{}' not found. Available: {:?}",
-                    column, available
-                )
+                write!(f, "Column '{column}' not found. Available: {available:?}")
             }
-            Self::TypeMismatch { message } => write!(f, "Type mismatch: {}", message),
-            Self::CannotInfer { reason } => write!(f, "Cannot infer schema: {}", reason),
-            Self::IncompatibleSchemas { message } => write!(f, "Incompatible schemas: {}", message),
+            Self::TypeMismatch { message } => write!(f, "Type mismatch: {message}"),
+            Self::CannotInfer { reason } => write!(f, "Cannot infer schema: {reason}"),
+            Self::IncompatibleSchemas { message } => write!(f, "Incompatible schemas: {message}"),
         }
     }
 }
@@ -54,7 +50,7 @@ impl SchemaInference {
     /// Infer the output schema of a logical operator.
     pub fn infer_op(op: &LogicalOp) -> Result<Schema, SchemaInferenceError> {
         match op {
-            LogicalOp::Scan(scan) => Self::infer_scan(scan),
+            LogicalOp::Scan(scan) => Ok(Self::infer_scan(scan)),
             LogicalOp::Empty => Ok(Schema::empty()),
             LogicalOp::Filter { input, .. } => {
                 // Filter doesn't change schema
@@ -66,7 +62,7 @@ impl SchemaInference {
             }
             LogicalOp::Expand { input, expand } => {
                 let input_schema = Self::infer_op(input)?;
-                Self::infer_expand(&input_schema, expand)
+                Ok(Self::infer_expand(&input_schema, expand))
             }
             LogicalOp::Aggregate { input, aggregate } => {
                 let input_schema = Self::infer_op(input)?;
@@ -83,11 +79,11 @@ impl SchemaInference {
             LogicalOp::Union { left, right, .. } => {
                 let left_schema = Self::infer_op(left)?;
                 let right_schema = Self::infer_op(right)?;
-                Self::infer_union(&left_schema, &right_schema)
+                Ok(Self::infer_union(&left_schema, &right_schema))
             }
             LogicalOp::Rename { input, rename } => {
                 let input_schema = Self::infer_op(input)?;
-                Self::infer_rename(&input_schema, &rename.mapping)
+                Ok(Self::infer_rename(&input_schema, &rename.mapping))
             }
             LogicalOp::Infer { input, .. } => {
                 // For now, pass through - infer rules could add columns
@@ -97,7 +93,7 @@ impl SchemaInference {
     }
 
     /// Infer schema for a scan operation.
-    fn infer_scan(scan: &crate::ScanOp) -> Result<Schema, SchemaInferenceError> {
+    fn infer_scan(scan: &crate::ScanOp) -> Schema {
         let mut schema = Schema::empty();
 
         // Determine qualifier (alias or label)
@@ -134,7 +130,7 @@ impl SchemaInference {
             );
         }
 
-        Ok(schema)
+        schema
     }
 
     /// Infer schema for a project operation.
@@ -172,10 +168,7 @@ impl SchemaInference {
     }
 
     /// Infer schema for an expand operation.
-    fn infer_expand(
-        input_schema: &Schema,
-        expand: &crate::ExpandOp,
-    ) -> Result<Schema, SchemaInferenceError> {
+    fn infer_expand(input_schema: &Schema, expand: &crate::ExpandOp) -> Schema {
         let mut schema = input_schema.clone();
 
         // Add target entity columns
@@ -211,7 +204,7 @@ impl SchemaInference {
             ));
         }
 
-        Ok(schema)
+        schema
     }
 
     /// Infer schema for an aggregate operation.
@@ -229,7 +222,7 @@ impl SchemaInference {
 
         // Add aggregation result columns
         for agg in &aggregate.aggregates {
-            let output_type = Self::infer_agg_type(&agg.func);
+            let output_type = Self::infer_agg_type(agg.func.clone());
             let name = agg.output_name();
             schema.add_column(ColumnInfo::new(name, output_type));
         }
@@ -238,31 +231,28 @@ impl SchemaInference {
     }
 
     /// Infer schema for a union operation.
-    fn infer_union(
-        left_schema: &Schema,
-        _right_schema: &Schema,
-    ) -> Result<Schema, SchemaInferenceError> {
+    fn infer_union(left_schema: &Schema, _right_schema: &Schema) -> Schema {
         // Union takes schema from left branch
         // In a real implementation, we'd verify compatibility
-        Ok(left_schema.clone())
+        left_schema.clone()
     }
 
     /// Infer schema for a rename operation.
     fn infer_rename(
         input_schema: &Schema,
         mapping: &std::collections::HashMap<String, String>,
-    ) -> Result<Schema, SchemaInferenceError> {
+    ) -> Schema {
         let mut schema = Schema::empty();
 
         for col in &input_schema.columns {
             let mut new_col = col.clone();
             if let Some(new_name) = mapping.get(&col.name) {
-                new_col.name = new_name.clone();
+                new_col.name.clone_from(new_name);
             }
             schema.add_column(new_col);
         }
 
-        Ok(schema)
+        schema
     }
 
     /// Infer the type of an expression.
@@ -310,7 +300,7 @@ impl SchemaInference {
             }
             LogicalExpr::Alias { expr, alias } => {
                 let mut col_info = Self::infer_expression_type(expr, input_schema)?;
-                col_info.name = alias.clone();
+                col_info.name.clone_from(alias);
                 col_info.qualifier = None;
                 Ok(col_info)
             }
@@ -318,12 +308,12 @@ impl SchemaInference {
                 let left_type = Self::infer_expression_type(left, input_schema)?;
                 let right_type = Self::infer_expression_type(right, input_schema)?;
                 let result_type =
-                    Self::infer_binary_op_type(op, &left_type.data_type, &right_type.data_type);
+                    Self::infer_binary_op_type(*op, &left_type.data_type, &right_type.data_type);
                 Ok(ColumnInfo::new(expr.output_name(), result_type))
             }
             LogicalExpr::Unary { op, expr: inner } => {
                 let inner_type = Self::infer_expression_type(inner, input_schema)?;
-                let result_type = Self::infer_unary_op_type(op, &inner_type.data_type);
+                let result_type = Self::infer_unary_op_type(*op, &inner_type.data_type);
                 Ok(ColumnInfo::new(expr.output_name(), result_type))
             }
             LogicalExpr::Function(func) => {
@@ -331,16 +321,15 @@ impl SchemaInference {
                 Ok(ColumnInfo::new(expr.output_name(), result_type))
             }
             LogicalExpr::Aggregate(agg) => {
-                let result_type = Self::infer_agg_type(&agg.func);
+                let result_type = Self::infer_agg_type(agg.func.clone());
                 Ok(ColumnInfo::new(agg.output_name(), result_type))
             }
             LogicalExpr::Case { else_result, .. } => {
                 // Type is the type of the result expressions
-                if let Some(else_expr) = else_result {
-                    Self::infer_expression_type(else_expr, input_schema)
-                } else {
-                    Ok(ColumnInfo::new(expr.output_name(), DataType::String))
-                }
+                else_result.as_ref().map_or_else(
+                    || Ok(ColumnInfo::new(expr.output_name(), DataType::String)),
+                    |else_expr| Self::infer_expression_type(else_expr, input_schema),
+                )
             }
             _ => {
                 // Default to String for other expressions
@@ -350,19 +339,24 @@ impl SchemaInference {
     }
 
     /// Infer the result type of a binary operation.
-    fn infer_binary_op_type(op: &crate::BinaryOp, _left: &DataType, _right: &DataType) -> DataType {
+    const fn infer_binary_op_type(
+        op: crate::BinaryOp,
+        _left: &DataType,
+        _right: &DataType,
+    ) -> DataType {
         use crate::BinaryOp;
         match op {
-            // Comparison operators return bool
+            // Comparison and logical operators return bool
             BinaryOp::Eq
             | BinaryOp::NotEq
             | BinaryOp::Lt
             | BinaryOp::LtEq
             | BinaryOp::Gt
-            | BinaryOp::GtEq => DataType::Bool,
-
-            // Logical operators return bool
-            BinaryOp::And | BinaryOp::Or => DataType::Bool,
+            | BinaryOp::GtEq
+            | BinaryOp::And
+            | BinaryOp::Or
+            | BinaryOp::IsDistinctFrom
+            | BinaryOp::IsNotDistinctFrom => DataType::Bool,
 
             // Arithmetic operators - could be more precise based on input types
             BinaryOp::Add
@@ -373,23 +367,20 @@ impl SchemaInference {
 
             // String concat returns string
             BinaryOp::Concat => DataType::String,
-
-            // Null-safe comparisons return bool
-            BinaryOp::IsDistinctFrom | BinaryOp::IsNotDistinctFrom => DataType::Bool,
         }
     }
 
     /// Infer the result type of a unary operation.
-    fn infer_unary_op_type(op: &crate::UnaryOp, inner: &DataType) -> DataType {
+    fn infer_unary_op_type(op: crate::UnaryOp, inner: &DataType) -> DataType {
         use crate::UnaryOp;
         match op {
-            UnaryOp::Not => DataType::Bool,
-            UnaryOp::Neg => inner.clone(),
-            UnaryOp::IsNull
+            UnaryOp::Not
+            | UnaryOp::IsNull
             | UnaryOp::IsNotNull
             | UnaryOp::IsTrue
             | UnaryOp::IsFalse
             | UnaryOp::IsUnknown => DataType::Bool,
+            UnaryOp::Neg => inner.clone(),
         }
     }
 
@@ -400,19 +391,15 @@ impl SchemaInference {
             FuncKind::Builtin(builtin) => match builtin {
                 // String functions
                 BuiltinFunc::Length | BuiltinFunc::Size => DataType::Int64,
-                BuiltinFunc::Upper
-                | BuiltinFunc::Lower
-                | BuiltinFunc::Trim
-                | BuiltinFunc::Concat
-                | BuiltinFunc::Substring
-                | BuiltinFunc::Replace => DataType::String,
 
-                // Math functions
+                // Math and vector functions
                 BuiltinFunc::Abs
                 | BuiltinFunc::Ceil
                 | BuiltinFunc::Floor
                 | BuiltinFunc::Round
-                | BuiltinFunc::Sqrt => DataType::Float64,
+                | BuiltinFunc::Sqrt
+                | BuiltinFunc::CosineSimilarity
+                | BuiltinFunc::EuclideanDistance => DataType::Float64,
 
                 // Boolean functions
                 BuiltinFunc::Contains
@@ -422,13 +409,8 @@ impl SchemaInference {
                 | BuiltinFunc::Like => DataType::Bool,
 
                 // Graph functions
-                BuiltinFunc::Id => DataType::String,
                 BuiltinFunc::Labels => DataType::Array(Box::new(DataType::String)),
-                BuiltinFunc::Type => DataType::String,
                 BuiltinFunc::Properties => DataType::Map(Box::new(DataType::String)),
-
-                // Vector functions
-                BuiltinFunc::CosineSimilarity | BuiltinFunc::EuclideanDistance => DataType::Float64,
 
                 // Default
                 _ => DataType::String,
@@ -438,13 +420,12 @@ impl SchemaInference {
     }
 
     /// Infer the result type of an aggregate function.
-    fn infer_agg_type(func: &crate::AggFunc) -> DataType {
+    fn infer_agg_type(func: crate::AggFunc) -> DataType {
         use crate::AggFunc;
         match func {
             AggFunc::Count | AggFunc::CountDistinct => DataType::Int64,
             AggFunc::Sum | AggFunc::Avg => DataType::Float64,
-            AggFunc::Min | AggFunc::Max => DataType::String, // Simplified
-            AggFunc::First | AggFunc::Last => DataType::String, // Simplified
+            AggFunc::Min | AggFunc::Max | AggFunc::First | AggFunc::Last => DataType::String, // Simplified
             AggFunc::Collect | AggFunc::CollectDistinct => {
                 DataType::Array(Box::new(DataType::String))
             }
@@ -452,7 +433,7 @@ impl SchemaInference {
     }
 }
 
-/// Extension trait for LogicalOp to add schema inference.
+/// Extension trait for `LogicalOp` to add schema inference.
 pub trait SchemaInfer {
     /// Infer the output schema of this operator.
     fn infer_schema(&self) -> Result<Schema, SchemaInferenceError>;

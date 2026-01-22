@@ -43,7 +43,7 @@ pub struct Transformed {
 
 impl Transformed {
     /// Create a new transformed result indicating the plan was changed.
-    pub fn yes(plan: LogicalPlan) -> Self {
+    pub const fn yes(plan: LogicalPlan) -> Self {
         Self {
             plan,
             changed: true,
@@ -51,7 +51,7 @@ impl Transformed {
     }
 
     /// Create a new transformed result indicating the plan was unchanged.
-    pub fn no(plan: LogicalPlan) -> Self {
+    pub const fn no(plan: LogicalPlan) -> Self {
         Self {
             plan,
             changed: false,
@@ -129,30 +129,29 @@ impl RuleTrace {
 
     /// Format this trace entry according to RFC-0006, Section 8.2.
     pub fn format_rfc(&self) -> String {
+        use std::fmt::Write;
         let mut output = String::new();
 
-        output.push_str(&format!("Rule: {}\n", self.rule_name));
+        writeln!(output, "Rule: {}", self.rule_name).unwrap();
 
         // Use summaries if available, otherwise extract from full explain
         let before_chain = self
             .before_summary
-            .as_ref()
-            .map(String::as_str)
-            .unwrap_or_else(|| self.extract_operator_chain(&self.before));
+            .as_deref()
+            .unwrap_or_else(|| Self::extract_operator_chain(&self.before));
         let after_chain = self
             .after_summary
-            .as_ref()
-            .map(String::as_str)
-            .unwrap_or_else(|| self.extract_operator_chain(&self.after));
+            .as_deref()
+            .unwrap_or_else(|| Self::extract_operator_chain(&self.after));
 
-        output.push_str(&format!("Before: {}\n", before_chain));
-        output.push_str(&format!("After: {}\n", after_chain));
+        writeln!(output, "Before: {before_chain}").unwrap();
+        writeln!(output, "After: {after_chain}").unwrap();
 
         output
     }
 
     /// Extract operator chain from explain output.
-    fn extract_operator_chain<'a>(&self, explain: &'a str) -> &'a str {
+    fn extract_operator_chain(explain: &str) -> &str {
         // Simple extraction: take first line or use full string
         explain.lines().next().unwrap_or(explain).trim()
     }
@@ -179,7 +178,7 @@ pub struct OptimizedPlan {
 
 impl OptimizedPlan {
     /// Create a new optimized plan result.
-    pub fn new(plan: LogicalPlan) -> Self {
+    pub const fn new(plan: LogicalPlan) -> Self {
         Self {
             plan,
             iterations: 0,
@@ -204,14 +203,16 @@ impl OptimizedPlan {
     /// After: Scan
     /// ```
     pub fn format_trace(&self) -> String {
+        use std::fmt::Write;
         let mut output = String::new();
-        output.push_str(&format!(
-            "Optimization completed in {} iteration{}, {} rule{} applied\n",
-            self.iterations,
-            if self.iterations == 1 { "" } else { "s" },
-            self.rules_applied,
-            if self.rules_applied == 1 { "" } else { "s" }
-        ));
+        let iter_suffix = if self.iterations == 1 { "" } else { "s" };
+        let rule_suffix = if self.rules_applied == 1 { "" } else { "s" };
+        writeln!(
+            output,
+            "Optimization completed in {} iteration{}, {} rule{} applied",
+            self.iterations, iter_suffix, self.rules_applied, rule_suffix
+        )
+        .unwrap();
 
         if self.trace.is_empty() {
             output.push_str("  (no trace available)\n");
@@ -233,20 +234,22 @@ impl OptimizedPlan {
 
     /// Format trace in verbose mode (includes full explain output).
     pub fn format_trace_verbose(&self) -> String {
+        use std::fmt::Write;
         let mut output = String::new();
-        output.push_str(&format!(
-            "Optimization completed in {} iteration{}, {} rule{} applied\n",
-            self.iterations,
-            if self.iterations == 1 { "" } else { "s" },
-            self.rules_applied,
-            if self.rules_applied == 1 { "" } else { "s" }
-        ));
+        let iter_suffix = if self.iterations == 1 { "" } else { "s" };
+        let rule_suffix = if self.rules_applied == 1 { "" } else { "s" };
+        writeln!(
+            output,
+            "Optimization completed in {} iteration{}, {} rule{} applied",
+            self.iterations, iter_suffix, self.rules_applied, rule_suffix
+        )
+        .unwrap();
 
         if self.trace.is_empty() {
             output.push_str("  (no trace available)\n");
         } else {
             for (i, entry) in self.trace.iter().filter(|t| t.changed).enumerate() {
-                output.push_str(&format!("\n=== Step {} - {} ===\n", i + 1, entry.rule_name));
+                writeln!(output, "\n=== Step {} - {} ===", i + 1, entry.rule_name).unwrap();
                 output.push_str("\nBefore:\n");
                 output.push_str(&entry.before);
                 output.push_str("\nAfter:\n");
@@ -264,6 +267,7 @@ mod tests {
     use super::*;
     use grism_logical::{LogicalOp, ScanOp};
 
+    #[allow(dead_code)]
     struct NoOpRule;
 
     impl OptimizationRule for NoOpRule {
