@@ -9,10 +9,10 @@
 // Re-export core crates
 pub use common_error as error;
 pub use grism_core as core;
-pub use grism_distributed as distributed;
 pub use grism_engine as engine;
 pub use grism_logical as logical;
 pub use grism_optimizer as optimizer;
+pub use grism_ray as ray;
 pub use grism_storage as storage;
 
 /// Grism version

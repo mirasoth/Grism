@@ -1,6 +1,7 @@
 //! Catalog for managing graph schemas and metadata.
 
 #![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::return_self_not_must_use)] // Builder patterns don't always need must_use
 
 use std::collections::HashMap;
 
