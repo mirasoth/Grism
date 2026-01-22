@@ -65,6 +65,7 @@ These RFCs are under active development and may be modified.
 | RFC | Title | Last Updated | Dependencies | Description |
 |-----|-------|--------------|--------------|-------------|
 | [RFC-0101](rfc-0101.md) | Python API Specification | 2026-01-22 | RFC-0001, RFC-0002, RFC-0003, RFC-0017, RFC-0100 | Canonical Python API for Grism. Authoritative user-facing interface with backward compatibility guarantees. |
+| [RFC-0102](rfc-0102.md) | Execution Engine Architecture | 2026-01-22 | RFC-0002, RFC-0008, RFC-0010, RFC-0100 | Defines execution engine architecture with common engine layer, local runtime, and Ray distributed runtime. |
 
 ---
 
@@ -101,6 +102,7 @@ graph TD
     RFC0017[RFC-0017: Transactions]
     RFC0100[RFC-0100: Architecture]
     RFC0101[RFC-0101: Python API]
+    RFC0102[RFC-0102: Execution Engine]
     
     RFC0001 --> RFC0002
     RFC0002 --> RFC0003
@@ -162,6 +164,11 @@ graph TD
     RFC0017 --> RFC0101
     RFC0100 --> RFC0101
     
+    RFC0002 --> RFC0102
+    RFC0008 --> RFC0102
+    RFC0010 --> RFC0102
+    RFC0100 --> RFC0102
+    
     style RFC0001 fill:#e1f5ff
     style RFC0002 fill:#e1f5ff
     style RFC0003 fill:#e1f5ff
@@ -188,6 +195,7 @@ graph TD
 - RFC-0009: Indexes & Access Paths (Draft)
 - RFC-0010: Distributed Execution (Draft)
 - RFC-0011: Runtime & Scheduling (Draft)
+- RFC-0102: Execution Engine Architecture (Draft)
 
 ### Storage & Persistence
 - RFC-0012: Storage Layer (Draft)
