@@ -1,6 +1,5 @@
 """Tests for Hypergraph and Frame types."""
 
-import pytest
 import grism as gr
 
 

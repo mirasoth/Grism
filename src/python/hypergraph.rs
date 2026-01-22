@@ -667,6 +667,43 @@ impl PyNodeFrame {
         Ok(self.clone())
     }
 
+    /// Explode an array column into separate rows.
+    ///
+    /// This is similar to SQL's UNNEST or Spark's explode function.
+    /// Each array element becomes a separate row.
+    ///
+    /// Args:
+    ///     column: The array column to explode
+    ///     as_: Alias for the exploded values (optional)
+    #[pyo3(signature = (column, as_=None))]
+    fn explode(&self, column: &str, as_: Option<&str>) -> PyResult<Self> {
+        use grism_logical::expr::{FuncExpr, LogicalExpr};
+
+        // Create an explode expression: explode(col(column))
+        let explode_func = FuncExpr::udf("explode", vec![grism_logical::expr::col(column)]);
+        let explode_expr = LogicalExpr::Function(explode_func);
+
+        // If alias is provided, wrap in Alias expression
+        let final_expr = if let Some(alias) = as_ {
+            LogicalExpr::Alias {
+                expr: Box::new(explode_expr),
+                alias: alias.to_string(),
+            }
+        } else {
+            explode_expr
+        };
+
+        let project_op = ProjectOp::new(vec![final_expr]);
+
+        Ok(Self {
+            plan: LogicalOp::Project {
+                input: Box::new(self.plan.clone()),
+                project: project_op,
+            },
+            label: self.label.clone(),
+        })
+    }
+
     /// Group rows by key expressions.
     #[pyo3(signature = (*keys, **kwargs))]
     fn group_by(

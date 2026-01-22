@@ -24,10 +24,14 @@ clean:
 # Format code
 fmt:
 	cargo fmt
+	black grism/ tests/
+	ruff check --fix grism/ tests/
 
 # Check formatting
 fmt-check:
 	cargo fmt -- --check
+	black --check grism/ tests/
+	ruff check grism/ tests/
 
 # Run clippy linter
 lint:

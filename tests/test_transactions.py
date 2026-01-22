@@ -1,6 +1,7 @@
 """Tests for transaction support."""
 
 import pytest
+
 import grism as gr
 
 
@@ -100,7 +101,7 @@ class TestTransaction:
         hg = gr.connect("grism://local")
         tx = hg.transaction()
         tx.commit()
-        
+
         with pytest.raises(RuntimeError):
             tx.create_node("Person", name="Alice")
 
@@ -109,7 +110,7 @@ class TestTransaction:
         hg = gr.connect("grism://local")
         tx = hg.transaction()
         tx.commit()
-        
+
         with pytest.raises(RuntimeError):
             tx.commit()
 
@@ -120,25 +121,25 @@ class TestTransactionContextManager:
     def test_context_manager_commit(self):
         """Test automatic commit on success."""
         hg = gr.connect("grism://local")
-        
+
         with hg.transaction() as tx:
             tx.create_node("Person", name="Alice")
             assert tx.is_active()
-        
+
         # Transaction should be committed and inactive
         assert not tx.is_active()
 
     def test_context_manager_rollback_on_exception(self):
         """Test automatic rollback on exception."""
         hg = gr.connect("grism://local")
-        
+
         try:
             with hg.transaction() as tx:
                 tx.create_node("Person", name="Alice")
                 raise ValueError("Test error")
         except ValueError:
             pass
-        
+
         # Transaction should be rolled back
         assert not tx.is_active()
 
@@ -149,41 +150,41 @@ class TestTransactionPatterns:
     def test_build_graph(self):
         """Test building a small graph."""
         hg = gr.connect("grism://local")
-        
+
         with hg.transaction() as tx:
             # Create nodes
             alice = tx.create_node("Person", name="Alice", age=30)
             bob = tx.create_node("Person", name="Bob", age=25)
             company = tx.create_node("Company", name="TechCorp")
-            
+
             # Create edges
             tx.create_edge("KNOWS", alice, bob, since=2020)
             tx.create_edge("WORKS_AT", alice, company, role="Engineer")
             tx.create_edge("WORKS_AT", bob, company, role="Designer")
-            
+
             assert tx.pending_count() == 6
 
     def test_batch_create_nodes(self):
         """Test batch creating nodes."""
         hg = gr.connect("grism://local")
-        
+
         with hg.transaction() as tx:
             for i in range(10):
                 tx.create_node("Person", name=f"Person_{i}", index=i)
-            
+
             assert tx.pending_count() == 10
 
     def test_hyperedge_collaboration(self):
         """Test creating collaboration hyperedge."""
         hg = gr.connect("grism://local")
-        
+
         with hg.transaction() as tx:
             # Create participants
             alice = tx.create_node("Person", name="Alice")
             bob = tx.create_node("Person", name="Bob")
             charlie = tx.create_node("Person", name="Charlie")
             paper = tx.create_node("Paper", title="Graph Theory")
-            
+
             # Create collaboration hyperedge
             tx.create_hyperedge(
                 "Collaboration",
@@ -196,5 +197,5 @@ class TestTransactionPatterns:
                 year=2024,
                 venue="SIGMOD",
             )
-            
+
             assert tx.pending_count() == 5
