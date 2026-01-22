@@ -1,4 +1,4 @@
-.PHONY: build test clean fmt lint doc
+.PHONY: build test clean fmt lint doc python python-dev python-release python-install python-test
 
 # Build the project
 build:
@@ -10,15 +10,16 @@ release:
 
 # Run all tests
 test:
-	cargo test
+	cargo test --all
 
 # Run tests with verbose output
 test-verbose:
-	cargo test -- --nocapture
+	cargo test --all -- --nocapture
 
 # Clean build artifacts
 clean:
 	cargo clean
+	rm -rf target/wheels dist *.egg-info .pytest_cache
 
 # Format code
 fmt:
@@ -36,11 +37,56 @@ lint:
 doc:
 	cargo doc --no-deps --open
 
-# Build with Python support
+# ============================================================================
+# Python Build Commands
+# ============================================================================
+
+# Build Python wheel (development mode - unoptimized)
+python-dev:
+	maturin develop --features python
+
+# Build Python wheel (release mode - optimized)
+python-release:
+	maturin build --release --features python
+
+# Build and install Python package in current environment
+python-install:
+	maturin develop --release --features python
+
+# Build Python wheel for distribution
+python-wheel:
+	maturin build --release --features python --strip
+
+# Run Python tests
+python-test: python-dev
+	pytest tests/ -v
+
+# Run Python type checking
+python-typecheck:
+	mypy grism/
+
+# Format Python code
+python-fmt:
+	black grism/ tests/
+	ruff check --fix grism/ tests/
+
+# Lint Python code
+python-lint:
+	ruff check grism/ tests/
+	mypy grism/
+
+# Build Python documentation
+python-doc:
+	cd docs && make html
+
+# Build with Python support (cargo only, no maturin)
 build-python:
 	cargo build --features python
 
-# Run specific crate tests
+# ============================================================================
+# Rust Crate Tests
+# ============================================================================
+
 test-core:
 	cargo test -p grism-core
 
@@ -55,3 +101,26 @@ test-storage:
 
 test-distributed:
 	cargo test -p grism-distributed
+
+test-optimizer:
+	cargo test -p grism-optimizer
+
+# ============================================================================
+# All Tests
+# ============================================================================
+
+# Run all Rust and Python tests
+test-all: test python-test
+
+# ============================================================================
+# Development Workflow
+# ============================================================================
+
+# Full development build (Rust + Python)
+dev: build python-dev
+
+# Check everything before commit
+check: fmt-check lint test python-lint
+
+# Full CI check
+ci: fmt-check lint test python-typecheck python-test

@@ -29,16 +29,16 @@ fn value_to_py(py: Python<'_>, value: &Value) -> PyObject {
         Value::Float64(f) => f.into_py(py),
         Value::String(s) => s.into_py(py),
         Value::Symbol(s) => s.into_py(py),
-        Value::Binary(b) => b.into_py(py),
+        Value::Binary(b) => b.clone().into_py(py),
         Value::Array(arr) => {
-            let list = PyList::empty(py);
+            let list = PyList::empty_bound(py);
             for v in arr {
                 list.append(value_to_py(py, v)).ok();
             }
             list.into_py(py)
         }
         Value::Map(map) => {
-            let dict = PyDict::new(py);
+            let dict = PyDict::new_bound(py);
             for (k, v) in map {
                 dict.set_item(k, value_to_py(py, v)).ok();
             }
@@ -52,7 +52,7 @@ fn value_to_py(py: Python<'_>, value: &Value) -> PyObject {
 
 /// Convert a row (HashMap<String, Value>) to a Python dict.
 fn row_to_py(py: Python<'_>, row: &HashMap<String, Value>) -> PyObject {
-    let dict = PyDict::new(py);
+    let dict = PyDict::new_bound(py);
     for (k, v) in row {
         dict.set_item(k, value_to_py(py, v)).ok();
     }
@@ -711,14 +711,14 @@ impl PyNodeFrame {
             
             // Convert to pandas DataFrame if requested
             if as_pandas {
-                let pandas = py.import("pandas")?;
+                let pandas = py.import_bound("pandas")?;
                 let df = pandas.call_method1("DataFrame", (rows,))?;
                 return Ok(df.into_py(py));
             }
             
             // Convert to polars DataFrame if requested
             if as_polars {
-                let polars = py.import("polars")?;
+                let polars = py.import_bound("polars")?;
                 let df = polars.call_method1("from_dicts", (rows,))?;
                 return Ok(df.into_py(py));
             }
@@ -797,7 +797,7 @@ impl PyNodeFrame {
         
         Python::with_gil(|py| {
             let rows = result_to_py(py, result);
-            let list = PyList::new(py, rows)?;
+            let list = PyList::new_bound(py, rows);
             Ok(list.call_method0("__iter__")?.into_py(py))
         })
     }
@@ -905,13 +905,13 @@ impl PyEdgeFrame {
             let rows = result_to_py(py, result);
             
             if as_pandas {
-                let pandas = py.import("pandas")?;
+                let pandas = py.import_bound("pandas")?;
                 let df = pandas.call_method1("DataFrame", (rows,))?;
                 return Ok(df.into_py(py));
             }
             
             if as_polars {
-                let polars = py.import("polars")?;
+                let polars = py.import_bound("polars")?;
                 let df = polars.call_method1("from_dicts", (rows,))?;
                 return Ok(df.into_py(py));
             }
@@ -1076,13 +1076,13 @@ impl PyHyperedgeFrame {
             let rows = result_to_py(py, result);
             
             if as_pandas {
-                let pandas = py.import("pandas")?;
+                let pandas = py.import_bound("pandas")?;
                 let df = pandas.call_method1("DataFrame", (rows,))?;
                 return Ok(df.into_py(py));
             }
             
             if as_polars {
-                let polars = py.import("polars")?;
+                let polars = py.import_bound("polars")?;
                 let df = polars.call_method1("from_dicts", (rows,))?;
                 return Ok(df.into_py(py));
             }
@@ -1614,11 +1614,16 @@ impl PyTransaction {
         exc_val: Option<PyObject>,
         exc_tb: Option<PyObject>,
     ) -> PyResult<bool> {
+        // Check if an exception occurred
+        let has_exception = exc_type.is_some();
+        
+        // Consume the unused values
         let _ = (exc_type, exc_val, exc_tb);
+        
         if self.active {
             // Auto-rollback on exception (if exc_type is Some)
             // Auto-commit otherwise
-            if exc_type.is_some() {
+            if has_exception {
                 self.rollback()?;
             } else {
                 self.commit()?;
@@ -1789,10 +1794,10 @@ mod tests {
             assert_eq!(tx.pending_count(), 2);
             
             // Create a hyperedge
-            let bindings = PyDict::new(py);
+            let bindings = PyDict::new_bound(py);
             bindings.set_item("author", "node1").unwrap();
             bindings.set_item("paper", "node2").unwrap();
-            let he_id = tx.create_hyperedge("Authored", bindings.clone().into_bound(py), None).unwrap();
+            let he_id = tx.create_hyperedge("Authored", bindings.clone(), None).unwrap();
             assert!(he_id.starts_with("hyperedge_"));
             assert_eq!(tx.pending_count(), 3);
             
