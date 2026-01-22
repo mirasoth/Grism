@@ -8,8 +8,8 @@
 //! - **Predicate Pushdown**: Move filters closer to data sources
 //! - **Projection Pruning**: Remove unused columns early
 //! - **Constant Folding**: Evaluate constant expressions at plan time
-//! - **Expand Reordering**: Reorder independent expand operations (future)
-//! - **Filter-Expand Fusion**: Fuse traversal predicates into expansion (future)
+//! - **Expand Reordering**: Reorder independent expand operations
+//! - **Filter-Expand Fusion**: Fuse traversal predicates into expansion
 //! - **Limit Pushdown**: Move limit operations upstream (future)
 //!
 //! # Rewrite Safety (RFC-0006, Section 5.2)
@@ -23,12 +23,16 @@
 //! 5. **Scope Preservation**: No column or role shadowing is introduced
 
 mod constant_folding;
+mod expand_reordering;
+mod filter_expand_fusion;
 mod optimizer;
 mod predicate_pushdown;
 mod projection_pruning;
 mod rule;
 
 pub use constant_folding::ConstantFolding;
+pub use expand_reordering::ExpandReordering;
+pub use filter_expand_fusion::FilterExpandFusion;
 pub use optimizer::{Optimizer, OptimizerConfig};
 pub use predicate_pushdown::PredicatePushdown;
 pub use projection_pruning::ProjectionPruning;

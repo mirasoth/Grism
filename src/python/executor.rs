@@ -26,10 +26,7 @@ impl PyExecutor {
     /// Create a Ray executor.
     #[staticmethod]
     #[pyo3(signature = (num_workers=None, resources=None))]
-    fn ray(
-        num_workers: Option<usize>,
-        resources: Option<Bound<'_, PyDict>>,
-    ) -> Self {
+    fn ray(num_workers: Option<usize>, resources: Option<Bound<'_, PyDict>>) -> Self {
         let _ = (num_workers, resources);
         Self {
             executor_type: "ray".to_string(),
