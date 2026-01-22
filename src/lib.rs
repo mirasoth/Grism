@@ -25,9 +25,12 @@ mod python;
 use pyo3::prelude::*;
 
 /// Python module for Grism
+///
+/// The module is named `_grism` to allow the Python wrapper package
+/// to re-export with additional convenience functions.
 #[cfg(feature = "python")]
 #[pymodule]
-fn grism(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _grism(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", VERSION)?;
 
     // Register Python classes and functions

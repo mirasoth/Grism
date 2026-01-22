@@ -53,9 +53,9 @@ Issues = "https://github.com/mirasoth/Grism/issues"
 [tool.maturin]
 # Build with Python feature enabled
 features = ["python"]
-# Python source directory
-python-source = "grism"
-# Module name matches the Rust crate
+# Python source directory (root contains the grism/ package)
+python-source = "."
+# Module name - the native extension lives at grism._grism
 module-name = "grism._grism"
 # Manifest path
 manifest-path = "Cargo.toml"
