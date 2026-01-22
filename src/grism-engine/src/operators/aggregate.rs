@@ -211,13 +211,13 @@ impl Accumulator for MinInt64Accumulator {
     }
 
     fn merge(&mut self, other: &dyn Accumulator) -> GrismResult<()> {
-        if let Some(other) = other.as_any().downcast_ref::<MinInt64Accumulator>() {
-            if let Some(other_min) = other.min {
-                self.min = Some(match self.min {
-                    Some(current) => current.min(other_min),
-                    None => other_min,
-                });
-            }
+        if let Some(other) = other.as_any().downcast_ref::<MinInt64Accumulator>()
+            && let Some(other_min) = other.min
+        {
+            self.min = Some(match self.min {
+                Some(current) => current.min(other_min),
+                None => other_min,
+            });
         }
         Ok(())
     }
@@ -265,13 +265,13 @@ impl Accumulator for MaxInt64Accumulator {
     }
 
     fn merge(&mut self, other: &dyn Accumulator) -> GrismResult<()> {
-        if let Some(other) = other.as_any().downcast_ref::<MaxInt64Accumulator>() {
-            if let Some(other_max) = other.max {
-                self.max = Some(match self.max {
-                    Some(current) => current.max(other_max),
-                    None => other_max,
-                });
-            }
+        if let Some(other) = other.as_any().downcast_ref::<MaxInt64Accumulator>()
+            && let Some(other_max) = other.max
+        {
+            self.max = Some(match self.max {
+                Some(current) => current.max(other_max),
+                None => other_max,
+            });
         }
         Ok(())
     }

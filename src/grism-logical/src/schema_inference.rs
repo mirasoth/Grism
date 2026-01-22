@@ -27,15 +27,11 @@ impl std::fmt::Display for SchemaInferenceError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::ColumnNotFound { column, available } => {
-                write!(
-                    f,
-                    "Column '{}' not found. Available: {:?}",
-                    column, available
-                )
+                write!(f, "Column '{column}' not found. Available: {available:?}")
             }
-            Self::TypeMismatch { message } => write!(f, "Type mismatch: {}", message),
-            Self::CannotInfer { reason } => write!(f, "Cannot infer schema: {}", reason),
-            Self::IncompatibleSchemas { message } => write!(f, "Incompatible schemas: {}", message),
+            Self::TypeMismatch { message } => write!(f, "Type mismatch: {message}"),
+            Self::CannotInfer { reason } => write!(f, "Cannot infer schema: {reason}"),
+            Self::IncompatibleSchemas { message } => write!(f, "Incompatible schemas: {message}"),
         }
     }
 }

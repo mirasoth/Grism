@@ -607,7 +607,7 @@ impl PyExpr {
         })
     }
 
-    /// Alias for alias().
+    /// Alias for `alias()`.
     fn as_(&self, name: &str) -> Self {
         self.alias(name)
     }
@@ -724,7 +724,7 @@ pub fn lit(value: &Bound<'_, PyAny>) -> PyResult<PyExpr> {
     Ok(PyExpr::literal(v))
 }
 
-/// Alias for col() - provided for semantic clarity.
+/// Alias for `col()` - provided for semantic clarity.
 #[pyfunction]
 pub fn prop(name: &str) -> PyExpr {
     col(name)
@@ -769,7 +769,7 @@ impl PyAggExpr {
         new
     }
 
-    /// Alias for alias().
+    /// Alias for `alias()`.
     fn as_(&self, name: &str) -> Self {
         self.alias(name)
     }
@@ -1128,7 +1128,7 @@ pub fn split(expr: &PyExpr, delimiter: &str) -> PyExpr {
 // ========== Conditional Functions (additional) ==========
 
 /// When expression (alias for if_).
-/// Used for conditional expressions: when(condition, then_value, else_value)
+/// Used for conditional expressions: when(condition, `then_value`, `else_value`)
 #[pyfunction]
 pub fn when(
     condition: &PyExpr,

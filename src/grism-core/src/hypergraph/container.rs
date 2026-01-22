@@ -268,7 +268,7 @@ impl Hypergraph {
     ///
     /// # Returns
     /// A `HyperedgeBuilder` for configuring the hyperedge
-    pub fn add_hyperedge(&mut self, label: impl Into<Label>) -> HyperedgeBuilder {
+    pub fn add_hyperedge(&mut self, label: impl Into<Label>) -> HyperedgeBuilder<'_> {
         HyperedgeBuilder {
             hypergraph: self,
             hyperedge: Hyperedge::new(label),
@@ -417,7 +417,7 @@ impl Hypergraph {
     /// This is a foundational operation for creating views and filtering.
     /// Note: Only node bindings are considered; hyperedge-to-hyperedge bindings
     /// are not followed in the current implementation.
-    pub fn subgraph<F>(&self, predicate: F) -> SubgraphView
+    pub fn subgraph<F>(&self, predicate: F) -> SubgraphView<'_>
     where
         F: Fn(&Node, &Hyperedge) -> bool,
     {

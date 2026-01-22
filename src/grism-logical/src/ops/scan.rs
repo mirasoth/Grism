@@ -193,15 +193,15 @@ impl std::fmt::Display for ScanOp {
         write!(f, "Scan({})", self.kind)?;
 
         if let Some(ref label) = self.label {
-            write!(f, ", label={}", label)?;
+            write!(f, ", label={label}")?;
         }
 
         if let Some(ref ns) = self.namespace {
-            write!(f, ", namespace={}", ns)?;
+            write!(f, ", namespace={ns}")?;
         }
 
         if let Some(ref alias) = self.alias {
-            write!(f, " AS {}", alias)?;
+            write!(f, " AS {alias}")?;
         }
 
         Ok(())

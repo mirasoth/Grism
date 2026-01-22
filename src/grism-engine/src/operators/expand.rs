@@ -162,10 +162,10 @@ impl AdjacencyExpandExec {
             .iter()
             .filter(|e| {
                 // Filter by edge label
-                if let Some(ref label) = self.edge_label {
-                    if !e.has_label(label) {
-                        return false;
-                    }
+                if let Some(ref label) = self.edge_label
+                    && !e.has_label(label)
+                {
+                    return false;
                 }
 
                 // Filter by direction

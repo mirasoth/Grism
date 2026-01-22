@@ -104,10 +104,10 @@ impl PhysicalSchema {
 
         let mut qualifiers = HashMap::new();
         for &i in indices {
-            if let Some(field) = self.arrow_schema.fields().get(i) {
-                if let Some(q) = self.qualifiers.get(field.name()) {
-                    qualifiers.insert(field.name().clone(), q.clone());
-                }
+            if let Some(field) = self.arrow_schema.fields().get(i)
+                && let Some(q) = self.qualifiers.get(field.name())
+            {
+                qualifiers.insert(field.name().clone(), q.clone());
             }
         }
 

@@ -67,7 +67,7 @@ impl std::fmt::Display for RenameOp {
             .map(|(from, to)| format!("{from} -> {to}"))
             .collect::<Vec<_>>()
             .join(", ");
-        write!(f, "Rename({})", renames)
+        write!(f, "Rename({renames})")
     }
 }
 

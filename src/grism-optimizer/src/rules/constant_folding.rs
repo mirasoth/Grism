@@ -200,10 +200,9 @@ fn fold_constants(expr: LogicalExpr) -> (LogicalExpr, bool) {
             // Try to evaluate if both sides are literals
             if let (LogicalExpr::Literal(l), LogicalExpr::Literal(r)) =
                 (&folded_left, &folded_right)
+                && let Some(result) = evaluate_binary(l, op, r)
             {
-                if let Some(result) = evaluate_binary(l, op, r) {
-                    return (LogicalExpr::Literal(result), true);
-                }
+                return (LogicalExpr::Literal(result), true);
             }
 
             // Special case: x AND true = x, x AND false = false
@@ -251,10 +250,10 @@ fn fold_constants(expr: LogicalExpr) -> (LogicalExpr, bool) {
         LogicalExpr::Unary { op, expr } => {
             let (folded, child_changed) = fold_constants(*expr);
 
-            if let LogicalExpr::Literal(v) = &folded {
-                if let Some(result) = evaluate_unary(op, v) {
-                    return (LogicalExpr::Literal(result), true);
-                }
+            if let LogicalExpr::Literal(v) = &folded
+                && let Some(result) = evaluate_unary(op, v)
+            {
+                return (LogicalExpr::Literal(result), true);
             }
 
             (

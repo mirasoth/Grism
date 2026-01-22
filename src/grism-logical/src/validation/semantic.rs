@@ -330,7 +330,7 @@ impl SemanticValidator {
         for (old_name, _new_name) in &rename.mapping {
             if !scope.has_column(old_name) {
                 errors.push(SemanticValidationError::UnresolvedColumn {
-                    column: old_name.to_string(),
+                    column: old_name.clone(),
                     available: scope.available_columns(),
                 });
             }

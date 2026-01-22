@@ -16,8 +16,9 @@ use crate::operators::PhysicalOperator;
 use crate::physical::{OperatorCaps, PhysicalSchema, PhysicalSchemaBuilder};
 
 /// Internal state for scan operators.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 enum ScanState<T> {
+    #[default]
     Uninitialized,
     Open {
         /// Buffered entities to return.
@@ -27,12 +28,6 @@ enum ScanState<T> {
     },
     Exhausted,
     Closed,
-}
-
-impl<T> Default for ScanState<T> {
-    fn default() -> Self {
-        Self::Uninitialized
-    }
 }
 
 /// Node scan execution operator.

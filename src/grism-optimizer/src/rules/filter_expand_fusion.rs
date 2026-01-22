@@ -88,24 +88,24 @@ fn fuse_filter_expand(op: LogicalOp) -> (LogicalOp, bool) {
                         edge_alias.as_deref(),
                     );
 
+                    #[allow(clippy::useless_let_if_seq)]
                     let mut changed = false;
 
                     // Fuse target predicate if possible
-                    if let Some(tp) = target_pred {
-                        if filter.is_deterministic() {
-                            expand.target_predicate =
-                                Some(merge_predicates(expand.target_predicate, tp));
-                            changed = true;
-                        }
+                    if let Some(tp) = target_pred
+                        && filter.is_deterministic()
+                    {
+                        expand.target_predicate =
+                            Some(merge_predicates(expand.target_predicate, tp));
+                        changed = true;
                     }
 
                     // Fuse edge predicate if possible
-                    if let Some(ep) = edge_pred {
-                        if filter.is_deterministic() {
-                            expand.edge_predicate =
-                                Some(merge_predicates(expand.edge_predicate, ep));
-                            changed = true;
-                        }
+                    if let Some(ep) = edge_pred
+                        && filter.is_deterministic()
+                    {
+                        expand.edge_predicate = Some(merge_predicates(expand.edge_predicate, ep));
+                        changed = true;
                     }
 
                     // Recurse into expand input
@@ -280,20 +280,20 @@ fn partition_predicate(
     let refs = predicate.column_refs();
 
     // Check if all refs are target-qualified
-    if let Some(alias) = target_alias {
-        if refs_all_match_alias(&refs, alias) {
-            // Rewrite the predicate to remove the alias prefix
-            let rewritten = rewrite_predicate_remove_alias(predicate.clone(), alias);
-            return (Some(rewritten), None, None);
-        }
+    if let Some(alias) = target_alias
+        && refs_all_match_alias(&refs, alias)
+    {
+        // Rewrite the predicate to remove the alias prefix
+        let rewritten = rewrite_predicate_remove_alias(predicate.clone(), alias);
+        return (Some(rewritten), None, None);
     }
 
     // Check if all refs are edge-qualified
-    if let Some(alias) = edge_alias {
-        if refs_all_match_alias(&refs, alias) {
-            let rewritten = rewrite_predicate_remove_alias(predicate.clone(), alias);
-            return (None, Some(rewritten), None);
-        }
+    if let Some(alias) = edge_alias
+        && refs_all_match_alias(&refs, alias)
+    {
+        let rewritten = rewrite_predicate_remove_alias(predicate.clone(), alias);
+        return (None, Some(rewritten), None);
     }
 
     // Can't partition - keep as remaining

@@ -149,10 +149,10 @@ impl ExprEvaluator {
         batch: &RecordBatch,
     ) -> GrismResult<ArrayRef> {
         // Try qualified name first if qualifier is provided
-        if let Some(q) = qualifier {
-            if let Some(col) = batch.column_by_name(&format!("{q}.{name}")) {
-                return Ok(col.clone());
-            }
+        if let Some(q) = qualifier
+            && let Some(col) = batch.column_by_name(&format!("{q}.{name}"))
+        {
+            return Ok(col.clone());
         }
 
         // Try unqualified name

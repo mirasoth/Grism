@@ -117,3 +117,4 @@ dmypy.json
 cython_debug/
 
 bench/output
+.python-version

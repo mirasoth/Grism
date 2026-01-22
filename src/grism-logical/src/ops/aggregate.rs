@@ -121,7 +121,7 @@ impl std::fmt::Display for AggregateOp {
                 .map(LogicalExpr::output_name)
                 .collect::<Vec<_>>()
                 .join(", ");
-            write!(f, "keys=[{}], ", keys)?;
+            write!(f, "keys=[{keys}], ")?;
         }
 
         let aggs = self
@@ -130,7 +130,7 @@ impl std::fmt::Display for AggregateOp {
             .map(std::string::ToString::to_string)
             .collect::<Vec<_>>()
             .join(", ");
-        write!(f, "aggs=[{}])", aggs)
+        write!(f, "aggs=[{aggs}])")
     }
 }
 

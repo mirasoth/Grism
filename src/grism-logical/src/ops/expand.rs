@@ -308,11 +308,11 @@ impl std::fmt::Display for ExpandOp {
         write!(f, "Expand({}, {})", self.mode, self.direction)?;
 
         if let Some(ref label) = self.edge_label {
-            write!(f, ", edge={}", label)?;
+            write!(f, ", edge={label}")?;
         }
 
         if let Some(ref label) = self.to_label {
-            write!(f, ", to={}", label)?;
+            write!(f, ", to={label}")?;
         }
 
         if !self.hops.is_single() {
@@ -320,7 +320,7 @@ impl std::fmt::Display for ExpandOp {
         }
 
         if let Some(ref alias) = self.target_alias {
-            write!(f, " AS {}", alias)?;
+            write!(f, " AS {alias}")?;
         }
 
         Ok(())

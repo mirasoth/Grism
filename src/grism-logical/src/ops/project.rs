@@ -89,7 +89,7 @@ impl ProjectOp {
 impl std::fmt::Display for ProjectOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let cols = self.output_names().join(", ");
-        write!(f, "Project({})", cols)
+        write!(f, "Project({cols})")
     }
 }
 

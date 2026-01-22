@@ -21,7 +21,7 @@ impl std::fmt::Display for InferMode {
         match self {
             Self::Standard => write!(f, "STANDARD"),
             Self::Fixpoint => write!(f, "FIXPOINT"),
-            Self::Bounded(n) => write!(f, "BOUNDED({})", n),
+            Self::Bounded(n) => write!(f, "BOUNDED({n})"),
         }
     }
 }
@@ -99,7 +99,7 @@ impl std::fmt::Display for InferOp {
                 .map(|(k, v)| format!("{k}={v}"))
                 .collect::<Vec<_>>()
                 .join(", ");
-            write!(f, ", params=[{}]", params)?;
+            write!(f, ", params=[{params}]")?;
         }
 
         Ok(())

@@ -136,7 +136,7 @@ impl std::fmt::Display for SortOp {
             .map(std::string::ToString::to_string)
             .collect::<Vec<_>>()
             .join(", ");
-        write!(f, "Sort({})", keys)
+        write!(f, "Sort({keys})")
     }
 }
 

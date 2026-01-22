@@ -35,12 +35,8 @@
 #![allow(clippy::match_same_arms)] // Some match arms intentionally have same body
 #![allow(clippy::needless_borrow)] // Some borrows are for clarity
 #![allow(clippy::use_self)] // Some structure name repetition is clearer
-#![allow(clippy::option_as_ref_deref)] // Some &Option<T> patterns are intentional
 #![allow(clippy::or_fun_call)] // Some function calls in unwrap_or are clearer
-#![allow(clippy::unnecessary_literal_unwrap)] // Some unwraps are for clarity
 #![allow(clippy::significant_drop_tightening)] // Some temporaries with Drop must stay alive
-#![allow(clippy::unnecessary_literal_unwrap)] // Some unwraps are for clarity
-#![allow(clippy::redundant_closure_for_method_calls)] // Some closures are clearer
 //!
 //! # Architecture
 //!

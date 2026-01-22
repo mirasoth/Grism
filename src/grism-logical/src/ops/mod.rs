@@ -348,16 +348,16 @@ impl LogicalOp {
 impl std::fmt::Display for LogicalOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Scan(scan) => write!(f, "{}", scan),
-            Self::Expand { expand, .. } => write!(f, "{}", expand),
-            Self::Filter { filter, .. } => write!(f, "{}", filter),
-            Self::Project { project, .. } => write!(f, "{}", project),
-            Self::Aggregate { aggregate, .. } => write!(f, "{}", aggregate),
-            Self::Limit { limit, .. } => write!(f, "{}", limit),
-            Self::Sort { sort, .. } => write!(f, "{}", sort),
-            Self::Union { union, .. } => write!(f, "{}", union),
-            Self::Rename { rename, .. } => write!(f, "{}", rename),
-            Self::Infer { infer, .. } => write!(f, "{}", infer),
+            Self::Scan(scan) => write!(f, "{scan}"),
+            Self::Expand { expand, .. } => write!(f, "{expand}"),
+            Self::Filter { filter, .. } => write!(f, "{filter}"),
+            Self::Project { project, .. } => write!(f, "{project}"),
+            Self::Aggregate { aggregate, .. } => write!(f, "{aggregate}"),
+            Self::Limit { limit, .. } => write!(f, "{limit}"),
+            Self::Sort { sort, .. } => write!(f, "{sort}"),
+            Self::Union { union, .. } => write!(f, "{union}"),
+            Self::Rename { rename, .. } => write!(f, "{rename}"),
+            Self::Infer { infer, .. } => write!(f, "{infer}"),
             Self::Empty => write!(f, "Empty"),
         }
     }

@@ -14,6 +14,7 @@ pub mod python;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "python", pyclass)]
 #[derive(Default)]
+#[allow(clippy::unsafe_derive_deserialize)]
 pub struct GrismConfig {
     /// Execution configuration.
     pub execution: ExecutionConfig,
