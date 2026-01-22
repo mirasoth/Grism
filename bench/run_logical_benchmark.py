@@ -44,7 +44,7 @@ class FrameCapture:
     
     def __getattr__(self, name: str) -> Any:
         attr = getattr(self._frame, name)
-        
+
         if name == "collect":
             # Intercept collect() - capture the plan and return empty result
             def capture_and_return(*args, **kwargs):
@@ -55,7 +55,25 @@ class FrameCapture:
                     self._plan_captured.append(f"ERROR: {e}")
                 return []  # Return empty result
             return capture_and_return
-        
+
+        if name == "union":
+            # Special method that needs unwrapping of arguments
+            def special_method(*args, **kwargs):
+                # Unwrap FrameCapture arguments
+                unwrapped_args = []
+                for arg in args:
+                    if isinstance(arg, FrameCapture):
+                        unwrapped_args.append(arg._frame)
+                    else:
+                        unwrapped_args.append(arg)
+
+                result = attr(*unwrapped_args, **kwargs)
+                # Check if result is a frame type
+                if hasattr(result, 'explain'):
+                    return FrameCapture(result, self._plan_captured)
+                return result
+            return special_method
+
         if callable(attr):
             # Wrap methods that return frames to continue capturing
             def wrapper(*args, **kwargs):
@@ -65,7 +83,7 @@ class FrameCapture:
                     return FrameCapture(result, self._plan_captured)
                 return result
             return wrapper
-        
+
         return attr
 
 
@@ -99,7 +117,23 @@ class HypergraphCapture:
         return FrameCapture(frame, self._captured_plans)
     
     def __getattr__(self, name: str) -> Any:
-        return getattr(self._hg, name)
+        attr = getattr(self._hg, name)
+
+        if name in ["shortest_path", "all_paths"]:
+            # Global functions that need unwrapping of arguments
+            def global_function(*args, **kwargs):
+                # Unwrap FrameCapture arguments
+                unwrapped_args = []
+                for arg in args:
+                    if isinstance(arg, FrameCapture):
+                        unwrapped_args.append(arg._frame)
+                    else:
+                        unwrapped_args.append(arg)
+
+                return attr(*unwrapped_args, **kwargs)
+            return global_function
+
+        return attr
 
 
 def get_query_functions() -> dict[str, callable]:
@@ -130,32 +164,94 @@ def get_query_functions() -> dict[str, callable]:
     return query_functions
 
 
-def run_query_with_capture(query_func: callable, hg: HypergraphCapture) -> tuple[bool, str | None, str | None]:
+def validate_logical_plan(query_id: str, plan: str) -> tuple[bool, str]:
+    """
+    Validate a logical plan for correctness.
+
+    Args:
+        query_id: The query identifier (e.g., "query_003")
+        plan: The logical plan string
+
+    Returns:
+        Tuple of (is_valid, validation_message)
+    """
+    try:
+        # Basic structure validation
+        if not plan or plan.strip() == "":
+            return False, "Empty plan"
+
+        # Check for common structural issues
+        if "ERROR:" in plan:
+            return False, "Plan contains errors"
+
+        # Query-specific validations (can be expanded)
+        if query_id == "query_003":
+            # Should have a Project operator
+            if "Project" not in plan:
+                return False, "Missing Project operator"
+
+        if query_id == "query_005":
+            # Should have a Filter with STARTS_WITH
+            if "Filter" not in plan or "STARTS_WITH" not in plan:
+                return False, "Missing Filter with STARTS_WITH"
+
+        # General validation - check for proper operator nesting
+        lines = plan.split("\n")
+        indent_levels = []
+        for line in lines:
+            if line.strip():
+                # Count leading spaces to determine indent level
+                indent = len(line) - len(line.lstrip())
+                indent_levels.append(indent)
+
+        # Check that indentation is consistent (proper tree structure)
+        if len(indent_levels) > 1:
+            for i in range(1, len(indent_levels)):
+                # Each line should be indented more than its parent
+                # or at the same level (siblings)
+                if indent_levels[i] < indent_levels[i-1] and i < len(indent_levels) - 1:
+                    # Check if we're properly closing a subtree
+                    if indent_levels[i+1] > indent_levels[i]:
+                        return False, "Improper plan nesting"
+
+        return True, "Valid"
+
+    except Exception as e:
+        return False, f"Validation error: {e}"
+
+
+def run_query_with_capture(query_func: callable, hg: HypergraphCapture) -> tuple[bool, str | None, str | None, bool]:
     """
     Run a query function and capture the logical plan.
-    
+
     Args:
         query_func: The query function to run
         hg: HypergraphCapture instance
-    
+
     Returns:
-        Tuple of (success, plan, error_message)
+        Tuple of (success, plan, error_message, is_valid)
     """
     hg.clear_captured()
-    
+
     try:
         # Run the query - this will capture the plan when .collect() is called
         query_func(hg)
-        
+
         plan = hg.get_captured_plan()
         if plan and plan.startswith("ERROR:"):
-            return False, None, plan
-        
-        return True, plan, None
-        
+            return False, None, plan, False
+
+        # If we have a plan, validate it
+        is_valid = True
+        if plan:
+            query_name = getattr(query_func, '__name__', 'unknown')
+            is_valid, _ = validate_logical_plan(query_name, plan)
+
+        return True, plan, None, is_valid
+
     except Exception as e:
         error_msg = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
-        return False, None, error_msg
+        return False, None, error_msg, False
 
 
 def run_benchmark(
@@ -164,11 +260,11 @@ def run_benchmark(
 ) -> dict[str, Any]:
     """
     Run the benchmark on all (or selected) queries.
-    
+
     Args:
         query_filter: If set, only run this specific query number
         verbose: Print detailed output
-    
+
     Returns:
         Benchmark results dict
     """
@@ -177,6 +273,8 @@ def run_benchmark(
         "total": 0,
         "passed": 0,
         "failed": 0,
+        "valid": 0,
+        "invalid": 0,
         "queries": {}
     }
     
@@ -213,21 +311,27 @@ def run_benchmark(
     results["total"] = len(query_functions)
     
     for query_name, query_func in sorted(query_functions.items()):
-        success, plan, error = run_query_with_capture(query_func, hg)
-        
+        success, plan, error, is_valid = run_query_with_capture(query_func, hg)
+
         query_result = {
             "status": "pass" if success else "fail",
+            "valid": is_valid,
         }
-        
+
         if success:
             results["passed"] += 1
             query_result["plan"] = plan
-            status_char = "✓"
+            if is_valid:
+                results["valid"] += 1
+                status_char = "✓"
+            else:
+                results["invalid"] += 1
+                status_char = "~"  # Tilde for passed but invalid
         else:
             results["failed"] += 1
             query_result["error"] = error
             status_char = "✗"
-        
+
         results["queries"][query_name] = query_result
         
         # Print progress
@@ -254,6 +358,9 @@ def run_benchmark(
     print("=" * 70)
     print(f"Results: {results['passed']}/{results['total']} passed, "
           f"{results['failed']} failed")
+    if results['passed'] > 0:
+        print(f"Validation: {results['valid']}/{results['passed']} plans valid, "
+              f"{results['invalid']} invalid")
     print("=" * 70)
     
     return results
@@ -285,6 +392,10 @@ def save_results(results: dict[str, Any], output_dir: Path):
         f.write(f"Passed: {results['passed']}\n")
         f.write(f"Failed: {results['failed']}\n")
         f.write(f"Pass rate: {results['passed']/results['total']*100:.1f}%\n")
+        if results['passed'] > 0:
+            f.write(f"Valid plans: {results['valid']}/{results['passed']} "
+                   f"({results['valid']/results['passed']*100:.1f}%)\n")
+            f.write(f"Invalid plans: {results['invalid']}\n")
         f.write("\n")
         
         # List failed queries
@@ -310,8 +421,48 @@ def save_results(results: dict[str, Any], output_dir: Path):
                 plan_lines = [l for l in plan.split("\n") if l.strip()]
                 plan_summary = plan_lines[1] if len(plan_lines) > 1 else plan_lines[0] if plan_lines else "Empty"
                 f.write(f"  {name}: {plan_summary[:60]}\n")
-    
+
     print(f"Saved report to: {report_path}")
+
+    # Save validation report
+    validation_path = output_dir / "validation_report.txt"
+    with open(validation_path, "w") as f:
+        f.write("Logical Plan Validation Report\n")
+        f.write("=" * 50 + "\n\n")
+        f.write(f"Total queries with plans: {results['passed']}\n")
+        f.write(f"Total queries with valid plans: {results['valid']}\n")
+        f.write(f"Total queries with invalid plans: {results['invalid']}\n")
+        f.write(f"Validation failures: {results['invalid']}\n\n")
+
+        # List invalid plans
+        invalid = [name for name, data in results["queries"].items()
+                  if data.get("status") == "pass" and not data.get("valid", True)]
+
+        if invalid:
+            f.write("Invalid Plans:\n")
+            f.write("-" * 30 + "\n")
+            for name in sorted(invalid):
+                f.write(f"  {name}: Plan failed validation\n")
+            f.write("\n")
+        else:
+            f.write("Invalid Plans:\n")
+            f.write("-" * 30 + "\n")
+            f.write("None\n\n")
+
+        # Validation details for passed queries
+        f.write("Validation Details:\n")
+        f.write("-" * 30 + "\n")
+        for name in sorted(results["queries"].keys()):
+            data = results["queries"][name]
+            if data["status"] == "pass":
+                plan = data.get("plan", "No plan")
+                # Extract first meaningful line of plan
+                plan_lines = [l for l in plan.split("\n") if l.strip()]
+                plan_summary = plan_lines[1] if len(plan_lines) > 1 else plan_lines[0] if plan_lines else "Empty"
+                valid_status = "OK" if data.get("valid", True) else "INVALID"
+                f.write(f"{name}: {plan_summary[:60]} - {valid_status}\n")
+
+    print(f"Saved validation report to: {validation_path}")
 
 
 def main():

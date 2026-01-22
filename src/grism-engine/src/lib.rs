@@ -4,6 +4,8 @@
 
 mod executor;
 mod node;
+#[cfg(feature = "python")]
+pub mod python;
 mod result;
 
 pub use executor::{ExecutionConfig, LocalExecutor};
