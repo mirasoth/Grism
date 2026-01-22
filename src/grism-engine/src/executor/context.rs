@@ -1,0 +1,219 @@
+//! Execution context for query execution.
+
+use std::sync::Arc;
+
+use grism_storage::{SnapshotId, Storage};
+use tokio::sync::watch;
+
+use crate::memory::{MemoryManager, NoopMemoryManager};
+use crate::metrics::MetricsSink;
+
+/// Runtime configuration for execution.
+#[derive(Debug, Clone)]
+pub struct RuntimeConfig {
+    /// Batch size for operator processing.
+    pub batch_size: usize,
+    /// Memory limit in bytes (0 = unlimited).
+    pub memory_limit: usize,
+    /// Enable metrics collection.
+    pub collect_metrics: bool,
+    /// Parallelism level (unused in local execution).
+    pub parallelism: usize,
+}
+
+impl Default for RuntimeConfig {
+    fn default() -> Self {
+        Self {
+            batch_size: 8192,
+            memory_limit: 0,
+            collect_metrics: true,
+            parallelism: 1,
+        }
+    }
+}
+
+impl RuntimeConfig {
+    /// Create config with custom batch size.
+    pub fn with_batch_size(mut self, batch_size: usize) -> Self {
+        self.batch_size = batch_size;
+        self
+    }
+
+    /// Create config with memory limit.
+    pub fn with_memory_limit(mut self, limit: usize) -> Self {
+        self.memory_limit = limit;
+        self
+    }
+
+    /// Enable or disable metrics collection.
+    pub fn with_metrics(mut self, enabled: bool) -> Self {
+        self.collect_metrics = enabled;
+        self
+    }
+}
+
+/// Execution context passed to all operators.
+///
+/// The context is **read-only** to operators and shared across the pipeline.
+/// Per RFC-0008, Section 5.1.
+#[derive(Clone)]
+pub struct ExecutionContext {
+    /// Snapshot for consistent reads.
+    pub snapshot: SnapshotId,
+    /// Storage backend handle.
+    pub storage: Arc<dyn Storage>,
+    /// Memory manager for accounting.
+    pub memory: Arc<dyn MemoryManager>,
+    /// Cancellation receiver.
+    cancel_rx: watch::Receiver<bool>,
+    /// Metrics sink for operator statistics.
+    pub metrics: MetricsSink,
+    /// Runtime configuration.
+    pub config: RuntimeConfig,
+}
+
+impl std::fmt::Debug for ExecutionContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExecutionContext")
+            .field("snapshot", &self.snapshot)
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
+}
+
+impl ExecutionContext {
+    /// Create a new execution context.
+    pub fn new(storage: Arc<dyn Storage>, snapshot: SnapshotId) -> Self {
+        let (_, cancel_rx) = watch::channel(false);
+        Self {
+            snapshot,
+            storage,
+            memory: Arc::new(NoopMemoryManager::new()),
+            cancel_rx,
+            metrics: MetricsSink::new(),
+            config: RuntimeConfig::default(),
+        }
+    }
+
+    /// Create with custom configuration.
+    pub fn with_config(mut self, config: RuntimeConfig) -> Self {
+        self.config = config;
+        self
+    }
+
+    /// Create with memory manager.
+    pub fn with_memory(mut self, memory: Arc<dyn MemoryManager>) -> Self {
+        self.memory = memory;
+        self
+    }
+
+    /// Create with metrics sink.
+    pub fn with_metrics(mut self, metrics: MetricsSink) -> Self {
+        self.metrics = metrics;
+        self
+    }
+
+    /// Create with cancellation receiver.
+    pub fn with_cancellation(mut self, cancel_rx: watch::Receiver<bool>) -> Self {
+        self.cancel_rx = cancel_rx;
+        self
+    }
+
+    /// Check if execution is cancelled.
+    pub fn is_cancelled(&self) -> bool {
+        *self.cancel_rx.borrow()
+    }
+
+    /// Get batch size from config.
+    pub fn batch_size(&self) -> usize {
+        self.config.batch_size
+    }
+
+    /// Get storage handle.
+    pub fn storage(&self) -> &Arc<dyn Storage> {
+        &self.storage
+    }
+
+    /// Record operator metrics.
+    pub fn record_metrics(&self, operator_id: &str, metrics: crate::metrics::OperatorMetrics) {
+        if self.config.collect_metrics {
+            self.metrics.record(operator_id, metrics);
+        }
+    }
+
+    /// Update operator metrics.
+    pub fn update_metrics<F>(&self, operator_id: &str, f: F)
+    where
+        F: FnOnce(&mut crate::metrics::OperatorMetrics),
+    {
+        if self.config.collect_metrics {
+            self.metrics.update(operator_id, f);
+        }
+    }
+}
+
+/// Handle for cancelling query execution.
+#[derive(Debug, Clone)]
+pub struct CancellationHandle {
+    cancel_tx: watch::Sender<bool>,
+}
+
+impl CancellationHandle {
+    /// Create a new cancellation handle and receiver.
+    pub fn new() -> (Self, watch::Receiver<bool>) {
+        let (tx, rx) = watch::channel(false);
+        (Self { cancel_tx: tx }, rx)
+    }
+
+    /// Cancel the query.
+    pub fn cancel(&self) {
+        let _ = self.cancel_tx.send(true);
+    }
+
+    /// Check if cancelled.
+    pub fn is_cancelled(&self) -> bool {
+        *self.cancel_tx.borrow()
+    }
+}
+
+impl Default for CancellationHandle {
+    fn default() -> Self {
+        Self::new().0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use grism_storage::InMemoryStorage;
+
+    #[test]
+    fn test_runtime_config() {
+        let config = RuntimeConfig::default()
+            .with_batch_size(4096)
+            .with_memory_limit(1024 * 1024);
+
+        assert_eq!(config.batch_size, 4096);
+        assert_eq!(config.memory_limit, 1024 * 1024);
+    }
+
+    #[test]
+    fn test_execution_context() {
+        let storage = Arc::new(InMemoryStorage::new());
+        let ctx = ExecutionContext::new(storage, SnapshotId::default());
+
+        assert!(!ctx.is_cancelled());
+        assert_eq!(ctx.batch_size(), 8192);
+    }
+
+    #[test]
+    fn test_cancellation() {
+        let (handle, rx) = CancellationHandle::new();
+        let storage = Arc::new(InMemoryStorage::new());
+        let ctx = ExecutionContext::new(storage, SnapshotId::default()).with_cancellation(rx);
+
+        assert!(!ctx.is_cancelled());
+        handle.cancel();
+        assert!(ctx.is_cancelled());
+    }
+}

@@ -107,18 +107,19 @@ impl Hypergraph {
     ///
     /// // Now add_node_validated will check properties against schema
     /// ```
-    pub fn with_strict_schema(mut self, strict: bool) -> Self {
+    #[must_use]
+    pub const fn with_strict_schema(mut self, strict: bool) -> Self {
         self.strict_schema = strict;
         self
     }
 
     /// Check if strict schema validation is enabled.
-    pub fn is_strict_schema(&self) -> bool {
+    pub const fn is_strict_schema(&self) -> bool {
         self.strict_schema
     }
 
     /// Set strict schema mode.
-    pub fn set_strict_schema(&mut self, strict: bool) {
+    pub const fn set_strict_schema(&mut self, strict: bool) {
         self.strict_schema = strict;
     }
 
@@ -128,12 +129,12 @@ impl Hypergraph {
     }
 
     /// Get the hypergraph schema.
-    pub fn schema(&self) -> &Schema {
+    pub const fn schema(&self) -> &Schema {
         &self.schema
     }
 
     /// Get a mutable reference to the hypergraph schema.
-    pub fn schema_mut(&mut self) -> &mut Schema {
+    pub const fn schema_mut(&mut self) -> &mut Schema {
         &mut self.schema
     }
 
@@ -312,7 +313,7 @@ impl Hypergraph {
     pub fn hyperedges_with_role(&self, node_id: NodeId, role: &str) -> Vec<&Hyperedge> {
         self.hyperedges
             .values()
-            .filter(|edge| edge.role_of_node(node_id).map_or(false, |r| r == role))
+            .filter(|edge| edge.role_of_node(node_id).is_some_and(|r| r == role))
             .collect()
     }
 
@@ -320,7 +321,7 @@ impl Hypergraph {
     pub fn binary_edges(&self) -> Vec<Edge> {
         self.hyperedges
             .values()
-            .filter_map(|edge| edge.to_binary_edge())
+            .filter_map(super::hyperedge::Hyperedge::to_binary_edge)
             .collect()
     }
 
@@ -329,12 +330,12 @@ impl Hypergraph {
         self.hyperedges
             .values()
             .filter(|edge| edge.label == label && edge.is_binary())
-            .filter_map(|edge| edge.to_binary_edge())
+            .filter_map(super::hyperedge::Hyperedge::to_binary_edge)
             .collect()
     }
 
     /// Get global properties.
-    pub fn properties(&self) -> &PropertyMap {
+    pub const fn properties(&self) -> &PropertyMap {
         &self.properties
     }
 
@@ -431,7 +432,7 @@ impl Hypergraph {
             let all_nodes_valid = involved_nodes.iter().all(|&node_id| {
                 self.nodes
                     .get(&node_id)
-                    .map_or(false, |node| predicate(node, edge))
+                    .is_some_and(|node| predicate(node, edge))
             });
 
             if all_nodes_valid {
@@ -466,26 +467,30 @@ pub struct HyperedgeBuilder<'a> {
     hyperedge: Hyperedge,
 }
 
-impl<'a> HyperedgeBuilder<'a> {
+impl HyperedgeBuilder<'_> {
     /// Add a binding to any entity (node or hyperedge) with a role.
+    #[must_use]
     pub fn with_binding(mut self, entity: super::EntityRef, role: impl Into<Role>) -> Self {
         self.hyperedge = self.hyperedge.with_binding(entity, role);
         self
     }
 
     /// Add a node binding with a role.
+    #[must_use]
     pub fn with_node(mut self, node_id: NodeId, role: impl Into<Role>) -> Self {
         self.hyperedge = self.hyperedge.with_node(node_id, role);
         self
     }
 
     /// Add a hyperedge binding with a role (for meta-relations).
+    #[must_use]
     pub fn with_hyperedge(mut self, edge_id: EdgeId, role: impl Into<Role>) -> Self {
         self.hyperedge = self.hyperedge.with_hyperedge(edge_id, role);
         self
     }
 
     /// Add multiple node bindings.
+    #[must_use]
     pub fn with_nodes(
         mut self,
         nodes: impl IntoIterator<Item = (NodeId, impl Into<Role>)>,
@@ -495,6 +500,7 @@ impl<'a> HyperedgeBuilder<'a> {
     }
 
     /// Set properties for the hyperedge.
+    #[must_use]
     pub fn with_properties(
         mut self,
         properties: impl IntoIterator<Item = (impl Into<String>, impl Into<Value>)>,
@@ -516,9 +522,10 @@ impl<'a> HyperedgeBuilder<'a> {
         let edge_id = self.hyperedge.id;
 
         // Validate that hyperedge has at least 2 endpoints (arity ≥ 2)
-        if self.hyperedge.arity() < 2 {
-            panic!("Hyperedges must have arity ≥ 2");
-        }
+        assert!(
+            self.hyperedge.arity() >= 2,
+            "Hyperedges must have arity 2 or more"
+        );
 
         // Update schema with hyperedge type info
         self.hypergraph.schema.register_entity(EntityInfo {
@@ -552,7 +559,7 @@ impl<'a> HyperedgeBuilder<'a> {
         if self.hyperedge.arity() < 2 {
             return Err(vec![SchemaViolation::MissingEntity {
                 name: format!(
-                    "Hyperedge '{}' must have arity >= 2, got {}",
+                    "Hyperedge '{}' must have arity 2 or more, got {}",
                     self.hyperedge.label,
                     self.hyperedge.arity()
                 ),
@@ -596,9 +603,9 @@ pub struct SubgraphView<'a> {
     hyperedges: HashMap<EdgeId, Hyperedge>,
 }
 
-impl<'a> SubgraphView<'a> {
+impl SubgraphView<'_> {
     /// Get the base hypergraph.
-    pub fn base(&self) -> &Hypergraph {
+    pub const fn base(&self) -> &Hypergraph {
         self.base
     }
 
@@ -849,7 +856,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Hyperedges must have arity ≥ 2")]
+    #[should_panic(expected = "Hyperedges must have arity 2 or more")]
     fn test_hyperedge_arity_validation() {
         let mut hg = Hypergraph::new();
         let alice = hg.add_node("Person", [("name", "Alice")]);

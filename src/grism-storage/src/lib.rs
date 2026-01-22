@@ -8,4 +8,4 @@ mod storage;
 
 pub use catalog::Catalog;
 pub use snapshot::{Snapshot, SnapshotId};
-pub use storage::{Storage, StorageConfig};
+pub use storage::{InMemoryStorage, Storage, StorageConfig};

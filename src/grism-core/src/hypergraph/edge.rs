@@ -75,6 +75,7 @@ impl Edge {
     }
 
     /// Add properties to this edge.
+    #[must_use]
     pub fn with_properties(mut self, properties: PropertyMap) -> Self {
         self.properties = properties;
         self
@@ -86,12 +87,12 @@ impl Edge {
     }
 
     /// Get the endpoints as a tuple (source, target).
-    pub fn endpoints(&self) -> (NodeId, NodeId) {
+    pub const fn endpoints(&self) -> (NodeId, NodeId) {
         (self.source, self.target)
     }
 
     /// Check if this edge connects two nodes (in either direction).
-    pub fn connects(&self, a: NodeId, b: NodeId) -> bool {
+    pub const fn connects(&self, a: NodeId, b: NodeId) -> bool {
         (self.source == a && self.target == b) || (self.source == b && self.target == a)
     }
 

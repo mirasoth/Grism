@@ -68,6 +68,7 @@ impl EntityInfo {
     }
 
     /// Create an alias for this entity.
+    #[must_use]
     pub fn with_alias(mut self, alias: impl Into<String>) -> Self {
         self.name = alias.into();
         self.is_alias = true;

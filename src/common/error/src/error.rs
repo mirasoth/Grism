@@ -116,6 +116,41 @@ impl GrismError {
     pub fn oos<S: Into<String>>(msg: S) -> Self {
         Self::OutOfSpec(msg.into())
     }
+
+    /// Create a new `ExecutionError`.
+    pub fn execution<S: Into<String>>(msg: S) -> Self {
+        Self::ExecutionError(msg.into())
+    }
+
+    /// Create a new `StorageError`.
+    pub fn storage<S: Into<String>>(msg: S) -> Self {
+        Self::StorageError(msg.into())
+    }
+
+    /// Create a new `GraphError`.
+    pub fn graph<S: Into<String>>(msg: S) -> Self {
+        Self::GraphError(msg.into())
+    }
+
+    /// Create a new `InvalidParameter` error.
+    pub fn invalid_parameter<S: Into<String>>(msg: S) -> Self {
+        Self::InvalidParameter(msg.into())
+    }
+
+    /// Create a cancellation error (using `ExecutionError`).
+    pub fn cancelled<S: Into<String>>(msg: S) -> Self {
+        Self::ExecutionError(format!("Cancelled: {}", msg.into()))
+    }
+
+    /// Create a resource exhausted error (using `ExecutionError`).
+    pub fn resource_exhausted<S: Into<String>>(msg: S) -> Self {
+        Self::ExecutionError(format!("ResourceExhausted: {}", msg.into()))
+    }
+
+    /// Create a planning error (using `ExecutionError`).
+    pub fn planning<S: Into<String>>(msg: S) -> Self {
+        Self::ExecutionError(format!("PlanningError: {}", msg.into()))
+    }
 }
 
 /// Ensure a condition holds, returning a `ComputeError` if not.

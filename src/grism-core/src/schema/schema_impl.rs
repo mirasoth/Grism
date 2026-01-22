@@ -36,7 +36,7 @@ impl fmt::Display for SchemaViolation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MissingEntity { name, kind } => {
-                write!(f, "Missing {} '{}' declared in schema", kind, name)
+                write!(f, "Missing {kind} '{name}' declared in schema")
             }
             Self::TypeMismatch {
                 entity,
@@ -46,29 +46,22 @@ impl fmt::Display for SchemaViolation {
             } => {
                 write!(
                     f,
-                    "Type mismatch for {}.{}: expected {}, got {}",
-                    entity, property, expected, actual
+                    "Type mismatch for {entity}.{property}: expected {expected}, got {actual}"
                 )
             }
             Self::UndeclaredProperty { entity, property } => {
-                write!(
-                    f,
-                    "Undeclared property '{}' on entity '{}'",
-                    property, entity
-                )
+                write!(f, "Undeclared property '{property}' on entity '{entity}'")
             }
             Self::MissingRequiredProperty { entity, property } => {
                 write!(
                     f,
-                    "Missing required property '{}' on entity '{}'",
-                    property, entity
+                    "Missing required property '{property}' on entity '{entity}'"
                 )
             }
             Self::NullNotAllowed { entity, property } => {
                 write!(
                     f,
-                    "Property '{}.{}' is null but schema declares it as non-nullable",
-                    entity, property
+                    "Property '{entity}.{property}' is null but schema declares it as non-nullable"
                 )
             }
         }
@@ -102,12 +95,14 @@ impl ColumnInfo {
     }
 
     /// Set the qualifier for this column.
+    #[must_use]
     pub fn with_qualifier(mut self, qualifier: impl Into<String>) -> Self {
         self.qualifier = Some(qualifier.into());
         self
     }
 
     /// Set nullable for this column.
+    #[must_use]
     pub fn with_nullable(mut self, nullable: bool) -> Self {
         self.nullable = nullable;
         self
@@ -115,11 +110,9 @@ impl ColumnInfo {
 
     /// Get the full qualified name.
     pub fn qualified_name(&self) -> String {
-        if let Some(ref q) = self.qualifier {
-            format!("{}.{}", q, self.name)
-        } else {
-            self.name.clone()
-        }
+        self.qualifier
+            .as_ref()
+            .map_or_else(|| self.name.clone(), |q| format!("{}.{q}", self.name))
     }
 }
 
@@ -148,12 +141,14 @@ impl PropertySchema {
     }
 
     /// Set whether this property can be null.
+    #[must_use]
     pub fn with_nullable(mut self, nullable: bool) -> Self {
         self.nullable = nullable;
         self
     }
 
     /// Set whether this property is required.
+    #[must_use]
     pub fn with_required(mut self, required: bool) -> Self {
         self.required = required;
         self
@@ -168,7 +163,7 @@ pub struct Schema {
     /// Entities (labels/aliases) in scope.
     pub entities: Vec<EntityInfo>,
     /// Property schemas per entity label.
-    /// Maps label -> property_name -> PropertySchema
+    /// Maps label to property_name to PropertySchema
     #[serde(default)]
     pub property_schemas: HashMap<String, HashMap<String, PropertySchema>>,
 }
@@ -401,12 +396,12 @@ impl Schema {
     }
 
     /// Check if the schema is empty.
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.columns.is_empty()
     }
 
     /// Get the number of columns.
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.columns.len()
     }
 

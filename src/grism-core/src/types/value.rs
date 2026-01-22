@@ -45,12 +45,12 @@ pub enum Value {
 
 impl Value {
     /// Check if this value is null.
-    pub fn is_null(&self) -> bool {
+    pub const fn is_null(&self) -> bool {
         matches!(self, Self::Null)
     }
 
     /// Try to get as boolean.
-    pub fn as_bool(&self) -> Option<bool> {
+    pub const fn as_bool(&self) -> Option<bool> {
         match self {
             Self::Bool(b) => Some(*b),
             _ => None,
@@ -58,7 +58,7 @@ impl Value {
     }
 
     /// Try to get as i64.
-    pub fn as_int64(&self) -> Option<i64> {
+    pub const fn as_int64(&self) -> Option<i64> {
         match self {
             Self::Int64(i) => Some(*i),
             _ => None,
@@ -91,7 +91,7 @@ impl Value {
     }
 
     /// Get the type name for error messages.
-    pub fn type_name(&self) -> &'static str {
+    pub const fn type_name(&self) -> &'static str {
         match self {
             Self::Null => "Null",
             Self::Bool(_) => "Bool",
@@ -164,8 +164,7 @@ impl Value {
                 }
 
                 // For simplicity, convert all values to their string representation
-                let string_values: Vec<String> =
-                    values.iter().map(|v| format!("{:?}", v)).collect();
+                let string_values: Vec<String> = values.iter().map(|v| format!("{v:?}")).collect();
                 let string_array = StringArray::from(string_values);
                 let field = Arc::new(Field::new("item", ArrowDataType::Utf8, false));
                 let offsets: Vec<i32> = std::iter::once(0)
@@ -328,7 +327,7 @@ impl Value {
                 let columns = struct_array.columns();
                 for (i, column) in columns.iter().enumerate() {
                     // Use a generic field name based on index for now
-                    let field_name = format!("field_{}", i);
+                    let field_name = format!("field_{i}");
                     if let Some(value) = Self::from_arrow_array(column, index) {
                         map.insert(field_name, value);
                     }

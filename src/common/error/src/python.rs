@@ -9,8 +9,9 @@ impl From<GrismError> for PyErr {
     fn from(err: GrismError) -> Self {
         match err {
             GrismError::TypeError(msg) => PyTypeError::new_err(msg),
-            GrismError::ValueError(msg) => PyValueError::new_err(msg),
-            GrismError::InvalidParameter(msg) => PyValueError::new_err(msg),
+            GrismError::ValueError(msg) | GrismError::InvalidParameter(msg) => {
+                PyValueError::new_err(msg)
+            }
             _ => PyRuntimeError::new_err(err.to_string()),
         }
     }

@@ -189,12 +189,12 @@ impl HypergraphFixture {
     }
 
     /// Get the hypergraph.
-    pub fn hypergraph(&self) -> &Hypergraph {
+    pub const fn hypergraph(&self) -> &Hypergraph {
         &self.hypergraph
     }
 
     /// Get the hypergraph mutably.
-    pub fn hypergraph_mut(&mut self) -> &mut Hypergraph {
+    pub const fn hypergraph_mut(&mut self) -> &mut Hypergraph {
         &mut self.hypergraph
     }
 
@@ -237,11 +237,12 @@ pub struct HypergraphAssertions<'a> {
 
 impl<'a> HypergraphAssertions<'a> {
     /// Create new assertions for a hypergraph.
-    pub fn new(hypergraph: &'a Hypergraph) -> Self {
+    pub const fn new(hypergraph: &'a Hypergraph) -> Self {
         Self { hypergraph }
     }
 
     /// Assert that the hypergraph has the expected number of nodes.
+    #[must_use]
     pub fn assert_node_count(self, expected: usize) -> Self {
         assert_eq!(
             self.hypergraph.node_count(),
