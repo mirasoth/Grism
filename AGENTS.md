@@ -6,7 +6,7 @@ The following specifications define the Grism system. They must be followed in o
 
 ### 1. Core Standards (Must Comply)
 
-- **`specs/1_arch_design_v1.md`** - Architecture design document, defines core concepts, data model, and system architecture
+- **`specs/rfc-0100.md`** - Architecture design document, defines core concepts, data model, and system architecture
 - **`specs/rfc-namings.md`** - Authoritative naming reference for all layers (logical, physical, storage)
 
 ### 2. RFC Specifications (Must Comply)
@@ -15,7 +15,7 @@ Each RFC defines specific system aspects. See `specs/rfc-index.md`.
 
 ### 3. API References (May Change)
 
-- **`specs/2_python_api_v0.1.md`** - Python API contract for UX interfaces (subject to change)
+- **`specs/rfc-0101.md`** - Python API contract for UX interfaces (subject to change)
 
 ### 4. Planning Documents
 
@@ -37,9 +37,9 @@ From the architecture and RFCs, these principles must be followed:
 
 ## Resources
 
-- Architecture: `specs/1_arch_design_v1.md` for the full design document
+- Architecture: `specs/rfc-0100.md` for the full design document
 - RFCs: `specs/rfc-*.md` for design decisions and proposals
-- Python API: `specs/2_python_api_v0.1.md` for Python interface contract
+- Python API: `specs/rfc-0101.md` for Python interface contract
 - Schedule: `specs/3_dev_schedule.md` for development planning
 
 ---

@@ -1,5 +1,14 @@
 # RFC Naming Alignment & Completion (Grism Core)
 
+**Status**: Frozen
+**Authors**: Grism Team
+**Created**: 2026-01-21
+**Last Updated**: 2026-01-21
+**Depends on**: —
+**Supersedes**: —
+
+---
+
 This RFC **polishes, aligns, and completes** the RFC naming scheme so it is **fully consistent with the Grism architecture design** (v1) and **complete across all layers**: logical model, planning, execution, storage, reasoning, and distributed runtime.
 
 It **supersedes** earlier partial naming lists and should be treated as the **authoritative cross-RFC naming reference**.

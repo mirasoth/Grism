@@ -48,9 +48,9 @@ cargo test
 
 ## Documentation
 
-- [Architecture Design](specs/1_arch_design_v1.md) - Full system design
+- [Architecture Design](specs/rfc-0100.md) - Full system design
+- [RFC Index](specs/rfc-index.md) - Design decisions and proposals
 - [Development Guide](AGENTS.md) - Contribution guidelines and specs
-- [RFC Index](AGENTS.md#rfc-index) - Design decisions and proposals
 
 ## License
 
