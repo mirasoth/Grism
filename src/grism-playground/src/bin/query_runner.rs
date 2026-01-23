@@ -20,9 +20,7 @@ use grism_logical::{LogicalOp, LogicalPlan};
 use grism_optimizer::Optimizer;
 use grism_storage::{InMemoryStorage, SnapshotId, Storage};
 
-use grism_playground::{
-    create_sample_hypergraph, create_social_network, print_header, print_results,
-};
+use grism_playground::{create_social_network, print_header, print_results};
 
 /// Query Runner CLI.
 #[derive(Parser, Debug)]

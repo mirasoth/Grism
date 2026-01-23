@@ -9,6 +9,11 @@ common-error = { workspace = true }
 serde = { workspace = true }
 pyo3 = { workspace = true, optional = true }
 
+[dev-dependencies]
+serde_json = "1.0"
+toml = "0.8"
+serde_yaml = "0.9"
+
 [features]
 default = []
 python = ["dep:pyo3"]

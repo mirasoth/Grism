@@ -43,7 +43,7 @@ pub fn print_results(result: &ExecutionResult) {
     for batch in &result.batches {
         for row in 0..batch.num_rows() {
             print!("| ");
-            for (col_idx, col) in batch.columns().iter().enumerate() {
+            for (_col_idx, col) in batch.columns().iter().enumerate() {
                 let value = format_value(col, row);
                 print!("{:15} | ", truncate(&value, 15));
             }

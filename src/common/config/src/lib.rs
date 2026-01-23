@@ -24,6 +24,7 @@ pub struct GrismConfig {
 
 /// Execution backend configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ExecutionConfig {
     /// Default executor type.
     pub default_executor: ExecutorType,
@@ -55,6 +56,7 @@ pub enum ExecutorType {
 
 /// Storage layer configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct StorageConfig {
     /// Base path for data storage.
     pub base_path: Option<String>,
