@@ -1,7 +1,6 @@
 //! Python bindings for executors.
 //!
-//! This module provides `PyO3` bindings for the Grism execution engine,
-//! following the Daft pattern of individual python modules per crate.
+//! This module provides `PyO3` bindings for the Grism execution engine.
 
 #![allow(unsafe_op_in_unsafe_fn)]
 
@@ -88,14 +87,13 @@ impl PyRayExecutor {
     }
 }
 
-// ========== Module Registration (Daft Pattern) ==========
+// ========== Module Registration ==========
 
 /// Register all Python bindings from this crate with the parent module.
 ///
-/// Following the Daft pattern, each crate exports a `register_modules` function
-/// that registers its Python classes and functions with the parent module.
+/// Each crate exports a `register_modules` function that registers its Python
+/// classes and functions with the parent module.
 pub fn register_modules(parent: &Bound<'_, PyModule>) -> PyResult<()> {
-    // ========== Executor Classes ==========
     parent.add_class::<PyExecutor>()?;
     parent.add_class::<PyLocalExecutor>()?;
     parent.add_class::<PyRayExecutor>()?;

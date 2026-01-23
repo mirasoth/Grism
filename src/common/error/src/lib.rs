@@ -1,7 +1,6 @@
 //! Error types and result aliases for Grism.
 //!
-//! This module provides the core error handling infrastructure following
-//! the pattern from Daft's error module.
+//! This module provides the core error handling infrastructure
 
 mod error;
 #[cfg(feature = "python")]

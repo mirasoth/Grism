@@ -1,4 +1,4 @@
-//! Type invariant checking (following Daft's parquet2/spec.rs pattern).
+//! Type invariant checking.
 
 use common_error::{GrismError, GrismResult};
 

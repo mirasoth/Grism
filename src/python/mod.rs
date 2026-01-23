@@ -1,7 +1,6 @@
 //! Python bindings for Grism.
 //!
-//! This module provides PyO3 bindings for the Grism Python API,
-//! following the Daft pattern of individual python modules per crate.
+//! This module provides PyO3 bindings for the Grism Python API.
 //!
 //! The Python API implements the specification in RFC-0101 (Python API Contract),
 //! with expression lowering to Rust LogicalPlan per RFC-0002, RFC-0003, and RFC-0006.
@@ -22,11 +21,11 @@ pub use hypergraph::{
 
 /// Register all Python bindings with the module.
 ///
-/// Following the Daft pattern, this function orchestrates registration
+/// This function orchestrates registration
 /// by calling each sub-crate's `register_modules` function and then
 /// registering types specific to the main crate.
 pub fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    // ========== Register Sub-crate Modules (Daft Pattern) ==========
+    // ========== Register Sub-crate Modules ==========
     // Each crate manages its own Python bindings
     grism_logical::python::register_modules(m)?;
     grism_engine::python::register_modules(m)?;
