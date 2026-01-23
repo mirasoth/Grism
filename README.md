@@ -1,5 +1,7 @@
 # Grism
 
+[![CI](https://github.com/mirasoth/Grism/actions/workflows/ci.yml/badge.svg)](https://github.com/mirasoth/Grism/actions/workflows/ci.yml)
+
 **AI-native, neurosymbolic hypergraph database**
 
 Grism is a hypergraph-first database designed for knowledge representation, semantic reasoning, and multi-modal data processing. It combines the expressiveness of n-ary relations with low-latency graph traversal and scalable computation.
@@ -55,4 +57,3 @@ cargo test
 ## License
 
 See [LICENSE](LICENSE) for details.
-
