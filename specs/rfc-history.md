@@ -8,6 +8,71 @@ Chronological record of RFC lifecycle events: creation, status changes, and vers
 
 ### 2026-01-23
 
+**RFC-0019: Created**
+- Title: Lance-Based Local Storage Backend
+- Status: Draft
+- Dependencies: RFC-0009, RFC-0012, RFC-0018, RFC-0102
+- Author: Grism Team
+- Rationale: Define concrete Lance-based implementation of storage abstractions for local filesystem
+
+**RFC-0020: Created**
+- Title: In-Memory Storage Backend
+- Status: Draft
+- Dependencies: RFC-0009, RFC-0012, RFC-0018, RFC-0102
+- Author: Grism Team
+- Rationale: Provide non-persistent, low-latency storage for testing and prototyping
+
+**RFC-0021: Created**
+- Title: Cloud / ObjectStore Lance Backend
+- Status: Draft
+- Dependencies: RFC-0009, RFC-0012, RFC-0018, RFC-0019, RFC-0102
+- Author: Grism Team
+- Rationale: Extend Lance backend for cloud object stores (S3, GCS, Azure)
+
+**RFC-0022: Created**
+- Title: Write & Mutation Semantics
+- Status: Draft
+- Dependencies: RFC-0012, RFC-0018, RFC-0019, RFC-0020, RFC-0021, RFC-0102
+- Author: Grism Team
+- Rationale: Define backend-agnostic, snapshot-oriented mutation model
+
+**RFC-0023: Created**
+- Title: Index Materialization Semantics
+- Status: Draft
+- Dependencies: RFC-0009, RFC-0012, RFC-0018, RFC-0022, RFC-0102
+- Author: Grism Team
+- Rationale: Specify index lifecycle and materialization timing during write path
+
+**RFC-0024: Created & Updated**
+- Title: Physical Planning Rules
+- Status: Draft
+- Dependencies: RFC-0009, RFC-0012, RFC-0018, RFC-0022, RFC-0023, RFC-0102
+- Author: Grism Team
+- Rationale: Define how logical plans become backend-aware physical plans
+- Update: Aligned PhysicalPlan model with RFC-0102 (root/properties instead of nodes/edges)
+
+**rfc-index.md: Updated**
+- Added RFCs 0019-0024 to index tables
+- Updated dependency graph with new RFC relationships
+- Updated "RFC by Layer" section
+- Author: Grism Team
+- Rationale: Keep index synchronized with new RFCs
+
+---
+
+**RFC-0018: Created**
+- Title: Persistent Storage & Adjacency Layout
+- Status: Draft
+- Dependencies: RFC-0008, RFC-0009, RFC-0012, RFC-0102
+- Author: Grism Team
+- Rationale: Formalize persistent storage layout for nodes, hyperedges, and adjacency structures; complete the storage foundation for graph-native execution
+
+**Cross-references added:**
+- RFC-0009 §6: Added reference to RFC-0018 for adjacency persistence
+- RFC-0012 §5.2: Added reference to RFC-0018 for fragment layout specifications
+
+---
+
 **Cross-RFC Consistency Audit & Alignment**
 
 Performed comprehensive consistency audit across RFC-0008, RFC-0009, RFC-0012, and RFC-0102. Resolved 14 consistency issues and applied polish edits for long-term stability.
