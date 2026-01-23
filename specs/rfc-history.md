@@ -6,6 +6,52 @@ Chronological record of RFC lifecycle events: creation, status changes, and vers
 
 ## History Log
 
+### 2026-01-23
+
+**Cross-RFC Consistency Audit & Alignment**
+
+Performed comprehensive consistency audit across RFC-0008, RFC-0009, RFC-0012, and RFC-0102. Resolved 14 consistency issues and applied polish edits for long-term stability.
+
+**RFC-0008: Status Change & Major Updates**
+- Status: Frozen → Review
+- Updated operator interface from `open/next/close` lifecycle to `execute() → RecordBatchStream` (aligned with RFC-0102)
+- Updated ExecutionContext to include `storage()`, `snapshot_id()` access
+- Marked `MaterializeHyperedgeExec` as deferred (moved to Open Questions)
+- Author: Grism Team
+- Rationale: Align abstract contract with implementation reference (RFC-0102)
+
+**RFC-0009: Status Change & Polish**
+- Status: Draft → Review
+- §4.1: Added clarification that access paths exclude distribution operators (ExchangeExec)
+- §7.2: Updated snapshot consistency to reference RFC-0012 authority
+- §8: Added note that index usage does not imply distinct physical operator
+- Author: Grism Team
+- Rationale: Cross-RFC terminology alignment and future-proofing
+
+**RFC-0012: Cross-Reference Update**
+- Updated non-goals to reference both RFC-0008 and RFC-0102
+- Author: Grism Team
+- Rationale: Correct authoritative references for physical operators
+
+**RFC-0102: Capability Extension & Polish**
+- Extended `OperatorCaps` with `scan_caps: Option<ScanCaps>` for pushdown capabilities
+- §7.5: Clarified blocking operator reference to RFC-0008
+- §9.1: Added note that adjacency partitioning is orthogonal to adjacency access paths
+- §15: Added open question about distributed approximate operators (vector search top-K)
+- Author: Grism Team
+- Rationale: Reconcile capability models and clarify terminology boundaries
+
+**rfc-index.md: Dependency & Status Corrections**
+- Added "Review" status to RFC Status Legend
+- Updated RFC-0008, RFC-0009, RFC-0012, RFC-0102 statuses to Review
+- Fixed RFC-0009 dependencies: added RFC-0012, RFC-0102
+- Fixed RFC-0012 dependencies: RFC-0002, RFC-0008, RFC-0010, RFC-0100, RFC-0102
+- Corrected dependency graph edges for RFC-0009 and RFC-0012
+- Author: Grism Team
+- Rationale: Sync index with actual RFC documents
+
+---
+
 ### 2026-01-22
 
 **RFC Management System Established**
@@ -119,4 +165,4 @@ Chronological record of RFC lifecycle events: creation, status changes, and vers
 
 ---
 
-Last Updated: 2026-01-22
+Last Updated: 2026-01-23

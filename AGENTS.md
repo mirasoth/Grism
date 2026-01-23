@@ -31,6 +31,16 @@ Record all work in `_workdir/progress-YYYY-MM-DD-NNN.md` (see [Recording Work Pr
 
 Follow the specification hierarchy (see [Specification Hierarchy](#specification-hierarchy) section).
 
+### 4. RFC History Maintenance
+
+**When modifying any RFC file (`specs/rfc-*.md`)**, AI agents MUST also update `specs/rfc-history.md` and `specs/rfc-index.md`:
+
+- Add an entry under the current date
+- Document: RFC number, type of change, brief description, author, rationale
+- Follow the template format in rfc-history.md
+
+This ensures all RFC changes are tracked chronologically for audit and reference.
+
 ---
 
 ## Quick Reference
@@ -165,6 +175,7 @@ Before ending a session, AI agents MUST:
 4. [ ] Document all files changed
 5. [ ] Record test and lint results
 6. [ ] Note next steps (even if "none")
+7. [ ] If RFC files were modified, update `specs/rfc-history.md`
 
 **Template:** `_workdir/_template.md`
 
