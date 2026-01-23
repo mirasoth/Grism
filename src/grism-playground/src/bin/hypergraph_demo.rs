@@ -18,14 +18,14 @@ use clap::Parser;
 
 use common_error::GrismResult;
 use grism_engine::{LocalExecutor, LocalPhysicalPlanner, PhysicalPlanner};
-use grism_logical::{LogicalOp, LogicalPlan};
-use grism_logical::ops::{FilterOp, LimitOp, ProjectOp, ScanOp};
 use grism_logical::expr::{col, lit};
+use grism_logical::ops::{FilterOp, LimitOp, ProjectOp, ScanOp};
+use grism_logical::{LogicalOp, LogicalPlan};
 use grism_optimizer::Optimizer;
 use grism_storage::{InMemoryStorage, SnapshotId, Storage};
 
-use grism_playground::{create_social_network, print_results, print_header, print_divider};
 use grism_playground::data::properties;
+use grism_playground::{create_social_network, print_divider, print_header, print_results};
 
 /// Hypergraph Demo CLI arguments.
 #[derive(Parser, Debug)]
@@ -52,12 +52,12 @@ async fn main() -> GrismResult<()> {
     // Step 1: Create storage with sample data
     print_header("Step 1: Create Social Network Data");
     let storage = create_social_network().await?;
-    
+
     // Print statistics
     let node_count = storage.get_all_nodes().await?.len();
     let edge_count = storage.get_all_edges().await?.len();
     let hyperedge_count = storage.get_all_hyperedges().await?.len();
-    
+
     println!("Created hypergraph with:");
     println!("  - {} nodes", node_count);
     println!("  - {} edges", edge_count);
@@ -142,11 +142,8 @@ async fn run_filter_query(storage: &Arc<InMemoryStorage>) -> GrismResult<()> {
     // Build logical plan: SCAN Person WHERE age > 30
     let scan = ScanOp::nodes_with_label("Person");
     let filter = FilterOp::new(col("age").gt(lit(30i64)));
-    
-    let logical_plan = LogicalPlan::new(LogicalOp::filter(
-        LogicalOp::scan(scan),
-        filter,
-    ));
+
+    let logical_plan = LogicalPlan::new(LogicalOp::filter(LogicalOp::scan(scan), filter));
 
     println!("Logical Plan:");
     println!("  Filter(age > 30)");
@@ -179,11 +176,8 @@ async fn run_projection_query(storage: &Arc<InMemoryStorage>) -> GrismResult<()>
     // Build logical plan: SELECT name, city FROM Person
     let scan = ScanOp::nodes_with_label("Person");
     let project = ProjectOp::new(vec![col("name"), col("city")]);
-    
-    let logical_plan = LogicalPlan::new(LogicalOp::project(
-        LogicalOp::scan(scan),
-        project,
-    ));
+
+    let logical_plan = LogicalPlan::new(LogicalOp::project(LogicalOp::scan(scan), project));
 
     println!("Logical Plan:");
     println!("  Project(name, city)");
@@ -211,11 +205,8 @@ async fn run_limit_query(storage: &Arc<InMemoryStorage>) -> GrismResult<()> {
     // Build logical plan: SELECT * FROM Person LIMIT 3
     let scan = ScanOp::nodes_with_label("Person");
     let limit = LimitOp::new(3);
-    
-    let logical_plan = LogicalPlan::new(LogicalOp::limit(
-        LogicalOp::scan(scan),
-        limit,
-    ));
+
+    let logical_plan = LogicalPlan::new(LogicalOp::limit(LogicalOp::scan(scan), limit));
 
     println!("Logical Plan:");
     println!("  Limit(3)");

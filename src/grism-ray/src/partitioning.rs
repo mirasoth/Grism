@@ -170,10 +170,9 @@ impl PartitioningSpec {
                 },
             ) => k1 == k2 && n1 >= n2,
 
-            (
-                Self::RoundRobin { num_partitions: n1 },
-                Self::RoundRobin { num_partitions: n2 },
-            ) => n1 == n2,
+            (Self::RoundRobin { num_partitions: n1 }, Self::RoundRobin { num_partitions: n2 }) => {
+                n1 == n2
+            }
 
             // Range partitioning with matching key
             (Self::Range { key: k1, .. }, Self::Range { key: k2, .. }) => k1 == k2,
@@ -268,7 +267,8 @@ impl PartitioningSpec {
             // Use Arrow's take kernel to extract rows
             // For now, we'll create a simple filtered batch
             // TODO: Use proper take kernel for efficiency
-            let indices = arrow_array::UInt32Array::from_iter_values(rows.iter().map(|&r| r as u32));
+            let indices =
+                arrow_array::UInt32Array::from_iter_values(rows.iter().map(|&r| r as u32));
             let columns: Vec<_> = batch
                 .columns()
                 .iter()

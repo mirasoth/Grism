@@ -17,12 +17,11 @@ use serde::{Deserialize, Serialize};
 
 use common_error::{GrismError, GrismResult};
 use grism_engine::executor::ExecutionResult;
-use grism_engine::physical::PhysicalSchema;
 use grism_engine::metrics::MetricsSink;
 use grism_storage::{SnapshotId, Storage};
 
-use crate::planner::{Stage, StageId};
 use crate::partitioning::PartitioningSpec;
+use crate::planner::{DistributedPlan, ExecutionStage, StageId};
 use crate::transport::ArrowTransport;
 
 // ============================================================================
@@ -93,132 +92,6 @@ impl RayExecutorConfig {
     pub fn with_speculation(mut self, enabled: bool) -> Self {
         self.enable_speculation = enabled;
         self
-    }
-}
-
-// ============================================================================
-// Distributed Plan
-// ============================================================================
-
-/// A distributed execution plan consisting of stages.
-///
-/// The plan represents a DAG of stages, where each stage can be executed
-/// in parallel and stages are connected by exchanges.
-#[derive(Debug, Clone)]
-pub struct DistributedPlan {
-    /// Execution stages.
-    pub stages: Vec<Stage>,
-    /// Original schema (from final stage).
-    pub schema: PhysicalSchema,
-    /// Stage dependencies (stage_id -> [dependency_stage_ids]).
-    pub dependencies: HashMap<StageId, Vec<StageId>>,
-}
-
-impl DistributedPlan {
-    /// Create a new distributed plan.
-    pub fn new(stages: Vec<Stage>, schema: PhysicalSchema) -> Self {
-        // Build dependency graph
-        let mut dependencies = HashMap::new();
-        for stage in &stages {
-            dependencies.insert(stage.id, stage.dependencies.clone());
-        }
-
-        Self {
-            stages,
-            schema,
-            dependencies,
-        }
-    }
-
-    /// Get stages in topological order (dependencies first).
-    pub fn topological_order(&self) -> Vec<&Stage> {
-        // Simple topological sort
-        let mut result = Vec::new();
-        let mut visited = std::collections::HashSet::new();
-
-        fn visit<'a>(
-            stage_id: StageId,
-            stages: &'a [Stage],
-            deps: &HashMap<StageId, Vec<StageId>>,
-            visited: &mut std::collections::HashSet<StageId>,
-            result: &mut Vec<&'a Stage>,
-        ) {
-            if visited.contains(&stage_id) {
-                return;
-            }
-            visited.insert(stage_id);
-
-            if let Some(dep_ids) = deps.get(&stage_id) {
-                for &dep_id in dep_ids {
-                    visit(dep_id, stages, deps, visited, result);
-                }
-            }
-
-            if let Some(stage) = stages.iter().find(|s| s.id == stage_id) {
-                result.push(stage);
-            }
-        }
-
-        for stage in &self.stages {
-            visit(stage.id, &self.stages, &self.dependencies, &mut visited, &mut result);
-        }
-
-        result
-    }
-
-    /// Get the number of stages.
-    pub fn num_stages(&self) -> usize {
-        self.stages.len()
-    }
-
-    /// Get a stage by ID.
-    pub fn get_stage(&self, id: StageId) -> Option<&Stage> {
-        self.stages.iter().find(|s| s.id == id)
-    }
-
-    /// Get the root stages (no dependents).
-    pub fn root_stages(&self) -> Vec<&Stage> {
-        let has_dependents: std::collections::HashSet<_> = self
-            .dependencies
-            .values()
-            .flat_map(|deps| deps.iter())
-            .copied()
-            .collect();
-
-        self.stages
-            .iter()
-            .filter(|s| !has_dependents.contains(&s.id))
-            .collect()
-    }
-
-    /// Format plan for display.
-    pub fn explain(&self) -> String {
-        let mut output = String::new();
-        output.push_str("Distributed Plan:\n");
-
-        for stage in self.topological_order() {
-            output.push_str(&format!(
-                "\nStage {} (parallelism={}):\n",
-                stage.id, stage.partitions
-            ));
-
-            for (i, op) in stage.operators.iter().enumerate() {
-                let prefix = if i == stage.operators.len() - 1 {
-                    "└── "
-                } else {
-                    "├── "
-                };
-                output.push_str(&format!("  {}{:?}\n", prefix, op));
-            }
-
-            if !stage.dependencies.is_empty() {
-                output.push_str(&format!("  Dependencies: {:?}\n", stage.dependencies));
-            }
-
-            output.push_str(&format!("  Shuffle: {:?}\n", stage.shuffle));
-        }
-
-        output
     }
 }
 
@@ -326,9 +199,7 @@ impl RayExecutor {
         let mut stage_results: HashMap<StageId, Vec<RecordBatch>> = HashMap::new();
 
         for stage in plan.topological_order() {
-            let result = self
-                .execute_stage(stage, &stage_results, &storage)
-                .await?;
+            let result = self.execute_stage(stage, &stage_results, &storage).await?;
             stage_results.insert(stage.id, result);
         }
 
@@ -360,7 +231,7 @@ impl RayExecutor {
     /// 4. Collect and merge results
     async fn execute_stage(
         &self,
-        stage: &Stage,
+        stage: &ExecutionStage,
         _upstream_results: &HashMap<StageId, Vec<RecordBatch>>,
         _storage: &Arc<dyn Storage>,
     ) -> GrismResult<Vec<RecordBatch>> {
@@ -517,8 +388,8 @@ mod tests {
     fn test_distributed_plan() {
         let schema = PhysicalSchemaBuilder::new().build();
         let stages = vec![
-            Stage::new(0).with_partitions(4),
-            Stage::new(1).with_partitions(2).with_dependency(0),
+            ExecutionStage::new(0).with_partitions(4),
+            ExecutionStage::new(1).with_partitions(2).with_dependency(0),
         ];
 
         let plan = DistributedPlan::new(stages, schema);
@@ -541,7 +412,11 @@ mod tests {
     #[test]
     fn test_distributed_plan_explain() {
         let schema = PhysicalSchemaBuilder::new().build();
-        let stages = vec![Stage::new(0).with_partitions(4)];
+        let stages = vec![
+            ExecutionStage::new(0)
+                .with_partitions(4)
+                .with_operator("NodeScanExec"),
+        ];
         let plan = DistributedPlan::new(stages, schema);
 
         let explain = plan.explain();
