@@ -53,6 +53,13 @@ These RFCs are under active development and may be modified.
 | [RFC-0015](rfc-0015.md) | Schema, Typing & Evolution | 2026-01-21 | RFC-0002, RFC-0003, RFC-0012, RFC-0013 | Specifies schema model and evolution rules. Typed by default, flexible by design for long-lived systems. |
 | [RFC-0016](rfc-0016.md) | Constraints & Integrity | 2026-01-21 | RFC-0002, RFC-0003, RFC-0015, RFC-0012 | Defines graded, schema-aware constraint system. Treats constraints as semantic contracts. |
 | [RFC-0017](rfc-0017.md) | Transactions, Mutations & Write Semantics | 2026-01-21 | RFC-0002, RFC-0003, RFC-0012, RFC-0015, RFC-0016 | Specifies write semantics for long-running knowledge systems with append-only storage. |
+| [RFC-0018](rfc-0018.md) | Persistent Storage & Adjacency Layout | 2026-01-23 | RFC-0008, RFC-0009, RFC-0012, RFC-0102 | Defines persistent storage layout for nodes, hyperedges, and adjacency structures. Materializes topology for traversal. |
+| [RFC-0019](rfc-0019.md) | Lance-Based Local Storage Backend | 2026-01-23 | RFC-0009, RFC-0012, RFC-0018, RFC-0102 | Backend-specific implementation using Lance datasets on local filesystem. Reference implementation for local execution. |
+| [RFC-0020](rfc-0020.md) | In-Memory Storage Backend | 2026-01-23 | RFC-0009, RFC-0012, RFC-0018, RFC-0102 | Non-persistent, low-latency storage implementation for testing and prototyping. |
+| [RFC-0021](rfc-0021.md) | Cloud / ObjectStore Lance Backend | 2026-01-23 | RFC-0009, RFC-0012, RFC-0018, RFC-0019, RFC-0102 | Cloud object-store-based storage backend using Lance over S3/GCS/Azure. |
+| [RFC-0022](rfc-0022.md) | Write & Mutation Semantics | 2026-01-23 | RFC-0012, RFC-0018, RFC-0019, RFC-0020, RFC-0021, RFC-0102 | Backend-agnostic, snapshot-oriented mutation model. Defines write lifecycle and visibility rules. |
+| [RFC-0023](rfc-0023.md) | Index Materialization Semantics | 2026-01-23 | RFC-0009, RFC-0012, RFC-0018, RFC-0022, RFC-0102 | Defines index lifecycle, materialization timing, and snapshot binding rules. |
+| [RFC-0024](rfc-0024.md) | Physical Planning Rules | 2026-01-23 | RFC-0009, RFC-0012, RFC-0018, RFC-0022, RFC-0023, RFC-0102 | Specifies how logical plans become backend-aware, fragment-oriented physical plans. |
 
 ### AI & Semantic Layer
 
@@ -101,6 +108,13 @@ graph TD
     RFC0015[RFC-0015: Schema]
     RFC0016[RFC-0016: Constraints]
     RFC0017[RFC-0017: Transactions]
+    RFC0018[RFC-0018: Persistent Layout]
+    RFC0019[RFC-0019: Lance Local]
+    RFC0020[RFC-0020: In-Memory]
+    RFC0021[RFC-0021: Cloud Lance]
+    RFC0022[RFC-0022: Write Semantics]
+    RFC0023[RFC-0023: Index Materialization]
+    RFC0024[RFC-0024: Physical Planning]
     RFC0100[RFC-0100: Architecture]
     RFC0101[RFC-0101: Python API]
     RFC0102[RFC-0102: Execution Engine]
@@ -148,6 +162,11 @@ graph TD
     RFC0100 --> RFC0012
     RFC0102 --> RFC0012
     
+    RFC0008 --> RFC0018
+    RFC0009 --> RFC0018
+    RFC0012 --> RFC0018
+    RFC0102 --> RFC0018
+    
     RFC0012 --> RFC0013
     RFC0012 --> RFC0014
     RFC0012 --> RFC0015
@@ -171,6 +190,42 @@ graph TD
     RFC0008 --> RFC0102
     RFC0010 --> RFC0102
     RFC0100 --> RFC0102
+    
+    RFC0009 --> RFC0019
+    RFC0012 --> RFC0019
+    RFC0018 --> RFC0019
+    RFC0102 --> RFC0019
+    
+    RFC0009 --> RFC0020
+    RFC0012 --> RFC0020
+    RFC0018 --> RFC0020
+    RFC0102 --> RFC0020
+    
+    RFC0019 --> RFC0021
+    RFC0009 --> RFC0021
+    RFC0012 --> RFC0021
+    RFC0018 --> RFC0021
+    RFC0102 --> RFC0021
+    
+    RFC0012 --> RFC0022
+    RFC0018 --> RFC0022
+    RFC0019 --> RFC0022
+    RFC0020 --> RFC0022
+    RFC0021 --> RFC0022
+    RFC0102 --> RFC0022
+    
+    RFC0009 --> RFC0023
+    RFC0012 --> RFC0023
+    RFC0018 --> RFC0023
+    RFC0022 --> RFC0023
+    RFC0102 --> RFC0023
+    
+    RFC0009 --> RFC0024
+    RFC0012 --> RFC0024
+    RFC0018 --> RFC0024
+    RFC0022 --> RFC0024
+    RFC0023 --> RFC0024
+    RFC0102 --> RFC0024
     
     style RFC0001 fill:#e1f5ff
     style RFC0002 fill:#e1f5ff
@@ -205,6 +260,13 @@ graph TD
 - RFC-0015: Schema & Evolution (Draft)
 - RFC-0016: Constraints (Draft)
 - RFC-0017: Transactions (Draft)
+- RFC-0018: Persistent Storage & Adjacency Layout (Draft)
+- RFC-0019: Lance-Based Local Storage Backend (Draft)
+- RFC-0020: In-Memory Storage Backend (Draft)
+- RFC-0021: Cloud / ObjectStore Lance Backend (Draft)
+- RFC-0022: Write & Mutation Semantics (Draft)
+- RFC-0023: Index Materialization Semantics (Draft)
+- RFC-0024: Physical Planning Rules (Draft)
 
 ### AI & Semantics
 - RFC-0013: Reasoning & Neurosymbolic (Draft)
