@@ -7,6 +7,7 @@ This document provides a comprehensive index of all RFCs (Requests for Comments)
 ## RFC Status Legend
 
 - **Frozen**: Immutable specification serving as production reference. Updates create versioned files (`rfc-NNNN-VVV.md`)
+- **Review**: Stable specification under review for consistency and completeness. May be edited for alignment with peer RFCs
 - **Draft**: Work in progress, subject to change. May be edited in place until frozen
 
 ---
@@ -39,8 +40,8 @@ These RFCs are under active development and may be modified.
 
 | RFC | Title | Last Updated | Dependencies | Description |
 |-----|-------|--------------|--------------|-------------|
-| [RFC-0008](rfc-0008.md) | Physical Plan & Operator Interfaces | 2026-01-21 | RFC-0002, RFC-0003, RFC-0006, RFC-0007 | Defines physical plan structure, operator interfaces, and execution contracts. Boundary of trust between planners and engines. |
-| [RFC-0009](rfc-0009.md) | Indexes, Adjacency & Access Paths | 2026-01-21 | RFC-0002, RFC-0006, RFC-0007, RFC-0008 | Specifies index types, adjacency structures, and access path model. Bridge between storage and logical semantics. |
+| [RFC-0008](rfc-0008.md) | Physical Plan & Operator Interfaces | 2026-01-23 | RFC-0002, RFC-0003, RFC-0006, RFC-0007 | Defines physical plan structure, operator interfaces, and execution contracts. Boundary of trust between planners and engines. |
+| [RFC-0009](rfc-0009.md) | Indexes, Adjacency & Access Paths | 2026-01-23 | RFC-0002, RFC-0006, RFC-0007, RFC-0008, RFC-0012, RFC-0102 | Specifies index types, adjacency structures, and access path model. Bridge between storage and logical semantics. |
 | [RFC-0010](rfc-0010.md) | Distributed & Parallel Execution | 2026-01-21 | RFC-0007, RFC-0008, RFC-0009 | Defines distributed execution model, data partitioning, and coordination. Ensures scaling never changes meaning. |
 | [RFC-0011](rfc-0011.md) | Runtime, Scheduling & Backpressure | 2026-01-21 | RFC-0008, RFC-0010 | Specifies runtime environment, operator scheduling, resource management, and flow control. |
 
@@ -48,7 +49,7 @@ These RFCs are under active development and may be modified.
 
 | RFC | Title | Last Updated | Dependencies | Description |
 |-----|-------|--------------|--------------|-------------|
-| [RFC-0012](rfc-0012.md) | Storage & Persistence Layer | 2026-01-21 | RFC-0002, RFC-0008, RFC-0009, RFC-0011 | Defines storage contracts, snapshot semantics, and index materialization. Guarantees storage must provide. |
+| [RFC-0012](rfc-0012.md) | Storage & Persistence Layer | 2026-01-23 | RFC-0002, RFC-0008, RFC-0010, RFC-0100, RFC-0102 | Defines storage contracts, snapshot semantics, and index materialization. Guarantees storage must provide. |
 | [RFC-0015](rfc-0015.md) | Schema, Typing & Evolution | 2026-01-21 | RFC-0002, RFC-0003, RFC-0012, RFC-0013 | Specifies schema model and evolution rules. Typed by default, flexible by design for long-lived systems. |
 | [RFC-0016](rfc-0016.md) | Constraints & Integrity | 2026-01-21 | RFC-0002, RFC-0003, RFC-0015, RFC-0012 | Defines graded, schema-aware constraint system. Treats constraints as semantic contracts. |
 | [RFC-0017](rfc-0017.md) | Transactions, Mutations & Write Semantics | 2026-01-21 | RFC-0002, RFC-0003, RFC-0012, RFC-0015, RFC-0016 | Specifies write semantics for long-running knowledge systems with append-only storage. |
@@ -138,12 +139,14 @@ graph TD
     RFC0008 --> RFC0012
     RFC0008 --> RFC0014
     
-    RFC0009 --> RFC0010
-    RFC0009 --> RFC0012
+    RFC0012 --> RFC0009
+    RFC0102 --> RFC0009
     
     RFC0010 --> RFC0011
     
-    RFC0011 --> RFC0012
+    RFC0010 --> RFC0012
+    RFC0100 --> RFC0012
+    RFC0102 --> RFC0012
     
     RFC0012 --> RFC0013
     RFC0012 --> RFC0014
@@ -191,14 +194,14 @@ graph TD
 - RFC-0007: Cost Model (Draft)
 
 ### Execution
-- RFC-0008: Physical Plan (Draft)
-- RFC-0009: Indexes & Access Paths (Draft)
+- RFC-0008: Physical Plan (Review)
+- RFC-0009: Indexes & Access Paths (Review)
 - RFC-0010: Distributed Execution (Draft)
 - RFC-0011: Runtime & Scheduling (Draft)
-- RFC-0102: Execution Engine Architecture (Draft)
+- RFC-0102: Execution Engine Architecture (Review)
 
 ### Storage & Persistence
-- RFC-0012: Storage Layer (Draft)
+- RFC-0012: Storage Layer (Review)
 - RFC-0015: Schema & Evolution (Draft)
 - RFC-0016: Constraints (Draft)
 - RFC-0017: Transactions (Draft)
