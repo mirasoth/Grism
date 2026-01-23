@@ -7,7 +7,8 @@ use std::sync::Arc;
 
 use common_error::GrismResult;
 use grism_storage::{
-    DatasetId, HyperedgeBatchBuilder, MemoryStorage, NodeBatchBuilder, WritableStorage,
+    DatasetId, HyperedgeBatchBuilder, MemoryStorage, NodeBatchBuilder, NodeBatchBuilderWithProps,
+    WritableStorage,
 };
 
 /// Create a sample social network hypergraph.
@@ -27,21 +28,51 @@ use grism_storage::{
 pub async fn create_social_network() -> GrismResult<Arc<MemoryStorage>> {
     let storage = Arc::new(MemoryStorage::new());
 
-    // Create Person nodes
-    let mut person_builder = NodeBatchBuilder::new();
-    person_builder.add(1, Some("Person")); // Alice
-    person_builder.add(2, Some("Person")); // Bob
-    person_builder.add(3, Some("Person")); // Charlie
-    person_builder.add(4, Some("Person")); // Diana
-    person_builder.add(5, Some("Person")); // Eve
+    // Create Person nodes with properties: name, city, age
+    let mut person_builder = NodeBatchBuilderWithProps::new()
+        .with_string_prop("name")
+        .with_string_prop("city")
+        .with_int_prop("age");
+
+    // Add persons: (id, label, [name, city], [age])
+    person_builder.add(
+        1,
+        Some("Person"),
+        &[Some("Alice"), Some("New York")],
+        &[Some(28)],
+    );
+    person_builder.add(
+        2,
+        Some("Person"),
+        &[Some("Bob"), Some("San Francisco")],
+        &[Some(35)],
+    );
+    person_builder.add(
+        3,
+        Some("Person"),
+        &[Some("Charlie"), Some("New York")],
+        &[Some(42)],
+    );
+    person_builder.add(
+        4,
+        Some("Person"),
+        &[Some("Diana"), Some("Boston")],
+        &[Some(31)],
+    );
+    person_builder.add(
+        5,
+        Some("Person"),
+        &[Some("Eve"), Some("Seattle")],
+        &[Some(25)],
+    );
     storage
         .write(DatasetId::nodes("Person"), person_builder.build()?)
         .await?;
 
-    // Create Company nodes
-    let mut company_builder = NodeBatchBuilder::new();
-    company_builder.add(10, Some("Company")); // Acme Corp
-    company_builder.add(11, Some("Company")); // Widgets Inc
+    // Create Company nodes with properties: name
+    let mut company_builder = NodeBatchBuilderWithProps::new().with_string_prop("name");
+    company_builder.add(10, Some("Company"), &[Some("Acme Corp")], &[]);
+    company_builder.add(11, Some("Company"), &[Some("Widgets Inc")], &[]);
     storage
         .write(DatasetId::nodes("Company"), company_builder.build()?)
         .await?;

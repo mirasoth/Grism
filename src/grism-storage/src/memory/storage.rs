@@ -511,7 +511,7 @@ impl StorageStatsExt for MemoryStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::memory::stores::NodeBatchBuilder;
+    use crate::memory::test_utils::NodeBatchBuilder;
     use futures::StreamExt;
 
     #[tokio::test]

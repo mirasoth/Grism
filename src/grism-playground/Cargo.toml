@@ -21,7 +21,7 @@ grism-logical = { workspace = true }
 grism-optimizer = { workspace = true }
 grism-engine = { workspace = true }
 grism-ray = { workspace = true }
-grism-storage = { workspace = true }
+grism-storage = { workspace = true, features = ["test-utils"] }
 
 # Arrow ecosystem
 arrow = { workspace = true }

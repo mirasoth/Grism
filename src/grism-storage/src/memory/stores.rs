@@ -2,7 +2,6 @@
 
 use std::sync::Arc;
 
-use arrow::array::{ArrayRef, Int64Array, StringBuilder, UInt32Array};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 
@@ -276,142 +275,13 @@ impl Default for HyperedgeStore {
 }
 
 // ============================================================================
-// Batch Builders
-// ============================================================================
-
-/// Builder for creating node batches.
-pub struct NodeBatchBuilder {
-    ids: Vec<i64>,
-    labels: Vec<Option<String>>,
-}
-
-impl NodeBatchBuilder {
-    /// Create a new builder.
-    pub fn new() -> Self {
-        Self {
-            ids: Vec::new(),
-            labels: Vec::new(),
-        }
-    }
-
-    /// Add a node.
-    pub fn add(&mut self, id: i64, label: Option<&str>) {
-        self.ids.push(id);
-        self.labels.push(label.map(String::from));
-    }
-
-    /// Build the `RecordBatch`.
-    pub fn build(self) -> GrismResult<RecordBatch> {
-        let schema = Arc::new(NodeStore::default_schema());
-
-        let id_array = Int64Array::from(self.ids);
-        let mut label_builder = StringBuilder::new();
-        for label in &self.labels {
-            match label {
-                Some(l) => label_builder.append_value(l),
-                None => label_builder.append_null(),
-            }
-        }
-        let label_array = label_builder.finish();
-
-        RecordBatch::try_new(
-            schema,
-            vec![
-                Arc::new(id_array) as ArrayRef,
-                Arc::new(label_array) as ArrayRef,
-            ],
-        )
-        .map_err(|e| GrismError::execution(format!("Failed to build node batch: {e}")))
-    }
-
-    /// Number of nodes added.
-    pub fn len(&self) -> usize {
-        self.ids.len()
-    }
-
-    /// Check if empty.
-    pub fn is_empty(&self) -> bool {
-        self.ids.is_empty()
-    }
-}
-
-impl Default for NodeBatchBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// Builder for creating hyperedge batches.
-pub struct HyperedgeBatchBuilder {
-    ids: Vec<i64>,
-    labels: Vec<String>,
-    arities: Vec<u32>,
-}
-
-impl HyperedgeBatchBuilder {
-    /// Create a new builder.
-    pub fn new() -> Self {
-        Self {
-            ids: Vec::new(),
-            labels: Vec::new(),
-            arities: Vec::new(),
-        }
-    }
-
-    /// Add a hyperedge.
-    pub fn add(&mut self, id: i64, label: &str, arity: u32) {
-        self.ids.push(id);
-        self.labels.push(label.to_string());
-        self.arities.push(arity);
-    }
-
-    /// Build the `RecordBatch`.
-    pub fn build(self) -> GrismResult<RecordBatch> {
-        let schema = Arc::new(HyperedgeStore::default_schema());
-
-        let id_array = Int64Array::from(self.ids);
-        let mut label_builder = StringBuilder::new();
-        for label in &self.labels {
-            label_builder.append_value(label);
-        }
-        let label_array = label_builder.finish();
-        let arity_array = UInt32Array::from(self.arities);
-
-        RecordBatch::try_new(
-            schema,
-            vec![
-                Arc::new(id_array) as ArrayRef,
-                Arc::new(label_array) as ArrayRef,
-                Arc::new(arity_array) as ArrayRef,
-            ],
-        )
-        .map_err(|e| GrismError::execution(format!("Failed to build hyperedge batch: {e}")))
-    }
-
-    /// Number of hyperedges added.
-    pub fn len(&self) -> usize {
-        self.ids.len()
-    }
-
-    /// Check if empty.
-    pub fn is_empty(&self) -> bool {
-        self.ids.is_empty()
-    }
-}
-
-impl Default for HyperedgeBatchBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-// ============================================================================
 // Tests
 // ============================================================================
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::memory::test_utils::{HyperedgeBatchBuilder, NodeBatchBuilder};
 
     #[test]
     fn test_node_store_basic() {

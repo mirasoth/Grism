@@ -41,6 +41,27 @@ Follow the specification hierarchy (see [Specification Hierarchy](#specification
 
 This ensures all RFC changes are tracked chronologically for audit and reference.
 
+### 5. Test Utilities Feature Gating
+
+**Test-only code MUST be feature-gated, not in standalone crates:**
+
+- Use `#[cfg(feature = "test-utils")]` for builders, fixtures, and test helpers
+- Add `test-utils` feature to `Cargo.toml` features section
+- Enable in `dev-dependencies` for tests: `crate-name = { path = ".", features = ["test-utils"] }`
+- This follows industry standard (DataFusion, Polars) for:
+  - Clean production binaries (zero test code in release builds)
+  - Integration test access (works in `/tests` folder)
+  - Downstream extensibility (users can enable for their tests)
+  - Benchmark support (use in `/benches` folder)
+
+**Do NOT use:**
+- `#[cfg(test)]` - breaks integration tests
+- Standalone `test-utils` crate - unnecessary workspace complexity
+
+**Do NOT feature-gate:**
+- Public API builders (e.g., `PlanBuilder` in grism-logical is user-facing)
+- Production convenience utilities
+
 ---
 
 ## Quick Reference

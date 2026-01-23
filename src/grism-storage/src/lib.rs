@@ -86,9 +86,10 @@ pub use types::{
 };
 
 // Memory storage
-pub use memory::{
-    HyperedgeBatchBuilder, HyperedgeStore, MemoryStorage, NodeBatchBuilder, NodeStore,
-};
+pub use memory::{HyperedgeStore, MemoryStorage, NodeStore};
+
+#[cfg(feature = "test-utils")]
+pub use memory::{HyperedgeBatchBuilder, NodeBatchBuilder, NodeBatchBuilderWithProps};
 
 // Lance storage
 pub use lance::LanceStorage;
