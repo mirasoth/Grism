@@ -120,14 +120,14 @@ impl PhysicalOperator for RenameExec {
 mod tests {
     use super::*;
     use crate::operators::EmptyExec;
-    use grism_storage::{InMemoryStorage, SnapshotId};
+    use grism_storage::{MemoryStorage, SnapshotId};
 
     #[tokio::test]
     async fn test_rename_empty() {
         let input = Arc::new(EmptyExec::new());
         let rename = RenameExec::new(input, HashMap::new());
 
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         rename.open(&ctx).await.unwrap();

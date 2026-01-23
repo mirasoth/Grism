@@ -81,11 +81,11 @@ serde_json = "1.0"
 bincode = { version = "2.0", features = ["derive", "serde"] }
 
 # Arrow ecosystem
-arrow = "53.0"
-arrow-array = { version = "53.0", features = ["chrono-tz"] }
-arrow-buffer = "53.0"
-arrow-schema = "53.0"
-arrow-ipc = "53.0"
+arrow = "56.0"
+arrow-array = { version = "56.0", features = ["chrono-tz"] }
+arrow-buffer = "56.0"
+arrow-schema = "56.0"
+arrow-ipc = "56.0"
 
 # Async runtime
 tokio = { version = "1.40", features = ["rt", "rt-multi-thread", "macros", "sync"] }

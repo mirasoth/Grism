@@ -18,7 +18,7 @@ use grism_logical::expr::{col, lit};
 use grism_logical::ops::{FilterOp, LimitOp, ProjectOp, ScanOp};
 use grism_logical::{LogicalOp, LogicalPlan};
 use grism_optimizer::Optimizer;
-use grism_storage::{InMemoryStorage, SnapshotId, Storage};
+use grism_storage::{MemoryStorage, SnapshotId, Storage};
 
 use grism_playground::{create_social_network, print_header, print_results};
 
@@ -116,7 +116,7 @@ async fn main() -> GrismResult<()> {
 }
 
 async fn run_scan(
-    storage: &Arc<InMemoryStorage>,
+    storage: &Arc<MemoryStorage>,
     label: &str,
     limit: Option<usize>,
 ) -> GrismResult<()> {
@@ -134,7 +134,7 @@ async fn run_scan(
 }
 
 async fn run_filter(
-    storage: &Arc<InMemoryStorage>,
+    storage: &Arc<MemoryStorage>,
     label: &str,
     column: &str,
     value: i64,
@@ -167,7 +167,7 @@ async fn run_filter(
 }
 
 async fn run_project(
-    storage: &Arc<InMemoryStorage>,
+    storage: &Arc<MemoryStorage>,
     label: &str,
     columns: &[String],
 ) -> GrismResult<()> {
@@ -188,45 +188,18 @@ async fn run_project(
     execute_plan(storage, &plan).await
 }
 
-async fn show_stats(storage: &Arc<InMemoryStorage>) -> GrismResult<()> {
+async fn show_stats(_storage: &Arc<MemoryStorage>) -> GrismResult<()> {
     print_header("Storage Statistics");
 
-    let nodes = storage.get_all_nodes().await?;
-    let edges = storage.get_all_edges().await?;
-    let hyperedges = storage.get_all_hyperedges().await?;
-
-    println!("Total nodes: {}", nodes.len());
-    println!("Total edges: {}", edges.len());
-    println!("Total hyperedges: {}", hyperedges.len());
-
-    // Count by label
-    let mut label_counts = std::collections::HashMap::new();
-    for node in &nodes {
-        for label in &node.labels {
-            *label_counts.entry(label.clone()).or_insert(0) += 1;
-        }
-    }
-
-    println!("\nNodes by label:");
-    for (label, count) in label_counts {
-        println!("  {}: {}", label, count);
-    }
-
-    // Count hyperedges by label
-    let mut he_counts = std::collections::HashMap::new();
-    for he in &hyperedges {
-        *he_counts.entry(he.label.clone()).or_insert(0) += 1;
-    }
-
-    println!("\nHyperedges by label:");
-    for (label, count) in he_counts {
-        println!("  {}: {}", label, count);
-    }
+    // TODO: Statistics require scanning datasets with RFC-0012 interface
+    // For now, display message about using scan operations instead
+    println!("Statistics are available via RFC-0012 Storage::scan() operations.");
+    println!("Use 'scan' command to query specific datasets.");
 
     Ok(())
 }
 
-async fn run_demo(storage: &Arc<InMemoryStorage>) -> GrismResult<()> {
+async fn run_demo(storage: &Arc<MemoryStorage>) -> GrismResult<()> {
     print_header("Running Demo Queries");
 
     println!("\n1. Scan all Person nodes:");
@@ -245,7 +218,7 @@ async fn run_demo(storage: &Arc<InMemoryStorage>) -> GrismResult<()> {
     Ok(())
 }
 
-async fn execute_plan(storage: &Arc<InMemoryStorage>, plan: &LogicalPlan) -> GrismResult<()> {
+async fn execute_plan(storage: &Arc<MemoryStorage>, plan: &LogicalPlan) -> GrismResult<()> {
     // Optimize (using default optimizer rules)
     let optimizer = Optimizer::default();
     let optimized = optimizer.optimize(plan.clone())?;

@@ -1,38 +1,50 @@
 //! Scan execution operators.
+//!
+//! These operators scan data from storage using the RFC-0012 Storage trait.
+//! They return Arrow `RecordBatches` directly from the storage layer.
 
 use std::sync::Arc;
 
-use arrow::array::{ArrayRef, Int64Array, StringBuilder};
 use arrow::datatypes::DataType;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
+use futures::StreamExt;
 
 use common_error::{GrismError, GrismResult};
-use grism_core::hypergraph::{Hyperedge, Node};
+use grism_storage::{DatasetId, Projection, RecordBatchStream};
 
 use crate::executor::ExecutionContext;
 use crate::metrics::ExecutionTimer;
 use crate::operators::PhysicalOperator;
 use crate::physical::{OperatorCaps, PhysicalSchema, PhysicalSchemaBuilder};
 
-/// Internal state for scan operators.
-#[derive(Debug, Default)]
-enum ScanState<T> {
+/// Internal state for scan operators using `RecordBatchStream`.
+#[derive(Default)]
+enum ScanState {
     #[default]
     Uninitialized,
     Open {
-        /// Buffered entities to return.
-        buffer: Vec<T>,
-        /// Current position in buffer.
-        position: usize,
+        /// Stream of record batches from storage.
+        stream: RecordBatchStream,
     },
     Exhausted,
     Closed,
 }
 
+impl std::fmt::Debug for ScanState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Uninitialized => write!(f, "Uninitialized"),
+            Self::Open { .. } => write!(f, "Open"),
+            Self::Exhausted => write!(f, "Exhausted"),
+            Self::Closed => write!(f, "Closed"),
+        }
+    }
+}
+
 /// Node scan execution operator.
 ///
-/// Reads nodes from storage and produces Arrow `RecordBatch`.
+/// Reads nodes from storage using RFC-0012 `Storage::scan()` and produces Arrow `RecordBatch`.
 #[derive(Debug)]
 pub struct NodeScanExec {
     /// Label filter (None = all nodes).
@@ -42,7 +54,7 @@ pub struct NodeScanExec {
     /// Output schema.
     schema: PhysicalSchema,
     /// Execution state.
-    state: tokio::sync::Mutex<ScanState<Node>>,
+    state: tokio::sync::Mutex<ScanState>,
     /// Operator ID for metrics.
     operator_id: String,
 }
@@ -99,29 +111,6 @@ impl NodeScanExec {
 
         builder.build()
     }
-
-    /// Convert nodes to `RecordBatch`.
-    fn nodes_to_batch(&self, nodes: &[Node], batch_size: usize) -> GrismResult<RecordBatch> {
-        let actual_size = nodes.len().min(batch_size);
-        let mut id_builder = Int64Array::builder(actual_size);
-        let mut label_builder = StringBuilder::new();
-
-        for node in nodes.iter().take(actual_size) {
-            id_builder.append_value(node.id as i64);
-            let label_str = node.labels.first().map_or("", |l| l.as_str());
-            label_builder.append_value(label_str);
-        }
-
-        let schema = self.schema.arrow_schema().clone();
-        RecordBatch::try_new(
-            schema,
-            vec![
-                Arc::new(id_builder.finish()) as ArrayRef,
-                Arc::new(label_builder.finish()) as ArrayRef,
-            ],
-        )
-        .map_err(|e| GrismError::execution(e.to_string()))
-    }
 }
 
 #[async_trait]
@@ -145,21 +134,18 @@ impl PhysicalOperator for NodeScanExec {
     async fn open(&self, ctx: &ExecutionContext) -> GrismResult<()> {
         let timer = ExecutionTimer::start();
 
-        // Load nodes from storage
-        let nodes = match &self.label {
-            Some(label) => ctx.storage.get_nodes_by_label(label).await?,
-            None => {
-                // For now, return empty if no label specified
-                // TODO: Implement get_all_nodes in storage
-                vec![]
-            }
+        // Use RFC-0012 Storage::scan() to get a RecordBatchStream
+        let dataset = match &self.label {
+            Some(label) => DatasetId::nodes(label.clone()),
+            None => DatasetId::all_nodes(),
         };
+        let stream = ctx
+            .storage
+            .scan(dataset, &Projection::all(), None, ctx.snapshot)
+            .await?;
 
         let mut state = self.state.lock().await;
-        *state = ScanState::Open {
-            buffer: nodes,
-            position: 0,
-        };
+        *state = ScanState::Open { stream };
 
         ctx.update_metrics(&self.operator_id, |m| {
             m.add_time(timer.stop());
@@ -173,25 +159,14 @@ impl PhysicalOperator for NodeScanExec {
 
         match &mut *state {
             ScanState::Uninitialized => Err(GrismError::execution("Operator not opened")),
-            ScanState::Open { buffer, position } => {
-                if *position >= buffer.len() {
+            ScanState::Open { stream } => match stream.next().await {
+                Some(Ok(batch)) => Ok(Some(batch)),
+                Some(Err(e)) => Err(e),
+                None => {
                     *state = ScanState::Exhausted;
-                    return Ok(None);
+                    Ok(None)
                 }
-
-                // Get batch_size from somewhere - use default for now
-                let batch_size = 8192;
-                let end = (*position + batch_size).min(buffer.len());
-                let batch_nodes = &buffer[*position..end];
-                *position = end;
-
-                let batch = self.nodes_to_batch(batch_nodes, batch_size)?;
-
-                // Drop the lock before returning
-                drop(state);
-
-                Ok(Some(batch))
-            }
+            },
             ScanState::Exhausted | ScanState::Closed => Ok(None),
         }
     }
@@ -214,7 +189,7 @@ impl PhysicalOperator for NodeScanExec {
 
 /// Hyperedge scan execution operator.
 ///
-/// Reads hyperedges from storage and produces Arrow `RecordBatch`.
+/// Reads hyperedges from storage using RFC-0012 `Storage::scan()` and produces Arrow `RecordBatch`.
 #[derive(Debug)]
 pub struct HyperedgeScanExec {
     /// Label filter (None = all hyperedges).
@@ -224,7 +199,7 @@ pub struct HyperedgeScanExec {
     /// Output schema.
     schema: PhysicalSchema,
     /// Execution state.
-    state: tokio::sync::Mutex<ScanState<Hyperedge>>,
+    state: tokio::sync::Mutex<ScanState>,
     /// Operator ID for metrics.
     operator_id: String,
 }
@@ -285,35 +260,6 @@ impl HyperedgeScanExec {
 
         builder.build()
     }
-
-    /// Convert hyperedges to `RecordBatch`.
-    fn hyperedges_to_batch(
-        &self,
-        hyperedges: &[Hyperedge],
-        batch_size: usize,
-    ) -> GrismResult<RecordBatch> {
-        let actual_size = hyperedges.len().min(batch_size);
-        let mut id_builder = Int64Array::builder(actual_size);
-        let mut label_builder = StringBuilder::new();
-        let mut arity_builder = Int64Array::builder(actual_size);
-
-        for he in hyperedges.iter().take(actual_size) {
-            id_builder.append_value(he.id as i64);
-            label_builder.append_value(&he.label);
-            arity_builder.append_value(he.roles().len() as i64);
-        }
-
-        let schema = self.schema.arrow_schema().clone();
-        RecordBatch::try_new(
-            schema,
-            vec![
-                Arc::new(id_builder.finish()) as ArrayRef,
-                Arc::new(label_builder.finish()) as ArrayRef,
-                Arc::new(arity_builder.finish()) as ArrayRef,
-            ],
-        )
-        .map_err(|e| GrismError::execution(e.to_string()))
-    }
 }
 
 #[async_trait]
@@ -337,20 +283,18 @@ impl PhysicalOperator for HyperedgeScanExec {
     async fn open(&self, ctx: &ExecutionContext) -> GrismResult<()> {
         let timer = ExecutionTimer::start();
 
-        // Load hyperedges from storage
-        let hyperedges = match &self.label {
-            Some(label) => ctx.storage.get_hyperedges_by_label(label).await?,
-            None => {
-                // For now, return empty if no label specified
-                vec![]
-            }
+        // Use RFC-0012 Storage::scan() to get a RecordBatchStream
+        let dataset = match &self.label {
+            Some(label) => DatasetId::hyperedges(label.clone()),
+            None => DatasetId::all_hyperedges(),
         };
+        let stream = ctx
+            .storage
+            .scan(dataset, &Projection::all(), None, ctx.snapshot)
+            .await?;
 
         let mut state = self.state.lock().await;
-        *state = ScanState::Open {
-            buffer: hyperedges,
-            position: 0,
-        };
+        *state = ScanState::Open { stream };
 
         ctx.update_metrics(&self.operator_id, |m| {
             m.add_time(timer.stop());
@@ -364,20 +308,14 @@ impl PhysicalOperator for HyperedgeScanExec {
 
         match &mut *state {
             ScanState::Uninitialized => Err(GrismError::execution("Operator not opened")),
-            ScanState::Open { buffer, position } => {
-                if *position >= buffer.len() {
+            ScanState::Open { stream } => match stream.next().await {
+                Some(Ok(batch)) => Ok(Some(batch)),
+                Some(Err(e)) => Err(e),
+                None => {
                     *state = ScanState::Exhausted;
-                    return Ok(None);
+                    Ok(None)
                 }
-
-                let batch_size = 8192;
-                let end = (*position + batch_size).min(buffer.len());
-                let batch_hyperedges = &buffer[*position..end];
-                *position = end;
-
-                let batch = self.hyperedges_to_batch(batch_hyperedges, batch_size)?;
-                Ok(Some(batch))
-            }
+            },
             ScanState::Exhausted | ScanState::Closed => Ok(None),
         }
     }
@@ -401,12 +339,12 @@ impl PhysicalOperator for HyperedgeScanExec {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use grism_storage::{InMemoryStorage, SnapshotId, Storage};
+    use grism_storage::{MemoryStorage, NodeBatchBuilder, SnapshotId, WritableStorage};
 
     #[tokio::test]
     async fn test_node_scan_empty() {
         let op = NodeScanExec::with_label("Person");
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         op.open(&ctx).await.unwrap();
@@ -419,13 +357,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_node_scan_with_data() {
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
 
-        // Insert test nodes
-        let node1 = Node::new().with_label("Person");
-        let node2 = Node::new().with_label("Person");
-        storage.insert_node(&node1).await.unwrap();
-        storage.insert_node(&node2).await.unwrap();
+        // Insert test nodes using new WritableStorage::write() API
+        let mut builder = NodeBatchBuilder::new();
+        builder.add(1, Some("Person"));
+        builder.add(2, Some("Person"));
+        let batch = builder.build().unwrap();
+
+        storage
+            .write(DatasetId::nodes("Person"), batch)
+            .await
+            .unwrap();
 
         let op = NodeScanExec::with_label("Person");
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
@@ -454,7 +397,7 @@ mod tests {
     #[tokio::test]
     async fn test_hyperedge_scan_empty() {
         let op = HyperedgeScanExec::with_label("KNOWS");
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         op.open(&ctx).await.unwrap();

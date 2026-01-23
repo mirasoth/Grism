@@ -792,7 +792,7 @@ mod tests {
     use crate::operators::EmptyExec;
     use arrow::datatypes::{Field, Schema as ArrowSchema};
     use grism_logical::expr::col;
-    use grism_storage::{InMemoryStorage, SnapshotId};
+    use grism_storage::{MemoryStorage, SnapshotId};
 
     /// Helper to create a mock input operator that returns a single batch.
     struct MockInputOp {
@@ -893,7 +893,7 @@ mod tests {
             PhysicalSchema::new(output_schema),
         );
 
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         agg.open(&ctx).await.unwrap();
@@ -932,7 +932,7 @@ mod tests {
             PhysicalSchema::new(output_schema),
         );
 
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         agg.open(&ctx).await.unwrap();
@@ -970,7 +970,7 @@ mod tests {
             PhysicalSchema::new(output_schema),
         );
 
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         agg.open(&ctx).await.unwrap();
@@ -1008,7 +1008,7 @@ mod tests {
             PhysicalSchema::new(output_schema),
         );
 
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         agg.open(&ctx).await.unwrap();
@@ -1046,7 +1046,7 @@ mod tests {
             PhysicalSchema::new(output_schema),
         );
 
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         agg.open(&ctx).await.unwrap();

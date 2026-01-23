@@ -142,7 +142,7 @@ mod tests {
     use arrow::array::Int64Array;
     use arrow::datatypes::{DataType, Field, Schema};
     use grism_logical::expr::{col, lit};
-    use grism_storage::{InMemoryStorage, SnapshotId};
+    use grism_storage::{MemoryStorage, SnapshotId};
 
     /// Helper to create a mock input operator that returns a single batch.
     struct MockInputOp {
@@ -234,7 +234,7 @@ mod tests {
         let predicate = lit(true);
         let filter = FilterExec::new(input, predicate);
 
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         filter.open(&ctx).await.unwrap();
@@ -249,7 +249,7 @@ mod tests {
         let predicate = lit(true);
         let filter = FilterExec::new(input, predicate);
 
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         filter.open(&ctx).await.unwrap();
@@ -266,7 +266,7 @@ mod tests {
         let predicate = lit(false);
         let filter = FilterExec::new(input, predicate);
 
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         filter.open(&ctx).await.unwrap();
@@ -284,7 +284,7 @@ mod tests {
         let predicate = col("value").gt(lit(25i64));
         let filter = FilterExec::new(input, predicate);
 
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         filter.open(&ctx).await.unwrap();
@@ -313,7 +313,7 @@ mod tests {
         let predicate = col("id").eq(lit(3i64));
         let filter = FilterExec::new(input, predicate);
 
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         filter.open(&ctx).await.unwrap();
@@ -340,7 +340,7 @@ mod tests {
         let predicate = col("id").gt(lit(2i64)).and(col("value").lt(lit(45i64)));
         let filter = FilterExec::new(input, predicate);
 
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         filter.open(&ctx).await.unwrap();

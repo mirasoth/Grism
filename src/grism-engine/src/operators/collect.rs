@@ -116,14 +116,14 @@ impl PhysicalOperator for CollectExec {
 mod tests {
     use super::*;
     use crate::operators::EmptyExec;
-    use grism_storage::{InMemoryStorage, SnapshotId};
+    use grism_storage::{MemoryStorage, SnapshotId};
 
     #[tokio::test]
     async fn test_collect_empty() {
         let input = Arc::new(EmptyExec::new());
         let collect = CollectExec::new(input);
 
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         collect.open(&ctx).await.unwrap();

@@ -91,12 +91,12 @@ impl PhysicalOperator for EmptyExec {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use grism_storage::{InMemoryStorage, SnapshotId};
+    use grism_storage::{MemoryStorage, SnapshotId};
 
     #[tokio::test]
     async fn test_empty_exec() {
         let op = EmptyExec::new();
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         op.open(&ctx).await.unwrap();

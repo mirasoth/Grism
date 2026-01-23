@@ -156,14 +156,14 @@ impl LimitExec {
 mod tests {
     use super::*;
     use crate::operators::EmptyExec;
-    use grism_storage::{InMemoryStorage, SnapshotId};
+    use grism_storage::{MemoryStorage, SnapshotId};
 
     #[tokio::test]
     async fn test_limit_empty_input() {
         let input = Arc::new(EmptyExec::new());
         let limit = LimitExec::new(input, 10);
 
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         limit.open(&ctx).await.unwrap();
