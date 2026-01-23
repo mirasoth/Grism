@@ -3,7 +3,7 @@
 **Status**: Frozen
 **Authors**: Grism Team
 **Created**: 2026-01-21
-**Last Updated**: 2026-01-21
+**Last Updated**: 2026-01-23
 **Depends on**: —
 **Supersedes**: —
 
@@ -197,31 +197,51 @@ ExecNode
 
 ### 9.2 Physical Operators
 
-| Operator       | Canonical Name          | Layer    |
-| -------------- | ----------------------- | -------- |
-| Node scan      | **NodeScanExec**        | Physical |
-| Hyperedge scan | **HyperedgeScanExec**   | Physical |
-| Binary expand  | **AdjacencyExpandExec** | Physical |
-| N-ary expand   | **RoleExpandExec**      | Physical |
-| Filter         | **FilterExec**          | Physical |
-| Project        | **ProjectExec**         | Physical |
-| Aggregate      | **AggregateExec**       | Physical |
+| Operator        | Canonical Name            | Layer    | Notes                    |
+| --------------- | ------------------------- | -------- | ------------------------ |
+| Node scan       | **NodeScanExec**          | Physical | Scan nodes by label      |
+| Hyperedge scan  | **HyperedgeScanExec**     | Physical | Scan hyperedges by label |
+| Binary expand   | **AdjacencyExpandExec**   | Physical | Binary edge traversal    |
+| N-ary expand    | **RoleExpandExec**        | Physical | N-ary hyperedge traversal|
+| Filter          | **FilterExec**            | Physical | Apply predicate          |
+| Project         | **ProjectExec**           | Physical | Compute expressions      |
+| Rename          | **RenameExec**            | Physical | Rename columns           |
+| Aggregate       | **AggregateExec**         | Physical | Generic aggregation      |
+| Hash aggregate  | **HashAggregateExec**     | Physical | Hash-based aggregation   |
+| Limit           | **LimitExec**             | Physical | Limit output rows        |
+| Sort            | **SortExec**              | Physical | Multi-key sorting        |
+| Union           | **UnionExec**             | Physical | Union of inputs          |
+| Collect         | **CollectExec**           | Physical | Collect all results      |
+| Empty           | **EmptyExec**             | Physical | Empty result source      |
+| Exchange        | **ExchangeExec**          | Physical | Data repartitioning (distributed) |
 
 ---
 
-## 10. Execution Backends
+## 10. Execution Layer
 
-| Backend     | Canonical Name    |
-| ----------- | ----------------- |
-| Local       | **LocalExecutor** |
-| Distributed | **RayExecutor**   |
+### 10.1 Runtimes
 
-```text
-Runtime
-ExecutionContext
-Task
-Scheduler
-```
+| Runtime     | Canonical Name     | Description                      |
+| ----------- | ------------------ | -------------------------------- |
+| Local       | **LocalRuntime**   | Single-machine pull-based execution |
+| Distributed | **RayRuntime**     | Ray-orchestrated distributed execution |
+
+### 10.2 Executors & Context
+
+| Type               | Canonical Name           | Notes                    |
+| ------------------ | ------------------------ | ------------------------ |
+| Local executor     | **LocalExecutor**        | Drives local execution   |
+| Ray executor       | **RayExecutor**          | Drives distributed execution |
+| Context trait      | **ExecutionContext**     | Runtime-agnostic context |
+| Local context      | **LocalExecutionContext**| Local runtime context    |
+
+### 10.3 Distributed Concepts
+
+| Concept            | Canonical Name         | Notes                          |
+| ------------------ | ---------------------- | ------------------------------ |
+| Execution stage    | **ExecutionStage**     | Connected sub-DAG of operators |
+| Partitioning spec  | **PartitioningSpec**   | Data distribution strategy     |
+| Physical planner   | **LocalPhysicalPlanner** / **DistributedPlanner** | Runtime-specific planners |
 
 ---
 
