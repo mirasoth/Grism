@@ -44,6 +44,14 @@ python = [
     "grism-storage/python",
 ]
 
+# Allow these lints for the main Python binding package for now
+[lints.clippy]
+uninlined_format_args = "allow"
+doc_markdown = "allow"
+redundant_closure = "allow"
+redundant_closure_for_method_calls = "allow"
+format_push_string = "allow"
+
 [workspace]
 members = [
     "src/common/error",
@@ -111,12 +119,12 @@ grism-ray = { path = "src/grism-ray" }
 grism-storage = { path = "src/grism-storage" }
 
 [workspace.lints.clippy]
-pedantic = { level = "warn", priority = -1 }
-nursery = { level = "warn", priority = -1 }
-module_name_repetitions = "allow"
-must_use_candidate = "allow"
-missing_errors_doc = "allow"
-missing_panics_doc = "allow"
+# Only deny the specific lints we want to enforce across all crates
+uninlined_format_args = "deny"
+doc_markdown = "deny"
+redundant_closure = "deny"
+redundant_closure_for_method_calls = "deny"
+format_push_string = "deny"
 
 [profile.dev]
 debug = "line-tables-only"

@@ -43,17 +43,13 @@
 #![allow(clippy::missing_const_for_fn)]
 #![allow(clippy::return_self_not_must_use)]
 #![allow(clippy::unused_async)]
-#![allow(clippy::redundant_closure, clippy::redundant_closure_for_method_calls)]
 #![allow(clippy::match_same_arms)] // Some match arms intentionally have same body
 #![allow(clippy::only_used_in_recursion)] // Some recursive params are for future use
-#![allow(clippy::doc_markdown)] // Allow doc without backticks in some cases
 #![allow(clippy::cast_possible_truncation)] // Some casts are intentional
 #![allow(clippy::collection_is_never_read)] // Some collections are for future use
-#![allow(clippy::uninlined_format_args)] // Format args are sometimes clearer non-inline
 #![allow(clippy::missing_fields_in_debug)] // Some Debug impls skip internal fields
 #![allow(clippy::derivable_impls)] // Some manual Default impls are clearer
 #![allow(clippy::items_after_statements)] // Local functions after statements are sometimes clearer
-#![allow(clippy::format_push_string)] // format! + push_str is sometimes clearer
 #![allow(dead_code)] // Preview code may have unused items
 
 pub mod exchange;

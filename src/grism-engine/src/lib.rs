@@ -4,39 +4,29 @@
 //! It transforms logical plans into physical plans and executes them locally
 //! using Arrow-native, vectorized operators.
 
-#![allow(clippy::missing_const_for_fn)] // Builder patterns often can't be const
-#![allow(clippy::return_self_not_must_use)] // Builder patterns don't always need must_use
-#![allow(clippy::unused_self)] // Some methods need self for trait compatibility
-#![allow(clippy::doc_markdown)] // Documentation backticks are sometimes unnecessary
-#![allow(clippy::redundant_closure, clippy::redundant_closure_for_method_calls)] // Closures are sometimes clearer
-#![allow(
-    clippy::cast_possible_wrap,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    clippy::cast_possible_truncation
-)] // Some casts are intentional
-#![allow(clippy::needless_lifetimes)] // Lifetimes are sometimes needed for clarity
-#![allow(clippy::large_enum_variant)] // Some enum variants are intentionally large
-#![allow(clippy::too_many_arguments)] // Some functions need many arguments
-#![allow(clippy::uninlined_format_args)] // Format args are sometimes clearer inline
-#![allow(clippy::significant_drop_in_scrutinee)] // Some temporaries are needed
-#![allow(clippy::struct_field_names, clippy::struct_excessive_bools)] // Field names sometimes match struct name, some structs need many bools
-#![allow(clippy::trivially_copy_pass_by_ref)] // Some small types are passed by ref for consistency
-#![allow(clippy::unnecessary_wraps)] // Some Result wraps are for API consistency
-#![allow(clippy::option_if_let_else)] // if let/else is sometimes clearer than map_or
-#![allow(clippy::useless_conversion)] // Some conversions are for type clarity
-#![allow(clippy::unnecessary_literal_unwrap, clippy::map_unwrap_or)] // Some unwraps are for clarity
-#![allow(clippy::needless_collect)] // Some collects are needed for clarity
-#![allow(clippy::into_iter_on_ref, clippy::should_implement_trait)] // Some into_iter on refs are intentional, some methods intentionally don't implement traits
-#![allow(clippy::bool_comparison)] // Some bool comparisons are clearer
-#![allow(clippy::needless_pass_by_value)] // Some pass-by-value is intentional
-#![allow(clippy::option_as_ref_deref)] // Some Option<&T> vs &Option<T> are intentional
-#![allow(clippy::format_push_string)] // Some format! + push_str patterns are clearer
-#![allow(clippy::match_same_arms)] // Some match arms intentionally have same body
-#![allow(clippy::needless_borrow)] // Some borrows are for clarity
-#![allow(clippy::use_self)] // Some structure name repetition is clearer
-#![allow(clippy::or_fun_call)] // Some function calls in unwrap_or are clearer
-#![allow(clippy::significant_drop_tightening)] // Some temporaries with Drop must stay alive
+// Allow for issues that would require extensive API changes or are intentional design choices
+#![allow(clippy::unused_self)] // Some trait impls require self
+#![allow(clippy::significant_drop_tightening)] // Drop timing is intentional
+#![allow(clippy::match_same_arms)] // Explicit match arms for clarity
+#![allow(clippy::option_if_let_else)] // Often clearer than map_or
+#![allow(clippy::use_self)] // Explicit type names aid readability
+#![allow(clippy::unnecessary_wraps)] // API consistency
+#![allow(clippy::struct_excessive_bools)] // Config structs need booleans
+#![allow(clippy::missing_const_for_fn)] // Many methods can't be const due to trait bounds
+#![allow(clippy::return_self_not_must_use)] // Builder methods don't always need must_use
+#![allow(clippy::needless_borrow)] // Explicit borrows aid clarity
+#![allow(clippy::should_implement_trait)] // Some methods intentionally don't implement traits
+#![allow(clippy::or_fun_call)] // Function calls in or patterns
+#![allow(clippy::needless_collect)] // Intermediate collections for clarity
+#![allow(clippy::needless_pass_by_value)] // Function signatures for consistency
+
+// Allow for numeric conversions that are intentional
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::trivially_copy_pass_by_ref)]
+
 //!
 //! # Architecture
 //!

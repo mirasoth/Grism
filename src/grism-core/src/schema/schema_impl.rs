@@ -1,7 +1,6 @@
 #![allow(clippy::missing_const_for_fn)]
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::needless_collect)]
-#![allow(clippy::uninlined_format_args)]
 //! Schema definition for Grism frames.
 
 use std::collections::HashMap;

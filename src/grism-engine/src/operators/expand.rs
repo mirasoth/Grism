@@ -343,13 +343,13 @@ impl PhysicalOperator for AdjacencyExpandExec {
     fn display(&self) -> String {
         let mut parts = vec![format!("dir={}", self.direction)];
         if let Some(ref label) = self.edge_label {
-            parts.push(format!("edge={}", label));
+            parts.push(format!("edge={label}"));
         }
         if let Some(ref label) = self.to_label {
-            parts.push(format!("to={}", label));
+            parts.push(format!("to={label}"));
         }
         if let Some(ref alias) = self.target_alias {
-            parts.push(format!("as={}", alias));
+            parts.push(format!("as={alias}"));
         }
         format!("AdjacencyExpandExec({})", parts.join(", "))
     }
@@ -659,13 +659,13 @@ impl PhysicalOperator for RoleExpandExec {
     fn display(&self) -> String {
         let mut parts = vec![format!("{} -> {}", self.from_role, self.to_role)];
         if let Some(ref label) = self.edge_label {
-            parts.push(format!("edge={}", label));
+            parts.push(format!("edge={label}"));
         }
         if self.materialize_edge {
             parts.push("materialize".to_string());
         }
         if let Some(ref alias) = self.target_alias {
-            parts.push(format!("as={}", alias));
+            parts.push(format!("as={alias}"));
         }
         format!("RoleExpandExec({})", parts.join(", "))
     }

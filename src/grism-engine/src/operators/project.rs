@@ -62,7 +62,7 @@ impl ProjectExec {
         // Build projections from column references
         let projections: Vec<_> = column_names
             .iter()
-            .map(|name| (grism_logical::expr::col(name).into(), name.clone()))
+            .map(|name| (grism_logical::expr::col(name), name.clone()))
             .collect();
 
         // Build schema from input schema

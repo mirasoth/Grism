@@ -99,7 +99,7 @@ pub enum OperatorState {
 }
 
 impl OperatorState {
-    /// Check if the operator is in a valid state for next().
+    /// Check if the operator is in a valid state for `next()`.
     pub fn can_produce(&self) -> bool {
         *self == Self::Open
     }

@@ -70,7 +70,7 @@ impl SortExec {
         // Concatenate all batches into one
         let schema = batches[0].schema();
         let combined = concat_batches(&schema, &batches)
-            .map_err(|e| GrismError::execution(format!("Failed to concatenate batches: {}", e)))?;
+            .map_err(|e| GrismError::execution(format!("Failed to concatenate batches: {e}")))?;
 
         if combined.num_rows() == 0 {
             return Ok(vec![combined]);
@@ -97,7 +97,7 @@ impl SortExec {
 
         // Get sort indices
         let indices = lexsort_to_indices(&sort_columns, None)
-            .map_err(|e| GrismError::execution(format!("Failed to sort: {}", e)))?;
+            .map_err(|e| GrismError::execution(format!("Failed to sort: {e}")))?;
 
         // Reorder all columns using the indices
         let sorted_columns: Vec<_> = combined
@@ -105,10 +105,10 @@ impl SortExec {
             .iter()
             .map(|col| take(col.as_ref(), &indices, None))
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| GrismError::execution(format!("Failed to reorder columns: {}", e)))?;
+            .map_err(|e| GrismError::execution(format!("Failed to reorder columns: {e}")))?;
 
         let sorted_batch = RecordBatch::try_new(schema, sorted_columns)
-            .map_err(|e| GrismError::execution(format!("Failed to create sorted batch: {}", e)))?;
+            .map_err(|e| GrismError::execution(format!("Failed to create sorted batch: {e}")))?;
 
         Ok(vec![sorted_batch])
     }
@@ -178,7 +178,7 @@ impl PhysicalOperator for SortExec {
     }
 
     fn display(&self) -> String {
-        let keys: Vec<_> = self.keys.iter().map(|k| format!("{}", k)).collect();
+        let keys: Vec<_> = self.keys.iter().map(|k| format!("{k}")).collect();
         format!("SortExec({})", keys.join(", "))
     }
 }

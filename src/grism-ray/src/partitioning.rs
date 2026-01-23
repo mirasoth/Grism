@@ -238,7 +238,7 @@ impl PartitioningSpec {
 
     /// Partition a batch into multiple batches, one per partition.
     ///
-    /// Returns a vector of (partition_id, batch) pairs.
+    /// Returns a vector of (`partition_id`, batch) pairs.
     pub fn partition_batch(&self, batch: &RecordBatch) -> Vec<(usize, RecordBatch)> {
         let num_rows = batch.num_rows();
         if num_rows == 0 {
@@ -298,8 +298,8 @@ impl std::fmt::Display for PartitioningSpec {
             Self::Adjacency {
                 entity_type,
                 num_partitions,
-            } => write!(f, "Adjacency({}, {})", entity_type, num_partitions),
-            Self::RoundRobin { num_partitions } => write!(f, "RoundRobin({})", num_partitions),
+            } => write!(f, "Adjacency({entity_type}, {num_partitions})"),
+            Self::RoundRobin { num_partitions } => write!(f, "RoundRobin({num_partitions})"),
             Self::Unknown => write!(f, "Unknown"),
         }
     }

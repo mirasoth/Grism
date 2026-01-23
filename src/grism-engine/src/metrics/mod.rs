@@ -4,6 +4,7 @@
 #![allow(clippy::significant_drop_tightening)] // Guards must stay alive for their scope
 
 use std::collections::HashMap;
+use std::fmt::Write;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
@@ -60,7 +61,7 @@ impl OperatorMetrics {
         self.memory_bytes = self.memory_bytes.max(bytes);
     }
 
-    /// Get selectivity (rows_out / rows_in).
+    /// Get selectivity (`rows_out` / `rows_in`).
     pub fn selectivity(&self) -> f64 {
         if self.rows_in == 0 {
             1.0
@@ -69,7 +70,7 @@ impl OperatorMetrics {
         }
     }
 
-    /// Get throughput (rows_in / exec_time).
+    /// Get throughput (`rows_in` / `exec_time`).
     pub fn throughput(&self) -> f64 {
         let secs = self.exec_time.as_secs_f64();
         if secs == 0.0 {
@@ -169,10 +170,11 @@ impl MetricsSink {
         let mut output = String::new();
 
         for (op, m) in metrics.iter() {
-            output.push_str(&format!(
-                "{}: rows_in={}, rows_out={}, time={:?}, memory={}B\n",
+            let _ = writeln!(
+                output,
+                "{}: rows_in={}, rows_out={}, time={:?}, memory={}B",
                 op, m.rows_in, m.rows_out, m.exec_time, m.memory_bytes
-            ));
+            );
         }
 
         if output.is_empty() {

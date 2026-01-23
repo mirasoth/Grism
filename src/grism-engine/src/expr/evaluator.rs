@@ -94,13 +94,12 @@ impl ExprEvaluator {
             | LogicalExpr::Exists { .. }
             | LogicalExpr::Placeholder { .. }
             | LogicalExpr::SortKey { .. } => Err(GrismError::not_implemented(format!(
-                "Expression type {:?} not supported in physical evaluation",
-                expr
+                "Expression type {expr:?} not supported in physical evaluation"
             ))),
         }
     }
 
-    /// Evaluate a predicate expression, returning a BooleanArray.
+    /// Evaluate a predicate expression, returning a `BooleanArray`.
     pub fn evaluate_predicate(
         &self,
         expr: &LogicalExpr,
@@ -135,8 +134,7 @@ impl ExprEvaluator {
             Value::String(s) => Ok(Arc::new(StringArray::from(vec![s.as_str(); num_rows]))),
 
             _ => Err(GrismError::not_implemented(format!(
-                "Literal evaluation for {:?}",
-                value
+                "Literal evaluation for {value:?}"
             ))),
         }
     }
@@ -371,8 +369,7 @@ impl ExprEvaluator {
             }
 
             _ => Err(GrismError::not_implemented(format!(
-                "Unary operator {:?}",
-                op
+                "Unary operator {op:?}"
             ))),
         }
     }
@@ -507,9 +504,9 @@ impl ExprEvaluator {
                     .zip(else_str.iter())
                     .map(|((c, t), e)| {
                         if c == Some(true) {
-                            t.map(|s| s.to_string())
+                            t.map(std::string::ToString::to_string)
                         } else {
-                            e.map(|s| s.to_string())
+                            e.map(std::string::ToString::to_string)
                         }
                     })
                     .collect();

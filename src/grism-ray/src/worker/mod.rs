@@ -33,7 +33,7 @@ impl Default for WorkerConfig {
 
 fn num_cpus() -> usize {
     std::thread::available_parallelism()
-        .map(|n| n.get())
+        .map(std::num::NonZero::get)
         .unwrap_or(1)
 }
 

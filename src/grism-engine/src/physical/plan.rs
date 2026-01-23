@@ -1,5 +1,6 @@
 //! Physical plan structure.
 
+use std::fmt::Write;
 use std::sync::Arc;
 
 use crate::operators::PhysicalOperator;
@@ -62,11 +63,8 @@ impl PhysicalPlan {
     pub fn explain_verbose(&self) -> String {
         let mut output = self.explain();
         output.push_str("\nOutput Schema:\n");
-        output.push_str(&format!("{}", self.schema()));
-        output.push_str(&format!(
-            "\nExecution Mode: {}\n",
-            self.properties.execution_mode
-        ));
+        let _ = write!(output, "{}", self.schema());
+        let _ = writeln!(output, "Execution Mode: {}", self.properties.execution_mode);
         if self.properties.contains_blocking {
             output.push_str("Contains blocking operators: yes\n");
         }
