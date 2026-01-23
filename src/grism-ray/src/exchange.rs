@@ -13,7 +13,9 @@ use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use common_error::{GrismError, GrismResult};
+#[cfg(feature = "test-utils")]
+use common_error::GrismError;
+use common_error::GrismResult;
 use grism_engine::executor::ExecutionContext;
 use grism_engine::operators::PhysicalOperator;
 use grism_engine::physical::{OperatorCaps, PhysicalSchema};
@@ -286,12 +288,14 @@ impl ExchangeState {
 // ============================================================================
 
 /// Builder for constructing Exchange operators.
+#[cfg(feature = "test-utils")]
 pub struct ExchangeBuilder {
     child: Option<Arc<dyn PhysicalOperator>>,
     partitioning: PartitioningSpec,
     mode: ExchangeMode,
 }
 
+#[cfg(feature = "test-utils")]
 impl ExchangeBuilder {
     /// Create a new exchange builder.
     pub fn new() -> Self {
@@ -351,6 +355,7 @@ impl ExchangeBuilder {
     }
 }
 
+#[cfg(feature = "test-utils")]
 impl Default for ExchangeBuilder {
     fn default() -> Self {
         Self::new()

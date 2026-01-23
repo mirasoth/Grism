@@ -29,6 +29,7 @@ thiserror = { workspace = true }
 pyo3 = { workspace = true, optional = true }
 
 [dev-dependencies]
+grism-storage = { workspace = true, features = ["test-utils"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 
 [features]

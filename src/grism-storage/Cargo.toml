@@ -24,11 +24,13 @@ url = "2.5"
 pyo3 = { workspace = true, optional = true }
 
 [dev-dependencies]
+grism-storage = { path = ".", features = ["test-utils"] }
 tempfile = "3.14"
 
 [features]
 default = []
 python = ["dep:pyo3", "grism-core/python"]
+test-utils = []
 
 [lints]
 workspace = true

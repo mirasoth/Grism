@@ -37,6 +37,10 @@ pyo3 = { workspace = true, optional = true }
 [features]
 default = []
 python = ["dep:pyo3", "grism-core/python", "grism-logical/python", "grism-engine/python"]
+test-utils = []
+
+[dev-dependencies]
+grism-ray = { path = ".", features = ["test-utils"] }
 
 [lints]
 workspace = true

@@ -36,5 +36,11 @@
 mod storage;
 mod stores;
 
+#[cfg(feature = "test-utils")]
+pub mod test_utils;
+
 pub use storage::MemoryStorage;
-pub use stores::{HyperedgeBatchBuilder, HyperedgeStore, NodeBatchBuilder, NodeStore};
+pub use stores::{HyperedgeStore, NodeStore};
+
+#[cfg(feature = "test-utils")]
+pub use test_utils::{HyperedgeBatchBuilder, NodeBatchBuilder, NodeBatchBuilderWithProps};

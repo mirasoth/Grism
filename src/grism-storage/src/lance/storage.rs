@@ -445,7 +445,7 @@ impl StorageStatsExt for LanceStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::memory::NodeBatchBuilder;
+    use crate::memory::test_utils::NodeBatchBuilder;
 
     #[tokio::test]
     async fn test_lance_storage_create() {
