@@ -1,6 +1,6 @@
 //! Python bindings for executors.
 //!
-//! This module provides PyO3 bindings for the Grism execution engine,
+//! This module provides `PyO3` bindings for the Grism execution engine,
 //! following the Daft pattern of individual python modules per crate.
 
 #![allow(unsafe_op_in_unsafe_fn)]

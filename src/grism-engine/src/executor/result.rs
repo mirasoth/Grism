@@ -1,5 +1,6 @@
 //! Query execution result types.
 
+use std::fmt::Write;
 use std::time::Duration;
 
 use arrow::record_batch::RecordBatch;
@@ -24,7 +25,7 @@ pub struct ExecutionResult {
 
 impl ExecutionResult {
     /// Create a new execution result.
-    pub fn new(
+    pub const fn new(
         batches: Vec<RecordBatch>,
         schema: PhysicalSchema,
         metrics: MetricsSink,
@@ -54,7 +55,7 @@ impl ExecutionResult {
     }
 
     /// Get number of batches.
-    pub fn num_batches(&self) -> usize {
+    pub const fn num_batches(&self) -> usize {
         self.batches.len()
     }
 
@@ -64,7 +65,7 @@ impl ExecutionResult {
     }
 
     /// Get the output schema.
-    pub fn schema(&self) -> &PhysicalSchema {
+    pub const fn schema(&self) -> &PhysicalSchema {
         &self.schema
     }
 
@@ -102,9 +103,9 @@ impl ExecutionResult {
     /// Format as EXPLAIN ANALYZE output.
     pub fn explain_analyze(&self) -> String {
         let mut output = String::new();
-        output.push_str(&format!("Execution Time: {:?}\n", self.elapsed));
-        output.push_str(&format!("Total Rows: {}\n", self.total_rows()));
-        output.push_str(&format!("Batches: {}\n", self.num_batches()));
+        let _ = writeln!(output, "Execution Time: {:?}", self.elapsed);
+        let _ = writeln!(output, "Total Rows: {}", self.total_rows());
+        let _ = writeln!(output, "Batches: {}", self.num_batches());
         output.push_str("\nOperator Metrics:\n");
         output.push_str(&self.metrics.format_analyze());
         output

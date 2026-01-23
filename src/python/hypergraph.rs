@@ -5,7 +5,6 @@
 //! with proper lowering to Rust logical plans.
 
 #![allow(dead_code, unused_imports, unused_variables)] // Python bindings may have unused items
-#![allow(clippy::uninlined_format_args)] // Format args are sometimes clearer inline
 #![allow(clippy::useless_conversion)] // Some conversions are for type clarity
 
 use std::collections::HashMap;

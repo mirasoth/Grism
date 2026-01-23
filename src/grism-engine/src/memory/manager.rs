@@ -21,7 +21,7 @@ pub trait MemoryManager: Send + Sync + std::fmt::Debug {
     /// Get memory limit (0 = unlimited).
     fn limit(&self) -> usize;
 
-    /// Get available memory (limit - used, or usize::MAX if unlimited).
+    /// Get available memory (limit - used, or `usize::MAX` if unlimited).
     fn available(&self) -> usize {
         let limit = self.limit();
         if limit == 0 {
@@ -188,7 +188,7 @@ impl MemoryReservation {
     }
 
     /// Get the reserved size.
-    pub fn size(&self) -> usize {
+    pub const fn size(&self) -> usize {
         self.bytes
     }
 

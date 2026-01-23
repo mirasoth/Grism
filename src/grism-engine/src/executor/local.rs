@@ -53,11 +53,13 @@ impl LocalExecutor {
     }
 
     /// Create with custom configuration.
-    pub fn with_config(config: RuntimeConfig) -> Self {
+    #[must_use]
+    pub const fn with_config(config: RuntimeConfig) -> Self {
         Self { config }
     }
 
     /// Create with custom batch size.
+    #[must_use]
     pub fn with_batch_size(batch_size: usize) -> Self {
         Self {
             config: RuntimeConfig::default().with_batch_size(batch_size),
@@ -65,6 +67,7 @@ impl LocalExecutor {
     }
 
     /// Create with memory limit.
+    #[must_use]
     pub fn with_memory_limit(limit: usize) -> Self {
         Self {
             config: RuntimeConfig::default().with_memory_limit(limit),
@@ -72,7 +75,7 @@ impl LocalExecutor {
     }
 
     /// Get the executor configuration.
-    pub fn config(&self) -> &RuntimeConfig {
+    pub const fn config(&self) -> &RuntimeConfig {
         &self.config
     }
 

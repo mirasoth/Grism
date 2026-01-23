@@ -20,7 +20,7 @@ use crate::physical::{OperatorCaps, PhysicalSchema};
 pub struct RenameExec {
     /// Input operator.
     input: Arc<dyn PhysicalOperator>,
-    /// Column rename mappings (old_name -> new_name).
+    /// Column rename mappings (`old_name` -> `new_name`).
     mappings: HashMap<String, String>,
     /// Output schema with renamed columns.
     schema: PhysicalSchema,
@@ -110,7 +110,7 @@ impl PhysicalOperator for RenameExec {
         let renames: Vec<_> = self
             .mappings
             .iter()
-            .map(|(old, new)| format!("{}->{}", old, new))
+            .map(|(old, new)| format!("{old}->{new}"))
             .collect();
         format!("RenameExec({})", renames.join(", "))
     }

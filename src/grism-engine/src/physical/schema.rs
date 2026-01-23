@@ -14,7 +14,7 @@ use arrow::datatypes::{DataType, Field, Schema as ArrowSchema, SchemaRef};
 pub struct PhysicalSchema {
     /// Arrow schema.
     arrow_schema: SchemaRef,
-    /// Entity qualifiers for columns (column_name -> qualifier).
+    /// Entity qualifiers for columns (`column_name` -> qualifier).
     qualifiers: HashMap<String, String>,
 }
 
@@ -50,7 +50,7 @@ impl PhysicalSchema {
 
     /// Get column qualifier.
     pub fn qualifier(&self, column: &str) -> Option<&str> {
-        self.qualifiers.get(column).map(|s| s.as_str())
+        self.qualifiers.get(column).map(std::string::String::as_str)
     }
 
     /// Set qualifier for a column.
@@ -65,7 +65,10 @@ impl PhysicalSchema {
 
     /// Get field by index.
     pub fn field_by_index(&self, index: usize) -> Option<&Field> {
-        self.arrow_schema.fields().get(index).map(|f| f.as_ref())
+        self.arrow_schema
+            .fields()
+            .get(index)
+            .map(std::convert::AsRef::as_ref)
     }
 
     /// Number of columns.
@@ -90,7 +93,7 @@ impl PhysicalSchema {
     /// Get qualified field name.
     pub fn qualified_name(&self, field_name: &str) -> String {
         match self.qualifiers.get(field_name) {
-            Some(qualifier) => format!("{}.{}", qualifier, field_name),
+            Some(qualifier) => format!("{qualifier}.{field_name}"),
             None => field_name.to_string(),
         }
     }
@@ -144,7 +147,7 @@ impl fmt::Display for PhysicalSchema {
             let qualifier = self
                 .qualifiers
                 .get(field.name())
-                .map(|q| format!("{}.", q))
+                .map(|q| format!("{q}."))
                 .unwrap_or_default();
             writeln!(
                 f,

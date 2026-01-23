@@ -8,6 +8,7 @@ mod stage;
 pub use stage::{ExecutionStage, ExecutionStageBuilder, StageId};
 
 use std::collections::HashMap;
+use std::fmt::Write;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -229,7 +230,7 @@ pub struct DistributedPlan {
     pub stages: Vec<ExecutionStage>,
     /// Output schema (from final stage).
     pub schema: PhysicalSchema,
-    /// Stage dependencies (stage_id -> [dependency_stage_ids]).
+    /// Stage dependencies (`stage_id` -> [`dependency_stage_ids`]).
     pub dependencies: HashMap<StageId, Vec<StageId>>,
 }
 
@@ -321,10 +322,11 @@ impl DistributedPlan {
         output.push_str("Distributed Plan:\n");
 
         for stage in self.topological_order() {
-            output.push_str(&format!(
+            let _ = write!(
+                output,
                 "\nStage {} (parallelism={}):\n",
                 stage.id, stage.partitions
-            ));
+            );
 
             for (i, op_name) in stage.operator_names.iter().enumerate() {
                 let prefix = if i == stage.operator_names.len() - 1 {
@@ -332,15 +334,15 @@ impl DistributedPlan {
                 } else {
                     "├── "
                 };
-                output.push_str(&format!("  {}{}\n", prefix, op_name));
+                let _ = writeln!(output, "  {prefix}{op_name}");
             }
 
             if !stage.dependencies.is_empty() {
-                output.push_str(&format!("  Dependencies: {:?}\n", stage.dependencies));
+                let _ = writeln!(output, "  Dependencies: {:?}", stage.dependencies);
             }
 
             if let Some(mode) = &stage.input_exchange {
-                output.push_str(&format!("  Input Exchange: {:?}\n", mode));
+                let _ = writeln!(output, "  Input Exchange: {mode:?}");
             }
         }
 

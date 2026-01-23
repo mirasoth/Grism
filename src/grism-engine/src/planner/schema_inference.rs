@@ -1,6 +1,6 @@
 //! Schema inference utilities for physical planning.
 //!
-//! Provides type inference for LogicalExpr using PhysicalSchema (Arrow schema).
+//! Provides type inference for `LogicalExpr` using `PhysicalSchema` (Arrow schema).
 
 use std::sync::Arc;
 
@@ -12,7 +12,7 @@ use grism_logical::ops::AggregateOp;
 
 use crate::physical::PhysicalSchema;
 
-/// Infer the Arrow DataType of a LogicalExpr given an input schema.
+/// Infer the Arrow `DataType` of a `LogicalExpr` given an input schema.
 ///
 /// Returns `None` if the type cannot be inferred (e.g., unknown column).
 pub fn infer_expr_type(expr: &LogicalExpr, schema: &PhysicalSchema) -> Option<ArrowDataType> {
@@ -153,7 +153,7 @@ fn infer_aggregate_type(agg: &AggExpr, schema: &PhysicalSchema) -> Option<ArrowD
     }
 }
 
-/// Convert a Grism Value to Arrow DataType.
+/// Convert a Grism `Value` to Arrow `DataType`.
 fn value_to_arrow_type(value: &Value) -> ArrowDataType {
     match value {
         Value::Null => ArrowDataType::Null,
@@ -172,17 +172,14 @@ fn value_to_arrow_type(value: &Value) -> ArrowDataType {
         ),
         Value::Symbol(_) => ArrowDataType::Utf8,
         Value::Array(arr) => {
-            let elem_type = arr
-                .first()
-                .map(value_to_arrow_type)
-                .unwrap_or(ArrowDataType::Null);
+            let elem_type = arr.first().map_or(ArrowDataType::Null, value_to_arrow_type);
             ArrowDataType::List(Arc::new(Field::new("item", elem_type, true)))
         }
         Value::Map(_) => ArrowDataType::Struct(Vec::<Field>::new().into()), // Simplified
     }
 }
 
-/// Build a PhysicalSchema for a projection operation.
+/// Build a `PhysicalSchema` for a projection operation.
 ///
 /// Handles both simple column references and computed expressions.
 pub fn build_project_schema(
@@ -205,7 +202,7 @@ pub fn build_project_schema(
     PhysicalSchema::new(Arc::new(ArrowSchema::new(fields)))
 }
 
-/// Build a PhysicalSchema for an aggregate operation.
+/// Build a `PhysicalSchema` for an aggregate operation.
 pub fn build_aggregate_schema(
     input_schema: &PhysicalSchema,
     aggregate: &AggregateOp,

@@ -4,7 +4,6 @@
 //! to make testing grism-core components easier and more consistent.
 
 #![allow(clippy::missing_const_for_fn)]
-#![allow(clippy::uninlined_format_args)]
 
 use crate::hypergraph::{EdgeId, Hypergraph, NodeId};
 use crate::types::Value;
@@ -332,10 +331,7 @@ impl<'a> HypergraphAssertions<'a> {
         assert_eq!(
             edge.role_of_node(node_id),
             Some(&expected_role.to_string()),
-            "Node {} should have role '{}' in hyperedge {}",
-            node_id,
-            expected_role,
-            edge_id
+            "Node {node_id} should have role '{expected_role}' in hyperedge {edge_id}"
         );
         self
     }

@@ -62,9 +62,9 @@ impl NodeScanExec {
     pub fn new(label: Option<String>, alias: Option<String>) -> Self {
         let schema = Self::build_schema(label.as_ref(), alias.as_ref());
         let operator_id = match (&label, &alias) {
-            (Some(l), Some(a)) => format!("NodeScanExec[{}:{}]", l, a),
-            (Some(l), None) => format!("NodeScanExec[{}]", l),
-            (None, Some(a)) => format!("NodeScanExec[*:{}]", a),
+            (Some(l), Some(a)) => format!("NodeScanExec[{l}:{a}]"),
+            (Some(l), None) => format!("NodeScanExec[{l}]"),
+            (None, Some(a)) => format!("NodeScanExec[*:{a}]"),
             (None, None) => "NodeScanExec[*]".to_string(),
         };
 
@@ -204,9 +204,9 @@ impl PhysicalOperator for NodeScanExec {
 
     fn display(&self) -> String {
         match (&self.label, &self.alias) {
-            (Some(l), Some(a)) => format!("NodeScanExec(label={}, alias={})", l, a),
-            (Some(l), None) => format!("NodeScanExec(label={})", l),
-            (None, Some(a)) => format!("NodeScanExec(all, alias={})", a),
+            (Some(l), Some(a)) => format!("NodeScanExec(label={l}, alias={a})"),
+            (Some(l), None) => format!("NodeScanExec(label={l})"),
+            (None, Some(a)) => format!("NodeScanExec(all, alias={a})"),
             (None, None) => "NodeScanExec(all)".to_string(),
         }
     }
@@ -244,9 +244,9 @@ impl HyperedgeScanExec {
     pub fn new(label: Option<String>, alias: Option<String>) -> Self {
         let schema = Self::build_schema(label.as_ref(), alias.as_ref());
         let operator_id = match (&label, &alias) {
-            (Some(l), Some(a)) => format!("HyperedgeScanExec[{}:{}]", l, a),
-            (Some(l), None) => format!("HyperedgeScanExec[{}]", l),
-            (None, Some(a)) => format!("HyperedgeScanExec[*:{}]", a),
+            (Some(l), Some(a)) => format!("HyperedgeScanExec[{l}:{a}]"),
+            (Some(l), None) => format!("HyperedgeScanExec[{l}]"),
+            (None, Some(a)) => format!("HyperedgeScanExec[*:{a}]"),
             (None, None) => "HyperedgeScanExec[*]".to_string(),
         };
 
@@ -390,9 +390,9 @@ impl PhysicalOperator for HyperedgeScanExec {
 
     fn display(&self) -> String {
         match (&self.label, &self.alias) {
-            (Some(l), Some(a)) => format!("HyperedgeScanExec(label={}, alias={})", l, a),
-            (Some(l), None) => format!("HyperedgeScanExec(label={})", l),
-            (None, Some(a)) => format!("HyperedgeScanExec(all, alias={})", a),
+            (Some(l), Some(a)) => format!("HyperedgeScanExec(label={l}, alias={a})"),
+            (Some(l), None) => format!("HyperedgeScanExec(label={l})"),
+            (None, Some(a)) => format!("HyperedgeScanExec(all, alias={a})"),
             (None, None) => "HyperedgeScanExec(all)".to_string(),
         }
     }

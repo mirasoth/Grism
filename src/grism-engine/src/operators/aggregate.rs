@@ -1,6 +1,7 @@
 //! Aggregate execution operator.
 
 use std::collections::HashMap;
+use std::fmt::Write;
 use std::sync::Arc;
 
 use arrow::array::{
@@ -579,7 +580,7 @@ impl HashAggregateExec {
                     key.push_str(str_arr.value(row));
                 }
             } else {
-                key.push_str(&format!("{:?}", row));
+                let _ = write!(key, "{row:?}");
             }
         }
         key
@@ -775,8 +776,8 @@ impl PhysicalOperator for HashAggregateExec {
     }
 
     fn display(&self) -> String {
-        let groups: Vec<_> = self.group_by.iter().map(|e| format!("{}", e)).collect();
-        let aggs: Vec<_> = self.aggregates.iter().map(|a| format!("{}", a)).collect();
+        let groups: Vec<_> = self.group_by.iter().map(|e| format!("{e}")).collect();
+        let aggs: Vec<_> = self.aggregates.iter().map(|a| format!("{a}")).collect();
         format!(
             "HashAggregateExec(group_by=[{}], agg=[{}])",
             groups.join(", "),

@@ -31,7 +31,7 @@ use crate::transport::ArrowTransport;
 /// Configuration for the Ray executor.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RayExecutorConfig {
-    /// Ray cluster address (e.g., "ray://localhost:10001").
+    /// Ray cluster address (e.g., `<ray://localhost:10001>`).
     pub ray_address: Option<String>,
     /// Default parallelism (number of partitions).
     pub default_parallelism: usize,
@@ -354,7 +354,7 @@ impl StageResult {
         self.batches_by_partition
             .values()
             .flatten()
-            .map(|b| b.num_rows())
+            .map(arrow_array::RecordBatch::num_rows)
             .sum()
     }
 

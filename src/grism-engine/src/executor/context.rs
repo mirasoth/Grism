@@ -42,25 +42,29 @@ impl Default for RuntimeConfig {
 
 impl RuntimeConfig {
     /// Create config with custom batch size.
-    pub fn with_batch_size(mut self, batch_size: usize) -> Self {
+    #[must_use]
+    pub const fn with_batch_size(mut self, batch_size: usize) -> Self {
         self.batch_size = batch_size;
         self
     }
 
     /// Create config with memory limit.
-    pub fn with_memory_limit(mut self, limit: usize) -> Self {
+    #[must_use]
+    pub const fn with_memory_limit(mut self, limit: usize) -> Self {
         self.memory_limit = limit;
         self
     }
 
     /// Enable or disable metrics collection.
-    pub fn with_metrics(mut self, enabled: bool) -> Self {
+    #[must_use]
+    pub const fn with_metrics(mut self, enabled: bool) -> Self {
         self.collect_metrics = enabled;
         self
     }
 
     /// Set parallelism level.
-    pub fn with_parallelism(mut self, parallelism: usize) -> Self {
+    #[must_use]
+    pub const fn with_parallelism(mut self, parallelism: usize) -> Self {
         self.parallelism = parallelism;
         self
     }
@@ -121,6 +125,7 @@ impl ExecutionContext {
     }
 
     /// Create with custom configuration.
+    #[must_use]
     pub fn with_config(mut self, config: RuntimeConfig) -> Self {
         // If metrics are disabled in config, set metrics to None
         if !config.collect_metrics {
@@ -131,36 +136,40 @@ impl ExecutionContext {
     }
 
     /// Create with memory manager.
+    #[must_use]
     pub fn with_memory(mut self, memory: Arc<dyn MemoryManager>) -> Self {
         self.memory = memory;
         self
     }
 
     /// Create with metrics sink.
+    #[must_use]
     pub fn with_metrics(mut self, metrics: MetricsSink) -> Self {
         self.metrics = Some(metrics);
         self
     }
 
     /// Disable metrics collection.
+    #[must_use]
     pub fn without_metrics(mut self) -> Self {
         self.metrics = None;
         self
     }
 
     /// Create with cancellation receiver.
+    #[must_use]
     pub fn with_cancellation(mut self, cancel_rx: watch::Receiver<bool>) -> Self {
         self.cancel_rx = cancel_rx;
         self
     }
 
     /// Get the runtime configuration.
-    pub fn config(&self) -> &RuntimeConfig {
+    pub const fn config(&self) -> &RuntimeConfig {
         &self.config
     }
 
     /// Get the metrics sink (if enabled).
-    pub fn metrics(&self) -> Option<&MetricsSink> {
+    pub const fn metrics(&self) -> Option<&MetricsSink> {
         self.metrics.as_ref()
     }
 
