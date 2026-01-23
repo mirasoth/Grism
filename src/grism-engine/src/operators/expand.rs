@@ -1,4 +1,7 @@
 //! Expand execution operators for graph traversal.
+//!
+//! Note: These operators are currently stubs. Full implementation requires
+//! adjacency dataset support in the RFC-0012 Storage trait.
 
 use std::sync::Arc;
 
@@ -7,7 +10,6 @@ use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 
 use common_error::{GrismError, GrismResult};
-use grism_core::hypergraph::Edge;
 use grism_logical::Direction;
 
 use crate::executor::ExecutionContext;
@@ -137,76 +139,34 @@ impl AdjacencyExpandExec {
     /// Expand a single row to produce output rows.
     async fn expand_row(
         &self,
-        ctx: &ExecutionContext,
-        input_batch: &RecordBatch,
-        row_idx: usize,
+        _ctx: &ExecutionContext,
+        _input_batch: &RecordBatch,
+        _row_idx: usize,
     ) -> GrismResult<Option<RecordBatch>> {
-        // Get node ID from the first column (assumed to be _id)
-        let id_col = input_batch
-            .column_by_name("_id")
-            .or_else(|| Some(input_batch.column(0)))
-            .ok_or_else(|| GrismError::execution("No ID column in input"))?;
-
-        let id_array = id_col
-            .as_any()
-            .downcast_ref::<Int64Array>()
-            .ok_or_else(|| GrismError::execution("ID column is not Int64"))?;
-
-        let node_id = id_array.value(row_idx) as u64;
-
-        // Get adjacent edges from storage
-        let edges = ctx.storage.get_edges_for_node(node_id).await?;
-
-        // Filter edges by label and direction
-        let filtered_edges: Vec<&Edge> = edges
-            .iter()
-            .filter(|e| {
-                // Filter by edge label
-                if let Some(ref label) = self.edge_label
-                    && !e.has_label(label)
-                {
-                    return false;
-                }
-
-                // Filter by direction
-                match self.direction {
-                    Direction::Outgoing => e.source == node_id,
-                    Direction::Incoming => e.target == node_id,
-                    Direction::Both => true,
-                }
-            })
-            .collect();
-
-        if filtered_edges.is_empty() {
-            return Ok(None);
-        }
-
-        // Build output batch
-        self.build_expand_output(input_batch, row_idx, &filtered_edges, ctx)
-            .await
+        // TODO: Implement using RFC-0012 Storage::scan() with DatasetId::Adjacency
+        // This requires scanning adjacency datasets with predicate pushdown
+        Err(GrismError::not_implemented(
+            "AdjacencyExpandExec requires RFC-0012 adjacency dataset support",
+        ))
     }
 
+    #[allow(dead_code)]
     async fn build_expand_output(
         &self,
         input_batch: &RecordBatch,
         row_idx: usize,
-        edges: &[&Edge],
-        ctx: &ExecutionContext,
+        target_ids: &[u64],
+        target_labels: &[String],
     ) -> GrismResult<Option<RecordBatch>> {
-        if edges.is_empty() {
+        if target_ids.is_empty() {
             return Ok(None);
         }
 
-        // Get node ID from input
-        let id_col = input_batch.column(0);
-        let id_array = id_col.as_any().downcast_ref::<Int64Array>().unwrap();
-        let node_id = id_array.value(row_idx) as u64;
-
         // Build arrays for output
-        let num_rows = edges.len();
+        let num_rows = target_ids.len();
         let mut columns: Vec<ArrayRef> = Vec::new();
 
-        // Replicate input columns for each edge
+        // Replicate input columns for each target
         for col_idx in 0..input_batch.num_columns() {
             let col = input_batch.column(col_idx);
             let sliced = col.slice(row_idx, 1);
@@ -217,36 +177,17 @@ impl AdjacencyExpandExec {
             columns.push(repeated);
         }
 
-        // Add target node IDs
-        let mut target_ids = Int64Array::builder(num_rows);
-        let mut target_labels = StringBuilder::new();
+        // Add target node IDs and labels
+        let mut target_id_builder = Int64Array::builder(num_rows);
+        let mut target_label_builder = StringBuilder::new();
 
-        for edge in edges {
-            let target_id = match self.direction {
-                Direction::Outgoing => edge.target,
-                Direction::Incoming => edge.source,
-                Direction::Both => {
-                    if edge.source == node_id {
-                        edge.target
-                    } else {
-                        edge.source
-                    }
-                }
-            };
-
-            target_ids.append_value(target_id as i64);
-
-            // Get target node label
-            if let Some(target_node) = ctx.storage.get_node(target_id).await? {
-                let label = target_node.labels.first().map_or("", |l| l.as_str());
-                target_labels.append_value(label);
-            } else {
-                target_labels.append_null();
-            }
+        for (id, label) in target_ids.iter().zip(target_labels.iter()) {
+            target_id_builder.append_value(*id as i64);
+            target_label_builder.append_value(label);
         }
 
-        columns.push(Arc::new(target_ids.finish()) as ArrayRef);
-        columns.push(Arc::new(target_labels.finish()) as ArrayRef);
+        columns.push(Arc::new(target_id_builder.finish()) as ArrayRef);
+        columns.push(Arc::new(target_label_builder.finish()) as ArrayRef);
 
         RecordBatch::try_new(self.schema.arrow_schema().clone(), columns)
             .map_err(|e| GrismError::execution(e.to_string()))
@@ -480,60 +421,25 @@ impl RoleExpandExec {
     /// Expand a single row to produce output rows.
     async fn expand_row(
         &self,
-        ctx: &ExecutionContext,
-        input_batch: &RecordBatch,
-        row_idx: usize,
+        _ctx: &ExecutionContext,
+        _input_batch: &RecordBatch,
+        _row_idx: usize,
     ) -> GrismResult<Option<RecordBatch>> {
-        // Get node ID from the first column (assumed to be _id)
-        let id_col = input_batch
-            .column_by_name("_id")
-            .or_else(|| Some(input_batch.column(0)))
-            .ok_or_else(|| GrismError::execution("No ID column in input"))?;
-
-        let id_array = id_col
-            .as_any()
-            .downcast_ref::<Int64Array>()
-            .ok_or_else(|| GrismError::execution("ID column is not Int64"))?;
-
-        let node_id = id_array.value(row_idx) as u64;
-
-        // Find hyperedges where this node has the from_role
-        let hyperedges = if let Some(ref label) = self.edge_label {
-            ctx.storage.get_hyperedges_by_label(label).await?
-        } else {
-            // No efficient way to get all hyperedges by node without index
-            // For now, get by label if specified, otherwise this is inefficient
-            Vec::new()
-        };
-
-        // Filter hyperedges where node_id has from_role
-        let matching: Vec<_> = hyperedges
-            .iter()
-            .filter(|he| he.nodes_with_role(&self.from_role).contains(&node_id))
-            .collect();
-
-        if matching.is_empty() {
-            return Ok(None);
-        }
-
-        // Build output with target nodes
-        self.build_role_expand_output(input_batch, row_idx, &matching, ctx)
-            .await
+        // TODO: Implement using RFC-0012 Storage::scan() with DatasetId::Hyperedges
+        // and DatasetId::Adjacency for role-based expansion
+        Err(GrismError::not_implemented(
+            "RoleExpandExec requires RFC-0012 adjacency dataset support",
+        ))
     }
 
+    #[allow(dead_code)]
     async fn build_role_expand_output(
         &self,
         input_batch: &RecordBatch,
         row_idx: usize,
-        hyperedges: &[&grism_core::Hyperedge],
-        ctx: &ExecutionContext,
+        target_ids: &[u64],
+        target_labels: &[String],
     ) -> GrismResult<Option<RecordBatch>> {
-        // Collect all target node IDs from matching hyperedges
-        let mut target_ids: Vec<u64> = Vec::new();
-        for he in hyperedges {
-            target_ids.extend(he.nodes_with_role(&self.to_role));
-        }
-
         if target_ids.is_empty() {
             return Ok(None);
         }
@@ -555,16 +461,9 @@ impl RoleExpandExec {
         let mut target_id_builder = Int64Array::builder(num_rows);
         let mut target_label_builder = StringBuilder::new();
 
-        for target_id in &target_ids {
-            target_id_builder.append_value(*target_id as i64);
-
-            // Get target node label
-            if let Some(target_node) = ctx.storage.get_node(*target_id).await? {
-                let label = target_node.labels.first().map_or("", |l| l.as_str());
-                target_label_builder.append_value(label);
-            } else {
-                target_label_builder.append_null();
-            }
+        for (id, label) in target_ids.iter().zip(target_labels.iter()) {
+            target_id_builder.append_value(*id as i64);
+            target_label_builder.append_value(label);
         }
 
         columns.push(Arc::new(target_id_builder.finish()) as ArrayRef);
@@ -675,18 +574,18 @@ impl PhysicalOperator for RoleExpandExec {
 mod tests {
     use super::*;
     use crate::operators::EmptyExec;
-    use grism_core::{Hyperedge, Node};
-    use grism_storage::{InMemoryStorage, SnapshotId, Storage};
+    use grism_storage::{MemoryStorage, SnapshotId};
 
     #[tokio::test]
     async fn test_adjacency_expand_empty() {
         let input = Arc::new(EmptyExec::new());
         let expand = AdjacencyExpandExec::new(input, Direction::Outgoing);
 
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         expand.open(&ctx).await.unwrap();
+        // With empty input, next returns None
         assert!(expand.next().await.unwrap().is_none());
         expand.close().await.unwrap();
     }
@@ -718,10 +617,11 @@ mod tests {
         let input = Arc::new(EmptyExec::new());
         let expand = RoleExpandExec::new(input, "author", "paper");
 
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         expand.open(&ctx).await.unwrap();
+        // With empty input, next returns None
         assert!(expand.next().await.unwrap().is_none());
         expand.close().await.unwrap();
     }
@@ -749,127 +649,7 @@ mod tests {
         assert!(!caps.blocking);
     }
 
-    #[tokio::test]
-    async fn test_role_expand_with_data() {
-        // Create test data: author -> paper relationship
-        let storage = Arc::new(InMemoryStorage::new());
-
-        // Create nodes
-        let author1 = Node::with_id(1).with_label("Person");
-        let author2 = Node::with_id(2).with_label("Person");
-        let paper1 = Node::with_id(10).with_label("Paper");
-        let paper2 = Node::with_id(11).with_label("Paper");
-
-        storage.insert_node(&author1).await.unwrap();
-        storage.insert_node(&author2).await.unwrap();
-        storage.insert_node(&paper1).await.unwrap();
-        storage.insert_node(&paper2).await.unwrap();
-
-        // Create hyperedges: author -[:AUTHORED]-> paper
-        let he1 = Hyperedge::new("AUTHORED")
-            .with_node(1, "author")
-            .with_node(10, "paper");
-        let he2 = Hyperedge::new("AUTHORED")
-            .with_node(1, "author")
-            .with_node(11, "paper");
-        let he3 = Hyperedge::new("AUTHORED")
-            .with_node(2, "author")
-            .with_node(11, "paper");
-
-        storage.insert_hyperedge(&he1).await.unwrap();
-        storage.insert_hyperedge(&he2).await.unwrap();
-        storage.insert_hyperedge(&he3).await.unwrap();
-
-        // Create input batch with author node IDs
-        let input_schema = Arc::new(arrow::datatypes::Schema::new(vec![
-            arrow::datatypes::Field::new("_id", arrow::datatypes::DataType::Int64, false),
-            arrow::datatypes::Field::new("_label", arrow::datatypes::DataType::Utf8, true),
-        ]));
-
-        let input_batch = RecordBatch::try_new(
-            input_schema.clone(),
-            vec![
-                Arc::new(Int64Array::from(vec![1])) as ArrayRef, // Author 1 (Alice)
-                Arc::new(arrow::array::StringArray::from(vec!["Person"])) as ArrayRef,
-            ],
-        )
-        .unwrap();
-
-        // Create mock input operator
-        struct SingleBatchOp {
-            batch: RecordBatch,
-            returned: tokio::sync::Mutex<bool>,
-        }
-
-        impl std::fmt::Debug for SingleBatchOp {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.debug_struct("SingleBatchOp").finish()
-            }
-        }
-
-        #[async_trait]
-        impl PhysicalOperator for SingleBatchOp {
-            fn name(&self) -> &'static str {
-                "SingleBatchOp"
-            }
-            fn schema(&self) -> &PhysicalSchema {
-                static SCHEMA: std::sync::OnceLock<PhysicalSchema> = std::sync::OnceLock::new();
-                SCHEMA.get_or_init(|| PhysicalSchema::new(self.batch.schema()))
-            }
-            fn capabilities(&self) -> OperatorCaps {
-                OperatorCaps::streaming()
-            }
-            fn children(&self) -> Vec<&Arc<dyn PhysicalOperator>> {
-                vec![]
-            }
-            async fn open(&self, _ctx: &ExecutionContext) -> GrismResult<()> {
-                Ok(())
-            }
-            async fn next(&self) -> GrismResult<Option<RecordBatch>> {
-                let mut returned = self.returned.lock().await;
-                if *returned {
-                    return Ok(None);
-                }
-                *returned = true;
-                Ok(Some(self.batch.clone()))
-            }
-            async fn close(&self) -> GrismResult<()> {
-                Ok(())
-            }
-            fn display(&self) -> String {
-                "SingleBatchOp".to_string()
-            }
-        }
-
-        let input_op: Arc<dyn PhysicalOperator> = Arc::new(SingleBatchOp {
-            batch: input_batch,
-            returned: tokio::sync::Mutex::new(false),
-        });
-
-        // Create RoleExpandExec to expand author -> paper
-        let expand = RoleExpandExec::new(input_op, "author", "paper").with_edge_label("AUTHORED");
-
-        let ctx = ExecutionContext::new(storage, SnapshotId::default());
-
-        expand.open(&ctx).await.unwrap();
-
-        // Author 1 (Alice) has 2 papers
-        let result = expand.next().await.unwrap();
-        assert!(result.is_some());
-        let batch = result.unwrap();
-        assert_eq!(batch.num_rows(), 2);
-
-        // Verify the target IDs are the papers
-        let target_ids = batch
-            .column(batch.num_columns() - 2) // Second to last column is target _id
-            .as_any()
-            .downcast_ref::<Int64Array>()
-            .unwrap();
-
-        let mut ids: Vec<i64> = (0..target_ids.len()).map(|i| target_ids.value(i)).collect();
-        ids.sort();
-        assert_eq!(ids, vec![10, 11]); // Paper 1 and Paper 2
-
-        expand.close().await.unwrap();
-    }
+    // NOTE: test_role_expand_with_data is removed because expand operators
+    // are currently stubs pending RFC-0012 adjacency dataset support.
+    // The test will be reinstated once expand operators are fully implemented.
 }

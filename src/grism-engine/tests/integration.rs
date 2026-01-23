@@ -18,42 +18,42 @@ use arrow::array::{Array, Float64Array, Int64Array, StringArray};
 use arrow::record_batch::RecordBatch;
 
 use common_error::GrismResult;
-use grism_core::{Hyperedge, Node};
 use grism_logical::expr::{col, lit};
 use grism_logical::ops::{FilterOp, LimitOp, LogicalOp, ProjectOp, ScanOp, SortOp};
 use grism_logical::{AggExpr, LogicalPlan, SortKey};
-use grism_storage::{InMemoryStorage, SnapshotId, Storage};
+use grism_storage::{
+    DatasetId, HyperedgeBatchBuilder, MemoryStorage, NodeBatchBuilder, SnapshotId, Storage,
+    WritableStorage,
+};
 
 use grism_engine::PhysicalPlanner;
 use grism_engine::executor::LocalExecutor;
 use grism_engine::planner::LocalPhysicalPlanner;
 
 /// Helper to setup test storage with person data.
-async fn setup_person_storage() -> Arc<InMemoryStorage> {
-    let storage = Arc::new(InMemoryStorage::new());
+async fn setup_person_storage() -> Arc<MemoryStorage> {
+    let storage = Arc::new(MemoryStorage::new());
 
-    // Create person nodes
-    // Note: We store age in the ID for simplicity since Node doesn't have property builders
-    // In real tests, we would use proper properties
-    let people = vec![
-        (1, "Alice", "Person"),
-        (2, "Bob", "Person"),
-        (3, "Charlie", "Person"),
-        (4, "Diana", "Person"),
-        (5, "Eve", "Person"),
-    ];
+    // Create person nodes using the new RFC-0012 interface
+    let mut builder = NodeBatchBuilder::new();
+    builder.add(1, Some("Person"));
+    builder.add(2, Some("Person"));
+    builder.add(3, Some("Person"));
+    builder.add(4, Some("Person"));
+    builder.add(5, Some("Person"));
+    let batch = builder.build().unwrap();
 
-    for (id, _name, label) in people {
-        let node = Node::with_id(id).with_label(label);
-        storage.insert_node(&node).await.unwrap();
-    }
+    storage
+        .write(DatasetId::nodes("Person"), batch)
+        .await
+        .unwrap();
 
     storage
 }
 
 /// Execute a logical plan and collect all results.
 async fn execute_plan(
-    storage: Arc<InMemoryStorage>,
+    storage: Arc<MemoryStorage>,
     plan: LogicalPlan,
 ) -> GrismResult<Vec<RecordBatch>> {
     let planner = LocalPhysicalPlanner::new();
@@ -543,76 +543,82 @@ async fn test_scan_filter_sort_limit() {
 /// - Company nodes (TechCorp, DataInc)
 /// - KNOWS hyperedges (binary)
 /// - WORKS_AT hyperedges (binary)
-/// - MEETING hyperedges (n-ary: host, attendees, location)
-async fn setup_social_graph() -> Arc<InMemoryStorage> {
-    let storage = Arc::new(InMemoryStorage::new());
+/// - MEETING hyperedges (n-ary)
+async fn setup_social_graph() -> Arc<MemoryStorage> {
+    let storage = Arc::new(MemoryStorage::new());
 
-    // Create Person nodes
-    let alice = Node::with_id(1).with_label("Person");
-    let bob = Node::with_id(2).with_label("Person");
-    let charlie = Node::with_id(3).with_label("Person");
-    let diana = Node::with_id(4).with_label("Person");
+    // Create Person nodes using RFC-0012 interface
+    let mut person_builder = NodeBatchBuilder::new();
+    person_builder.add(1, Some("Person")); // Alice
+    person_builder.add(2, Some("Person")); // Bob
+    person_builder.add(3, Some("Person")); // Charlie
+    person_builder.add(4, Some("Person")); // Diana
+    storage
+        .write(DatasetId::nodes("Person"), person_builder.build().unwrap())
+        .await
+        .unwrap();
 
     // Create Company nodes
-    let techcorp = Node::with_id(10).with_label("Company");
-    let datainc = Node::with_id(11).with_label("Company");
+    let mut company_builder = NodeBatchBuilder::new();
+    company_builder.add(10, Some("Company")); // TechCorp
+    company_builder.add(11, Some("Company")); // DataInc
+    storage
+        .write(
+            DatasetId::nodes("Company"),
+            company_builder.build().unwrap(),
+        )
+        .await
+        .unwrap();
 
-    // Create Location node for meetings
-    let conf_room = Node::with_id(20).with_label("Location");
+    // Create Location node
+    let mut location_builder = NodeBatchBuilder::new();
+    location_builder.add(20, Some("Location")); // Conf room
+    storage
+        .write(
+            DatasetId::nodes("Location"),
+            location_builder.build().unwrap(),
+        )
+        .await
+        .unwrap();
 
-    // Insert nodes
-    for node in [
-        &alice, &bob, &charlie, &diana, &techcorp, &datainc, &conf_room,
-    ] {
-        storage.insert_node(node).await.unwrap();
-    }
+    // Create KNOWS hyperedges
+    let mut knows_builder = HyperedgeBatchBuilder::new();
+    knows_builder.add(1, "KNOWS", 2); // 4 KNOWS edges
+    knows_builder.add(2, "KNOWS", 2);
+    knows_builder.add(3, "KNOWS", 2);
+    knows_builder.add(4, "KNOWS", 2);
+    storage
+        .write(
+            DatasetId::hyperedges("KNOWS"),
+            knows_builder.build().unwrap(),
+        )
+        .await
+        .unwrap();
 
-    // Create KNOWS relationships (binary hyperedges)
-    // Alice knows Bob, Charlie
-    // Bob knows Charlie, Diana
-    let knows1 = Hyperedge::new("KNOWS")
-        .with_node(1, "source")
-        .with_node(2, "target"); // Alice -> Bob
-    let knows2 = Hyperedge::new("KNOWS")
-        .with_node(1, "source")
-        .with_node(3, "target"); // Alice -> Charlie
-    let knows3 = Hyperedge::new("KNOWS")
-        .with_node(2, "source")
-        .with_node(3, "target"); // Bob -> Charlie
-    let knows4 = Hyperedge::new("KNOWS")
-        .with_node(2, "source")
-        .with_node(4, "target"); // Bob -> Diana
+    // Create WORKS_AT hyperedges
+    let mut works_builder = HyperedgeBatchBuilder::new();
+    works_builder.add(5, "WORKS_AT", 2); // 4 WORKS_AT edges
+    works_builder.add(6, "WORKS_AT", 2);
+    works_builder.add(7, "WORKS_AT", 2);
+    works_builder.add(8, "WORKS_AT", 2);
+    storage
+        .write(
+            DatasetId::hyperedges("WORKS_AT"),
+            works_builder.build().unwrap(),
+        )
+        .await
+        .unwrap();
 
-    // Create WORKS_AT relationships
-    // Alice, Bob work at TechCorp
-    // Charlie, Diana work at DataInc
-    let works1 = Hyperedge::new("WORKS_AT")
-        .with_node(1, "employee")
-        .with_node(10, "company"); // Alice @ TechCorp
-    let works2 = Hyperedge::new("WORKS_AT")
-        .with_node(2, "employee")
-        .with_node(10, "company"); // Bob @ TechCorp
-    let works3 = Hyperedge::new("WORKS_AT")
-        .with_node(3, "employee")
-        .with_node(11, "company"); // Charlie @ DataInc
-    let works4 = Hyperedge::new("WORKS_AT")
-        .with_node(4, "employee")
-        .with_node(11, "company"); // Diana @ DataInc
-
-    // Create n-ary MEETING hyperedge
-    // Meeting with Alice (host), Bob and Charlie (attendees), in conf room
-    let meeting = Hyperedge::new("MEETING")
-        .with_node(1, "host")
-        .with_node(2, "attendee")
-        .with_node(3, "attendee")
-        .with_node(20, "location");
-
-    // Insert hyperedges
-    for edge in [
-        &knows1, &knows2, &knows3, &knows4, &works1, &works2, &works3, &works4, &meeting,
-    ] {
-        storage.insert_hyperedge(edge).await.unwrap();
-    }
+    // Create MEETING hyperedge (n-ary)
+    let mut meeting_builder = HyperedgeBatchBuilder::new();
+    meeting_builder.add(9, "MEETING", 4); // 1 MEETING with 4 participants
+    storage
+        .write(
+            DatasetId::hyperedges("MEETING"),
+            meeting_builder.build().unwrap(),
+        )
+        .await
+        .unwrap();
 
     storage
 }

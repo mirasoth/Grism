@@ -74,6 +74,7 @@ These RFCs are under active development and may be modified.
 |-----|-------|--------------|--------------|-------------|
 | [RFC-0101](rfc-0101.md) | Python API Specification | 2026-01-22 | RFC-0001, RFC-0002, RFC-0003, RFC-0017, RFC-0100 | Canonical Python API for Grism. Authoritative user-facing interface with backward compatibility guarantees. |
 | [RFC-0102](rfc-0102.md) | Execution Engine Architecture | 2026-01-22 | RFC-0002, RFC-0008, RFC-0010, RFC-0100 | Defines execution engine architecture with common engine layer, local runtime, and Ray distributed runtime. |
+| [RFC-0103](rfc-0103.md) | Standalone Storage Architecture | 2026-01-23 | RFC-0012, RFC-0019, RFC-0020, RFC-0102 | Unified StorageProvider for local engine with memory, Lance, and tiered storage modes. Production-ready architecture. |
 
 ---
 
@@ -118,6 +119,7 @@ graph TD
     RFC0100[RFC-0100: Architecture]
     RFC0101[RFC-0101: Python API]
     RFC0102[RFC-0102: Execution Engine]
+    RFC0103[RFC-0103: Standalone Storage]
     
     RFC0001 --> RFC0002
     RFC0002 --> RFC0003
@@ -227,6 +229,11 @@ graph TD
     RFC0023 --> RFC0024
     RFC0102 --> RFC0024
     
+    RFC0012 --> RFC0103
+    RFC0019 --> RFC0103
+    RFC0020 --> RFC0103
+    RFC0102 --> RFC0103
+    
     style RFC0001 fill:#e1f5ff
     style RFC0002 fill:#e1f5ff
     style RFC0003 fill:#e1f5ff
@@ -274,6 +281,8 @@ graph TD
 
 ### API & Interfaces
 - RFC-0101: Python API (Draft)
+- RFC-0102: Execution Engine Architecture (Review)
+- RFC-0103: Standalone Storage Architecture (Draft)
 
 ---
 

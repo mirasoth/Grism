@@ -8,6 +8,22 @@ Chronological record of RFC lifecycle events: creation, status changes, and vers
 
 ### 2026-01-23
 
+**RFC-0103: Created**
+- Title: Standalone Storage Architecture
+- Status: Draft
+- Dependencies: RFC-0012, RFC-0019, RFC-0020, RFC-0102
+- Author: Grism Team
+- Rationale: Define unified StorageProvider architecture for local engine with memory, Lance, and tiered storage modes. Production-ready implementation reference.
+
+**rfc-index.md: Updated**
+- Added RFC-0103 to API & Interfaces table
+- Added RFC-0103 to dependency graph
+- Added RFC-0103 to "RFC by Layer" section
+- Author: Grism Team
+- Rationale: Keep index synchronized with new RFC
+
+---
+
 **RFC-0019: Created**
 - Title: Lance-Based Local Storage Backend
 - Status: Draft

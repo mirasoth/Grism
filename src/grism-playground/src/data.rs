@@ -1,171 +1,79 @@
 //! Sample data generation for playground examples.
 //!
 //! This module provides functions to create sample hypergraph data
-//! for testing and demonstrations.
+//! for testing and demonstrations using the RFC-0012 Storage interface.
 
 use std::sync::Arc;
 
 use common_error::GrismResult;
-use grism_core::hypergraph::{Edge, EntityRef, Hyperedge, Node};
-use grism_storage::{InMemoryStorage, Storage};
+use grism_storage::{
+    DatasetId, HyperedgeBatchBuilder, MemoryStorage, NodeBatchBuilder, WritableStorage,
+};
 
 /// Create a sample social network hypergraph.
 ///
 /// Creates a simple social network with:
-/// - Person nodes with name, age, city properties
-/// - KNOWS edges between persons
-/// - WORKS_AT hyperedges connecting persons to companies with roles
+/// - Person nodes (Alice, Bob, Charlie, Diana, Eve)
+/// - Company nodes (Acme Corp, Widgets Inc)
+/// - KNOWS hyperedges between persons
+/// - WORKS_AT hyperedges connecting persons to companies
 ///
 /// # Example
 ///
 /// ```rust,ignore
 /// let storage = create_social_network().await?;
-/// let persons = storage.get_nodes_by_label("Person").await?;
-/// println!("Created {} persons", persons.len());
+/// // Use RFC-0012 Storage::scan() to query data
 /// ```
-pub async fn create_social_network() -> GrismResult<Arc<InMemoryStorage>> {
-    let storage = Arc::new(InMemoryStorage::new());
+pub async fn create_social_network() -> GrismResult<Arc<MemoryStorage>> {
+    let storage = Arc::new(MemoryStorage::new());
 
     // Create Person nodes
-    let alice = Node::new()
-        .with_label("Person")
-        .with_properties(properties![
-            "name" => "Alice",
-            "age" => 30i64,
-            "city" => "San Francisco"
-        ]);
-
-    let bob = Node::new()
-        .with_label("Person")
-        .with_properties(properties![
-            "name" => "Bob",
-            "age" => 25i64,
-            "city" => "New York"
-        ]);
-
-    let charlie = Node::new()
-        .with_label("Person")
-        .with_properties(properties![
-            "name" => "Charlie",
-            "age" => 35i64,
-            "city" => "San Francisco"
-        ]);
-
-    let diana = Node::new()
-        .with_label("Person")
-        .with_properties(properties![
-            "name" => "Diana",
-            "age" => 28i64,
-            "city" => "Seattle"
-        ]);
-
-    let eve = Node::new()
-        .with_label("Person")
-        .with_properties(properties![
-            "name" => "Eve",
-            "age" => 32i64,
-            "city" => "New York"
-        ]);
+    let mut person_builder = NodeBatchBuilder::new();
+    person_builder.add(1, Some("Person")); // Alice
+    person_builder.add(2, Some("Person")); // Bob
+    person_builder.add(3, Some("Person")); // Charlie
+    person_builder.add(4, Some("Person")); // Diana
+    person_builder.add(5, Some("Person")); // Eve
+    storage
+        .write(DatasetId::nodes("Person"), person_builder.build()?)
+        .await?;
 
     // Create Company nodes
-    let acme = Node::new()
-        .with_label("Company")
-        .with_properties(properties![
-            "name" => "Acme Corp",
-            "industry" => "Technology",
-            "employees" => 500i64
-        ]);
+    let mut company_builder = NodeBatchBuilder::new();
+    company_builder.add(10, Some("Company")); // Acme Corp
+    company_builder.add(11, Some("Company")); // Widgets Inc
+    storage
+        .write(DatasetId::nodes("Company"), company_builder.build()?)
+        .await?;
 
-    let widgets = Node::new()
-        .with_label("Company")
-        .with_properties(properties![
-            "name" => "Widgets Inc",
-            "industry" => "Manufacturing",
-            "employees" => 200i64
-        ]);
-
-    // Insert nodes
-    let alice_id = storage.insert_node(&alice).await?;
-    let bob_id = storage.insert_node(&bob).await?;
-    let charlie_id = storage.insert_node(&charlie).await?;
-    let diana_id = storage.insert_node(&diana).await?;
-    let eve_id = storage.insert_node(&eve).await?;
-    let acme_id = storage.insert_node(&acme).await?;
-    let widgets_id = storage.insert_node(&widgets).await?;
-
-    // Create KNOWS edges (binary relationships)
-    // Edge::new takes (label, source, target)
-    let edges = vec![
-        Edge::new("KNOWS", alice_id, bob_id),
-        Edge::new("KNOWS", alice_id, charlie_id),
-        Edge::new("KNOWS", bob_id, diana_id),
-        Edge::new("KNOWS", charlie_id, diana_id),
-        Edge::new("KNOWS", diana_id, eve_id),
-        Edge::new("KNOWS", eve_id, alice_id), // Cycle
-    ];
-
-    for edge in &edges {
-        storage.insert_edge(edge).await?;
-    }
+    // Create KNOWS hyperedges (binary relationships)
+    let mut knows_builder = HyperedgeBatchBuilder::new();
+    knows_builder.add(100, "KNOWS", 2); // Alice -> Bob
+    knows_builder.add(101, "KNOWS", 2); // Alice -> Charlie
+    knows_builder.add(102, "KNOWS", 2); // Bob -> Diana
+    knows_builder.add(103, "KNOWS", 2); // Charlie -> Diana
+    knows_builder.add(104, "KNOWS", 2); // Diana -> Eve
+    knows_builder.add(105, "KNOWS", 2); // Eve -> Alice (cycle)
+    storage
+        .write(DatasetId::hyperedges("KNOWS"), knows_builder.build()?)
+        .await?;
 
     // Create WORKS_AT hyperedges (n-ary relationships)
-    // Hyperedge::with_binding(entity, role) - entity first, then role
-
-    // Alice works at Acme as Engineer, reporting to Charlie
-    let works_at_1 = Hyperedge::new("WORKS_AT")
-        .with_binding(EntityRef::Node(alice_id), "employee")
-        .with_binding(EntityRef::Node(acme_id), "company")
-        .with_binding(EntityRef::Node(charlie_id), "manager")
-        .with_properties(properties![
-            "role" => "Engineer",
-            "start_year" => 2020i64
-        ]);
-
-    // Bob works at Widgets as Analyst
-    let works_at_2 = Hyperedge::new("WORKS_AT")
-        .with_binding(EntityRef::Node(bob_id), "employee")
-        .with_binding(EntityRef::Node(widgets_id), "company")
-        .with_properties(properties![
-            "role" => "Analyst",
-            "start_year" => 2022i64
-        ]);
-
-    // Charlie works at Acme as Manager
-    let works_at_3 = Hyperedge::new("WORKS_AT")
-        .with_binding(EntityRef::Node(charlie_id), "employee")
-        .with_binding(EntityRef::Node(acme_id), "company")
-        .with_properties(properties![
-            "role" => "Manager",
-            "start_year" => 2018i64
-        ]);
-
-    // Diana works at Acme as Designer
-    let works_at_4 = Hyperedge::new("WORKS_AT")
-        .with_binding(EntityRef::Node(diana_id), "employee")
-        .with_binding(EntityRef::Node(acme_id), "company")
-        .with_binding(EntityRef::Node(charlie_id), "manager")
-        .with_properties(properties![
-            "role" => "Designer",
-            "start_year" => 2021i64
-        ]);
-
-    storage.insert_hyperedge(&works_at_1).await?;
-    storage.insert_hyperedge(&works_at_2).await?;
-    storage.insert_hyperedge(&works_at_3).await?;
-    storage.insert_hyperedge(&works_at_4).await?;
+    let mut works_at_builder = HyperedgeBatchBuilder::new();
+    works_at_builder.add(200, "WORKS_AT", 3); // Alice @ Acme
+    works_at_builder.add(201, "WORKS_AT", 2); // Bob @ Widgets
+    works_at_builder.add(202, "WORKS_AT", 2); // Charlie @ Acme
+    works_at_builder.add(203, "WORKS_AT", 3); // Diana @ Acme
+    storage
+        .write(DatasetId::hyperedges("WORKS_AT"), works_at_builder.build()?)
+        .await?;
 
     // Create MEETING hyperedge (multi-party relationship)
-    let meeting = Hyperedge::new("MEETING")
-        .with_binding(EntityRef::Node(charlie_id), "organizer")
-        .with_binding(EntityRef::Node(alice_id), "attendee")
-        .with_binding(EntityRef::Node(diana_id), "attendee")
-        .with_binding(EntityRef::Node(acme_id), "location")
-        .with_properties(properties![
-            "title" => "Weekly Standup",
-            "duration_minutes" => 30i64
-        ]);
-
-    storage.insert_hyperedge(&meeting).await?;
+    let mut meeting_builder = HyperedgeBatchBuilder::new();
+    meeting_builder.add(300, "MEETING", 4); // Weekly standup
+    storage
+        .write(DatasetId::hyperedges("MEETING"), meeting_builder.build()?)
+        .await?;
 
     Ok(storage)
 }
@@ -174,41 +82,34 @@ pub async fn create_social_network() -> GrismResult<Arc<InMemoryStorage>> {
 ///
 /// Creates a simple graph with:
 /// - 3 nodes (A, B, C)
-/// - 2 edges (A→B, B→C)
-/// - 1 hyperedge connecting all three
-pub async fn create_sample_hypergraph() -> GrismResult<Arc<InMemoryStorage>> {
-    let storage = Arc::new(InMemoryStorage::new());
+/// - 2 CONNECTS hyperedges (A→B, B→C)
+/// - 1 TRIANGLE hyperedge connecting all three
+pub async fn create_sample_hypergraph() -> GrismResult<Arc<MemoryStorage>> {
+    let storage = Arc::new(MemoryStorage::new());
 
     // Create nodes
-    let node_a = Node::new()
-        .with_label("Node")
-        .with_properties(properties!["name" => "A", "value" => 1i64]);
-    let node_b = Node::new()
-        .with_label("Node")
-        .with_properties(properties!["name" => "B", "value" => 2i64]);
-    let node_c = Node::new()
-        .with_label("Node")
-        .with_properties(properties!["name" => "C", "value" => 3i64]);
+    let mut node_builder = NodeBatchBuilder::new();
+    node_builder.add(1, Some("Node")); // A
+    node_builder.add(2, Some("Node")); // B
+    node_builder.add(3, Some("Node")); // C
+    storage
+        .write(DatasetId::nodes("Node"), node_builder.build()?)
+        .await?;
 
-    let a_id = storage.insert_node(&node_a).await?;
-    let b_id = storage.insert_node(&node_b).await?;
-    let c_id = storage.insert_node(&node_c).await?;
+    // Create CONNECTS hyperedges (edges)
+    let mut connects_builder = HyperedgeBatchBuilder::new();
+    connects_builder.add(10, "CONNECTS", 2); // A -> B
+    connects_builder.add(11, "CONNECTS", 2); // B -> C
+    storage
+        .write(DatasetId::hyperedges("CONNECTS"), connects_builder.build()?)
+        .await?;
 
-    // Create edges
-    let edge_ab = Edge::new("CONNECTS", a_id, b_id);
-    let edge_bc = Edge::new("CONNECTS", b_id, c_id);
-
-    storage.insert_edge(&edge_ab).await?;
-    storage.insert_edge(&edge_bc).await?;
-
-    // Create hyperedge
-    let triangle = Hyperedge::new("TRIANGLE")
-        .with_binding(EntityRef::Node(a_id), "vertex")
-        .with_binding(EntityRef::Node(b_id), "vertex")
-        .with_binding(EntityRef::Node(c_id), "vertex")
-        .with_properties(properties!["type" => "path"]);
-
-    storage.insert_hyperedge(&triangle).await?;
+    // Create TRIANGLE hyperedge
+    let mut triangle_builder = HyperedgeBatchBuilder::new();
+    triangle_builder.add(20, "TRIANGLE", 3); // All three vertices
+    storage
+        .write(DatasetId::hyperedges("TRIANGLE"), triangle_builder.build()?)
+        .await?;
 
     Ok(storage)
 }
@@ -230,35 +131,109 @@ pub use properties;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::StreamExt;
+    use grism_storage::{Projection, SnapshotSpec, Storage};
 
     #[tokio::test]
     async fn test_create_social_network() {
         let storage = create_social_network().await.unwrap();
+        let snapshot = storage.resolve_snapshot(SnapshotSpec::Latest).unwrap();
 
-        let persons = storage.get_nodes_by_label("Person").await.unwrap();
-        assert_eq!(persons.len(), 5);
+        // Scan Person nodes
+        let mut person_stream = storage
+            .scan(
+                DatasetId::nodes("Person"),
+                &Projection::all(),
+                None,
+                snapshot,
+            )
+            .await
+            .unwrap();
+        let mut person_count = 0;
+        while let Some(batch) = person_stream.next().await {
+            person_count += batch.unwrap().num_rows();
+        }
+        assert_eq!(person_count, 5);
 
-        let companies = storage.get_nodes_by_label("Company").await.unwrap();
-        assert_eq!(companies.len(), 2);
+        // Scan Company nodes
+        let mut company_stream = storage
+            .scan(
+                DatasetId::nodes("Company"),
+                &Projection::all(),
+                None,
+                snapshot,
+            )
+            .await
+            .unwrap();
+        let mut company_count = 0;
+        while let Some(batch) = company_stream.next().await {
+            company_count += batch.unwrap().num_rows();
+        }
+        assert_eq!(company_count, 2);
 
-        let edges = storage.get_all_edges().await.unwrap();
-        assert_eq!(edges.len(), 6);
-
-        let hyperedges = storage.get_all_hyperedges().await.unwrap();
-        assert_eq!(hyperedges.len(), 5);
+        // Scan KNOWS hyperedges
+        let mut knows_stream = storage
+            .scan(
+                DatasetId::hyperedges("KNOWS"),
+                &Projection::all(),
+                None,
+                snapshot,
+            )
+            .await
+            .unwrap();
+        let mut knows_count = 0;
+        while let Some(batch) = knows_stream.next().await {
+            knows_count += batch.unwrap().num_rows();
+        }
+        assert_eq!(knows_count, 6);
     }
 
     #[tokio::test]
     async fn test_create_sample_hypergraph() {
         let storage = create_sample_hypergraph().await.unwrap();
+        let snapshot = storage.resolve_snapshot(SnapshotSpec::Latest).unwrap();
 
-        let nodes = storage.get_all_nodes().await.unwrap();
-        assert_eq!(nodes.len(), 3);
+        // Scan nodes
+        let mut node_stream = storage
+            .scan(DatasetId::nodes("Node"), &Projection::all(), None, snapshot)
+            .await
+            .unwrap();
+        let mut node_count = 0;
+        while let Some(batch) = node_stream.next().await {
+            node_count += batch.unwrap().num_rows();
+        }
+        assert_eq!(node_count, 3);
 
-        let edges = storage.get_all_edges().await.unwrap();
-        assert_eq!(edges.len(), 2);
+        // Scan CONNECTS hyperedges
+        let mut connects_stream = storage
+            .scan(
+                DatasetId::hyperedges("CONNECTS"),
+                &Projection::all(),
+                None,
+                snapshot,
+            )
+            .await
+            .unwrap();
+        let mut connects_count = 0;
+        while let Some(batch) = connects_stream.next().await {
+            connects_count += batch.unwrap().num_rows();
+        }
+        assert_eq!(connects_count, 2);
 
-        let hyperedges = storage.get_all_hyperedges().await.unwrap();
-        assert_eq!(hyperedges.len(), 1);
+        // Scan TRIANGLE hyperedges
+        let mut triangle_stream = storage
+            .scan(
+                DatasetId::hyperedges("TRIANGLE"),
+                &Projection::all(),
+                None,
+                snapshot,
+            )
+            .await
+            .unwrap();
+        let mut triangle_count = 0;
+        while let Some(batch) = triangle_stream.next().await {
+            triangle_count += batch.unwrap().num_rows();
+        }
+        assert_eq!(triangle_count, 1);
     }
 }

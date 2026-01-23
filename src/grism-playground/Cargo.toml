@@ -30,6 +30,7 @@ arrow-schema = { workspace = true }
 
 # Async runtime
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+futures = { workspace = true }
 
 # Serialization
 serde = { workspace = true }

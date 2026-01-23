@@ -6,12 +6,21 @@ description = "Storage layer for Grism with Lance integration"
 
 [dependencies]
 common-error = { workspace = true }
+common-runtime = { workspace = true }
 grism-core = { workspace = true }
+grism-logical = { workspace = true }
 async-trait = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-tokio = { workspace = true, features = ["fs"] }
+tokio = { workspace = true, features = ["fs", "sync"] }
 thiserror = { workspace = true }
+futures = { workspace = true }
+arrow = { workspace = true }
+arrow-array = { workspace = true }
+arrow-schema = { workspace = true }
+lance = "1.0"
+object_store = "0.11"
+url = "2.5"
 pyo3 = { workspace = true, optional = true }
 
 [dev-dependencies]

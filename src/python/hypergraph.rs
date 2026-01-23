@@ -21,7 +21,7 @@ use grism_logical::{
     ops::{Direction, HopRange},
     python::{ExprKind, PyAggExpr, PyExpr},
 };
-use grism_storage::{InMemoryStorage, SnapshotId, Storage};
+use grism_storage::{MemoryStorage, SnapshotId, Storage};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
@@ -92,7 +92,7 @@ fn execute_plan(plan: &LogicalOp, _config: Option<&ExecutionConfig>) -> PyResult
     let logical_plan = LogicalPlan::new(plan.clone());
 
     // Create a simple in-memory storage for execution
-    let storage = Arc::new(crate::storage::InMemoryStorage::new());
+    let storage = Arc::new(crate::storage::MemoryStorage::new());
 
     // Create physical plan
     let planner = LocalPhysicalPlanner::new();

@@ -262,7 +262,7 @@ impl Default for CancellationHandle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use grism_storage::InMemoryStorage;
+    use grism_storage::MemoryStorage;
 
     #[test]
     fn test_runtime_config() {
@@ -276,7 +276,7 @@ mod tests {
 
     #[test]
     fn test_execution_context() {
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         assert!(!ctx.is_cancelled());
@@ -285,7 +285,7 @@ mod tests {
 
     #[test]
     fn test_context_trait() {
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         // Test through the trait
@@ -297,7 +297,7 @@ mod tests {
 
     #[test]
     fn test_context_without_metrics() {
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default()).without_metrics();
 
         assert!(ctx.metrics_sink().is_none());
@@ -306,7 +306,7 @@ mod tests {
     #[test]
     fn test_cancellation() {
         let (handle, rx) = CancellationHandle::new();
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default()).with_cancellation(rx);
 
         assert!(!ctx.is_cancelled());

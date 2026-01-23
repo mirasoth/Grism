@@ -115,7 +115,7 @@ impl PhysicalOperator for UnionExec {
 mod tests {
     use super::*;
     use crate::operators::EmptyExec;
-    use grism_storage::{InMemoryStorage, SnapshotId};
+    use grism_storage::{MemoryStorage, SnapshotId};
 
     #[tokio::test]
     async fn test_union_empty() {
@@ -123,7 +123,7 @@ mod tests {
         let right = Arc::new(EmptyExec::new());
         let union = UnionExec::all(left, right);
 
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let ctx = ExecutionContext::new(storage, SnapshotId::default());
 
         union.open(&ctx).await.unwrap();

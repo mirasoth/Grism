@@ -22,7 +22,7 @@ use grism_logical::expr::{col, lit};
 use grism_logical::ops::{FilterOp, LimitOp, ProjectOp, ScanOp};
 use grism_logical::{LogicalOp, LogicalPlan};
 use grism_optimizer::Optimizer;
-use grism_storage::{InMemoryStorage, SnapshotId, Storage};
+use grism_storage::{MemoryStorage, SnapshotId, Storage};
 
 use grism_playground::{create_social_network, print_divider, print_header, print_results};
 
@@ -52,22 +52,13 @@ async fn main() -> GrismResult<()> {
     print_header("Step 1: Create Social Network Data");
     let storage = create_social_network().await?;
 
-    // Print statistics
-    let node_count = storage.get_all_nodes().await?.len();
-    let edge_count = storage.get_all_edges().await?.len();
-    let hyperedge_count = storage.get_all_hyperedges().await?.len();
-
-    println!("Created hypergraph with:");
-    println!("  - {} nodes", node_count);
-    println!("  - {} edges", edge_count);
-    println!("  - {} hyperedges", hyperedge_count);
+    // Note: Statistics now require scanning datasets with RFC-0012 interface
+    println!("Created hypergraph with social network data.");
+    println!("Use scan operations to explore the data.");
 
     if args.verbose {
         print_divider();
-        println!("Nodes:");
-        for node in storage.get_all_nodes().await? {
-            println!("  {:?}", node);
-        }
+        println!("(Verbose mode: Use scan operations to list nodes)");
     }
 
     // Step 2: Run basic scan query
@@ -107,7 +98,7 @@ async fn main() -> GrismResult<()> {
 }
 
 /// Run a simple scan query.
-async fn run_scan_query(storage: &Arc<InMemoryStorage>) -> GrismResult<()> {
+async fn run_scan_query(storage: &Arc<MemoryStorage>) -> GrismResult<()> {
     // Build logical plan: SCAN nodes WHERE label = 'Person'
     let scan = ScanOp::nodes_with_label("Person");
     let logical_plan = LogicalPlan::new(LogicalOp::scan(scan));
@@ -137,7 +128,7 @@ async fn run_scan_query(storage: &Arc<InMemoryStorage>) -> GrismResult<()> {
 }
 
 /// Run a query with filter predicate.
-async fn run_filter_query(storage: &Arc<InMemoryStorage>) -> GrismResult<()> {
+async fn run_filter_query(storage: &Arc<MemoryStorage>) -> GrismResult<()> {
     // Build logical plan: SCAN Person WHERE age > 30
     let scan = ScanOp::nodes_with_label("Person");
     let filter = FilterOp::new(col("age").gt(lit(30i64)));
@@ -171,7 +162,7 @@ async fn run_filter_query(storage: &Arc<InMemoryStorage>) -> GrismResult<()> {
 }
 
 /// Run a query with projection.
-async fn run_projection_query(storage: &Arc<InMemoryStorage>) -> GrismResult<()> {
+async fn run_projection_query(storage: &Arc<MemoryStorage>) -> GrismResult<()> {
     // Build logical plan: SELECT name, city FROM Person
     let scan = ScanOp::nodes_with_label("Person");
     let project = ProjectOp::new(vec![col("name"), col("city")]);
@@ -200,7 +191,7 @@ async fn run_projection_query(storage: &Arc<InMemoryStorage>) -> GrismResult<()>
 }
 
 /// Run a query with limit.
-async fn run_limit_query(storage: &Arc<InMemoryStorage>) -> GrismResult<()> {
+async fn run_limit_query(storage: &Arc<MemoryStorage>) -> GrismResult<()> {
     // Build logical plan: SELECT * FROM Person LIMIT 3
     let scan = ScanOp::nodes_with_label("Person");
     let limit = LimitOp::new(3);
@@ -229,7 +220,7 @@ async fn run_limit_query(storage: &Arc<InMemoryStorage>) -> GrismResult<()> {
 }
 
 /// Scan hyperedges.
-async fn run_hyperedge_scan(storage: &Arc<InMemoryStorage>) -> GrismResult<()> {
+async fn run_hyperedge_scan(storage: &Arc<MemoryStorage>) -> GrismResult<()> {
     // Build logical plan: SCAN hyperedges WHERE label = 'WORKS_AT'
     let scan = ScanOp::hyperedges_with_label("WORKS_AT");
     let logical_plan = LogicalPlan::new(LogicalOp::scan(scan));

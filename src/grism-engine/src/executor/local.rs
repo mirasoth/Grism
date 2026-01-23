@@ -197,12 +197,12 @@ impl Default for LocalExecutor {
 mod tests {
     use super::*;
     use crate::operators::EmptyExec;
-    use grism_storage::InMemoryStorage;
+    use grism_storage::MemoryStorage;
 
     #[tokio::test]
     async fn test_execute_empty() {
         let executor = LocalExecutor::new();
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let snapshot = SnapshotId::default();
 
         let plan = PhysicalPlan::new(Arc::new(EmptyExec::new()));
@@ -222,7 +222,7 @@ mod tests {
     async fn test_execute_with_memory_limit() {
         let executor = LocalExecutor::with_memory_limit(1024 * 1024);
 
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let snapshot = SnapshotId::default();
 
         let plan = PhysicalPlan::new(Arc::new(EmptyExec::new()));
@@ -236,7 +236,7 @@ mod tests {
         let config = RuntimeConfig::default().with_metrics(false);
         let executor = LocalExecutor::with_config(config);
 
-        let storage = Arc::new(InMemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let snapshot = SnapshotId::default();
 
         let plan = PhysicalPlan::new(Arc::new(EmptyExec::new()));
