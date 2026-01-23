@@ -110,7 +110,11 @@ impl ExchangeExec {
     }
 
     /// Create a shuffle exchange.
-    pub fn shuffle(child: Arc<dyn PhysicalOperator>, keys: Vec<String>, num_partitions: usize) -> Self {
+    pub fn shuffle(
+        child: Arc<dyn PhysicalOperator>,
+        keys: Vec<String>,
+        num_partitions: usize,
+    ) -> Self {
         Self::new(
             child,
             PartitioningSpec::hash(keys, num_partitions),
@@ -339,9 +343,9 @@ impl ExchangeBuilder {
 
     /// Build the exchange operator.
     pub fn build(self) -> GrismResult<ExchangeExec> {
-        let child = self.child.ok_or_else(|| {
-            GrismError::value_error("Exchange requires a child operator")
-        })?;
+        let child = self
+            .child
+            .ok_or_else(|| GrismError::value_error("Exchange requires a child operator"))?;
 
         Ok(ExchangeExec::new(child, self.partitioning, self.mode))
     }

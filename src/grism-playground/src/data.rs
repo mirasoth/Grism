@@ -111,7 +111,7 @@ pub async fn create_social_network() -> GrismResult<Arc<InMemoryStorage>> {
 
     // Create WORKS_AT hyperedges (n-ary relationships)
     // Hyperedge::with_binding(entity, role) - entity first, then role
-    
+
     // Alice works at Acme as Engineer, reporting to Charlie
     let works_at_1 = Hyperedge::new("WORKS_AT")
         .with_binding(EntityRef::Node(alice_id), "employee")
@@ -235,16 +235,16 @@ mod tests {
     #[tokio::test]
     async fn test_create_social_network() {
         let storage = create_social_network().await.unwrap();
-        
+
         let persons = storage.get_nodes_by_label("Person").await.unwrap();
         assert_eq!(persons.len(), 5);
-        
+
         let companies = storage.get_nodes_by_label("Company").await.unwrap();
         assert_eq!(companies.len(), 2);
-        
+
         let edges = storage.get_all_edges().await.unwrap();
         assert_eq!(edges.len(), 6);
-        
+
         let hyperedges = storage.get_all_hyperedges().await.unwrap();
         assert_eq!(hyperedges.len(), 5);
     }
@@ -252,13 +252,13 @@ mod tests {
     #[tokio::test]
     async fn test_create_sample_hypergraph() {
         let storage = create_sample_hypergraph().await.unwrap();
-        
+
         let nodes = storage.get_all_nodes().await.unwrap();
         assert_eq!(nodes.len(), 3);
-        
+
         let edges = storage.get_all_edges().await.unwrap();
         assert_eq!(edges.len(), 2);
-        
+
         let hyperedges = storage.get_all_hyperedges().await.unwrap();
         assert_eq!(hyperedges.len(), 1);
     }

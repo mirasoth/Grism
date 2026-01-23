@@ -165,7 +165,12 @@ impl LocalExecutor {
 
         // Build result with metrics
         let result_metrics = metrics.unwrap_or_default();
-        Ok(ExecutionResult::new(batches, schema, result_metrics, elapsed))
+        Ok(ExecutionResult::new(
+            batches,
+            schema,
+            result_metrics,
+            elapsed,
+        ))
     }
 
     /// Execute synchronously (blocking).

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use common_error::GrismResult;
 
-use crate::planner::Stage;
+use crate::planner::ExecutionStage;
 
 /// Worker configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,7 +51,7 @@ impl Worker {
     /// Execute a stage partition.
     pub async fn execute_partition(
         &self,
-        stage: &Stage,
+        stage: &ExecutionStage,
         partition_id: usize,
         input_data: Vec<u8>,
     ) -> GrismResult<Vec<u8>> {

@@ -28,9 +28,10 @@
 //! # Key Components
 //!
 //! - [`DistributedPlanner`]: Converts logical plans to distributed execution plans
+//! - [`DistributedPlan`]: A DAG of execution stages
 //! - [`RayExecutor`]: Orchestrates distributed execution (preview)
 //! - [`ExchangeExec`]: Repartitions data across workers
-//! - [`Stage`]: Execution unit containing operators and partitioning info
+//! - [`ExecutionStage`]: Execution unit containing operators and partitioning info
 //!
 //! # Status: Preview
 //!
@@ -62,10 +63,21 @@ pub mod planner;
 pub mod transport;
 pub mod worker;
 
-// Re-export key types
+// Re-export key types from planner
+pub use planner::{
+    DistributedPlan, DistributedPlanner, DistributedPlannerConfig, ExecutionStage,
+    ExecutionStageBuilder, StageId,
+};
+
+// Re-export exchange and partitioning types
 pub use exchange::{ExchangeExec, ExchangeMode};
-pub use executor::{DistributedPlan, RayExecutor, RayExecutorConfig};
 pub use partitioning::{PartitioningScheme, PartitioningSpec};
-pub use planner::{DistributedPlanner, DistributedPlannerConfig, Stage, StageId};
+
+// Re-export executor types
+pub use executor::{RayExecutor, RayExecutorConfig};
+
+// Re-export transport types
 pub use transport::{ArrowTransport, TransportConfig};
+
+// Re-export worker types
 pub use worker::{Worker, WorkerConfig, WorkerTask};

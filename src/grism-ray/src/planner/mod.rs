@@ -5,20 +5,20 @@
 
 mod stage;
 
-pub use stage::{ShuffleStrategy, Stage, StageId};
+pub use stage::{ExecutionStage, ExecutionStageBuilder, StageId};
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use common_error::{GrismError, GrismResult};
+use common_error::GrismResult;
 use grism_engine::operators::PhysicalOperator;
-use grism_engine::physical::PhysicalPlan;
+use grism_engine::physical::{PhysicalPlan, PhysicalSchema};
 use grism_engine::planner::{LocalPhysicalPlanner, PhysicalPlanner};
-use grism_logical::{LogicalOp, LogicalPlan};
+use grism_logical::LogicalPlan;
 
 use crate::exchange::ExchangeMode;
-use crate::executor::DistributedPlan;
 use crate::partitioning::PartitioningSpec;
 
 // ============================================================================
@@ -130,26 +130,22 @@ impl DistributedPlanner {
     /// the physical plan and creates stage boundaries at:
     /// - Exchange operators
     /// - Blocking operators (Sort, Aggregate)
-    fn split_into_stages(&self, physical_plan: &PhysicalPlan) -> GrismResult<Vec<Stage>> {
+    fn split_into_stages(&self, physical_plan: &PhysicalPlan) -> GrismResult<Vec<ExecutionStage>> {
         let mut stages = Vec::new();
-        let mut current_stage = Stage::new(0).with_partitions(self.config.default_parallelism);
+        let mut current_stage =
+            ExecutionStage::new(0).with_partitions(self.config.default_parallelism);
 
         // Walk the operator tree
-        self.split_recursive(
-            physical_plan.root(),
-            &mut current_stage,
-            &mut stages,
-            0,
-        )?;
+        self.split_recursive(physical_plan.root(), &mut current_stage, &mut stages)?;
 
         // Add the final stage if non-empty
-        if !current_stage.operators.is_empty() {
+        if !current_stage.operator_names.is_empty() {
             stages.push(current_stage);
         }
 
         // If no stages were created, create an empty one
         if stages.is_empty() {
-            stages.push(Stage::new(0).with_partitions(1));
+            stages.push(ExecutionStage::new(0).with_partitions(1));
         }
 
         Ok(stages)
@@ -158,9 +154,8 @@ impl DistributedPlanner {
     fn split_recursive(
         &self,
         op: &Arc<dyn PhysicalOperator>,
-        current_stage: &mut Stage,
-        stages: &mut Vec<Stage>,
-        depth: usize,
+        current_stage: &mut ExecutionStage,
+        stages: &mut Vec<ExecutionStage>,
     ) -> GrismResult<()> {
         let caps = op.capabilities();
         let name = op.name();
@@ -168,32 +163,31 @@ impl DistributedPlanner {
         // Check if this operator is a stage boundary
         let is_boundary = caps.blocking || name == "ExchangeExec";
 
-        if is_boundary && !current_stage.operators.is_empty() {
+        if is_boundary && !current_stage.operator_names.is_empty() {
             // Finish current stage and start a new one
             let finished_stage = std::mem::replace(
                 current_stage,
-                Stage::new((stages.len() + 1) as u64)
+                ExecutionStage::new((stages.len() + 1) as u64)
                     .with_partitions(self.config.default_parallelism),
             );
 
             // Add dependency from new stage to finished stage
             current_stage.dependencies.push(finished_stage.id);
 
-            // If blocking, add exchange between stages
+            // If blocking, add gather exchange between stages
             if caps.blocking {
-                current_stage.shuffle = ShuffleStrategy::Single;
+                current_stage.input_exchange = Some(ExchangeMode::Gather);
             }
 
             stages.push(finished_stage);
         }
 
-        // Add operator info to stage (we store logical ops for serialization)
-        // In a full implementation, we'd store physical operator metadata
-        // For now, just track operator names for debugging
+        // Add operator name to stage for tracking
+        current_stage.add_operator(name);
 
-        // Process children first (for proper ordering)
+        // Process children (depth-first traversal)
         for child in op.children() {
-            self.split_recursive(child, current_stage, stages, depth + 1)?;
+            self.split_recursive(child, current_stage, stages)?;
         }
 
         Ok(())
@@ -221,6 +215,139 @@ impl Default for DistributedPlanner {
     }
 }
 
+// ============================================================================
+// Distributed Plan
+// ============================================================================
+
+/// A distributed execution plan consisting of stages.
+///
+/// The plan represents a DAG of stages, where each stage can be executed
+/// in parallel and stages are connected by exchanges.
+#[derive(Debug, Clone)]
+pub struct DistributedPlan {
+    /// Execution stages.
+    pub stages: Vec<ExecutionStage>,
+    /// Output schema (from final stage).
+    pub schema: PhysicalSchema,
+    /// Stage dependencies (stage_id -> [dependency_stage_ids]).
+    pub dependencies: HashMap<StageId, Vec<StageId>>,
+}
+
+impl DistributedPlan {
+    /// Create a new distributed plan.
+    pub fn new(stages: Vec<ExecutionStage>, schema: PhysicalSchema) -> Self {
+        // Build dependency graph
+        let mut dependencies = HashMap::new();
+        for stage in &stages {
+            dependencies.insert(stage.id, stage.dependencies.clone());
+        }
+
+        Self {
+            stages,
+            schema,
+            dependencies,
+        }
+    }
+
+    /// Get stages in topological order (dependencies first).
+    pub fn topological_order(&self) -> Vec<&ExecutionStage> {
+        let mut result = Vec::new();
+        let mut visited = std::collections::HashSet::new();
+
+        fn visit<'a>(
+            stage_id: StageId,
+            stages: &'a [ExecutionStage],
+            deps: &HashMap<StageId, Vec<StageId>>,
+            visited: &mut std::collections::HashSet<StageId>,
+            result: &mut Vec<&'a ExecutionStage>,
+        ) {
+            if visited.contains(&stage_id) {
+                return;
+            }
+            visited.insert(stage_id);
+
+            if let Some(dep_ids) = deps.get(&stage_id) {
+                for &dep_id in dep_ids {
+                    visit(dep_id, stages, deps, visited, result);
+                }
+            }
+
+            if let Some(stage) = stages.iter().find(|s| s.id == stage_id) {
+                result.push(stage);
+            }
+        }
+
+        for stage in &self.stages {
+            visit(
+                stage.id,
+                &self.stages,
+                &self.dependencies,
+                &mut visited,
+                &mut result,
+            );
+        }
+
+        result
+    }
+
+    /// Get the number of stages.
+    pub fn num_stages(&self) -> usize {
+        self.stages.len()
+    }
+
+    /// Get a stage by ID.
+    pub fn get_stage(&self, id: StageId) -> Option<&ExecutionStage> {
+        self.stages.iter().find(|s| s.id == id)
+    }
+
+    /// Get the root stages (no dependents).
+    pub fn root_stages(&self) -> Vec<&ExecutionStage> {
+        let has_dependents: std::collections::HashSet<_> = self
+            .dependencies
+            .values()
+            .flat_map(|deps| deps.iter())
+            .copied()
+            .collect();
+
+        self.stages
+            .iter()
+            .filter(|s| !has_dependents.contains(&s.id))
+            .collect()
+    }
+
+    /// Format plan for display.
+    pub fn explain(&self) -> String {
+        let mut output = String::new();
+        output.push_str("Distributed Plan:\n");
+
+        for stage in self.topological_order() {
+            output.push_str(&format!(
+                "\nStage {} (parallelism={}):\n",
+                stage.id, stage.partitions
+            ));
+
+            for (i, op_name) in stage.operator_names.iter().enumerate() {
+                let prefix = if i == stage.operator_names.len() - 1 {
+                    "└── "
+                } else {
+                    "├── "
+                };
+                output.push_str(&format!("  {}{}\n", prefix, op_name));
+            }
+
+            if !stage.dependencies.is_empty() {
+                output.push_str(&format!("  Dependencies: {:?}\n", stage.dependencies));
+            }
+
+            if let Some(mode) = &stage.input_exchange {
+                output.push_str(&format!("  Input Exchange: {:?}\n", mode));
+            }
+        }
+
+        output
+    }
+}
+
 /// Point where an Exchange should be inserted.
 #[derive(Debug, Clone)]
 pub struct ExchangeInsertPoint {
@@ -233,156 +360,18 @@ pub struct ExchangeInsertPoint {
 }
 
 // ============================================================================
-// Legacy RayPlanner (kept for backward compatibility)
-// ============================================================================
-
-/// Legacy Ray planner (deprecated, use DistributedPlanner).
-#[deprecated(note = "Use DistributedPlanner instead")]
-pub type RayPlanner = LegacyRayPlanner;
-
-/// Legacy planner configuration.
-pub type PlannerConfig = DistributedPlannerConfig;
-
-/// Legacy Ray planner implementation.
-pub struct LegacyRayPlanner {
-    config: DistributedPlannerConfig,
-}
-
-impl LegacyRayPlanner {
-    /// Create a new legacy Ray planner.
-    pub fn new() -> Self {
-        Self {
-            config: DistributedPlannerConfig::default(),
-        }
-    }
-
-    /// Create with configuration.
-    pub fn with_config(config: DistributedPlannerConfig) -> Self {
-        Self { config }
-    }
-
-    /// Plan a logical plan into stages (legacy API).
-    pub fn plan(&self, logical_plan: &LogicalPlan) -> GrismResult<Vec<Stage>> {
-        let mut stages = Vec::new();
-        self.plan_recursive(logical_plan.root(), &mut stages, 0)?;
-        Ok(stages)
-    }
-
-    fn plan_recursive(
-        &self,
-        op: &LogicalOp,
-        stages: &mut Vec<Stage>,
-        current_stage_id: StageId,
-    ) -> GrismResult<StageId> {
-        match op {
-            LogicalOp::Scan(_scan) => {
-                let stage = Stage::new(current_stage_id)
-                    .with_partitions(self.config.default_parallelism)
-                    .with_operator(op.clone());
-                stages.push(stage);
-                Ok(current_stage_id)
-            }
-
-            LogicalOp::Filter { input, filter: _ } => {
-                let input_stage = self.plan_recursive(input, stages, current_stage_id)?;
-                if let Some(stage) = stages.iter_mut().find(|s| s.id == input_stage) {
-                    stage.add_operator(op.clone());
-                }
-                Ok(input_stage)
-            }
-
-            LogicalOp::Project { input, project: _ } => {
-                let input_stage = self.plan_recursive(input, stages, current_stage_id)?;
-                if let Some(stage) = stages.iter_mut().find(|s| s.id == input_stage) {
-                    stage.add_operator(op.clone());
-                }
-                Ok(input_stage)
-            }
-
-            LogicalOp::Limit { input, limit: _ } => {
-                let input_stage = self.plan_recursive(input, stages, current_stage_id)?;
-                let final_stage = Stage::new(current_stage_id + 1)
-                    .with_partitions(1)
-                    .with_operator(op.clone())
-                    .with_dependency(input_stage);
-                stages.push(final_stage);
-                Ok(current_stage_id + 1)
-            }
-
-            // Mark unimplemented operations clearly
-            LogicalOp::Expand { .. } => {
-                Err(GrismError::not_implemented("Distributed expand planning"))
-            }
-            LogicalOp::Aggregate { .. } => {
-                Err(GrismError::not_implemented("Distributed aggregate planning"))
-            }
-            LogicalOp::Sort { .. } => {
-                Err(GrismError::not_implemented("Distributed sort planning"))
-            }
-            LogicalOp::Union { .. } => {
-                Err(GrismError::not_implemented("Distributed union planning"))
-            }
-            LogicalOp::Rename { .. } => {
-                Err(GrismError::not_implemented("Distributed rename planning"))
-            }
-            LogicalOp::Infer { .. } => {
-                Err(GrismError::not_implemented("Distributed infer planning"))
-            }
-            LogicalOp::Empty => {
-                Err(GrismError::not_implemented("Distributed empty planning"))
-            }
-        }
-    }
-
-    /// Get planner configuration.
-    pub fn config(&self) -> &DistributedPlannerConfig {
-        &self.config
-    }
-}
-
-impl Default for LegacyRayPlanner {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-// ============================================================================
 // Tests
 // ============================================================================
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use grism_logical::{FilterOp, ScanOp, col, lit};
+    use grism_engine::physical::PhysicalSchemaBuilder;
 
     #[test]
     fn test_distributed_planner_creation() {
         let planner = DistributedPlanner::new();
         assert_eq!(planner.config().default_parallelism, 4);
-    }
-
-    #[test]
-    fn test_legacy_plan_simple_scan() {
-        #[allow(deprecated)]
-        let planner = LegacyRayPlanner::new();
-        let scan = LogicalOp::Scan(ScanOp::nodes_with_label("Person"));
-        let plan = LogicalPlan::new(scan);
-
-        let stages = planner.plan(&plan).unwrap();
-        assert_eq!(stages.len(), 1);
-        assert_eq!(stages[0].partitions, 4);
-    }
-
-    #[test]
-    fn test_legacy_plan_scan_filter() {
-        #[allow(deprecated)]
-        let planner = LegacyRayPlanner::new();
-        let scan = LogicalOp::Scan(ScanOp::nodes_with_label("Person"));
-        let filter = LogicalOp::filter(scan, FilterOp::new(col("age").gt_eq(lit(18i64))));
-        let plan = LogicalPlan::new(filter);
-
-        let stages = planner.plan(&plan).unwrap();
-        assert_eq!(stages.len(), 1);
     }
 
     #[test]
@@ -393,5 +382,118 @@ mod tests {
 
         assert_eq!(config.default_parallelism, 8);
         assert!(!config.enable_fusion);
+    }
+
+    #[test]
+    fn test_execution_stage_builder() {
+        let stage = ExecutionStageBuilder::new(1)
+            .partitions(4)
+            .operator("NodeScanExec")
+            .operator("FilterExec")
+            .input_exchange(ExchangeMode::Shuffle)
+            .build();
+
+        assert_eq!(stage.id, 1);
+        assert_eq!(stage.partitions, 4);
+        assert_eq!(stage.num_operators(), 2);
+        assert!(stage.requires_input_exchange());
+    }
+
+    #[test]
+    fn test_distributed_plan_creation() {
+        let schema = PhysicalSchemaBuilder::new().build();
+        let stages = vec![
+            ExecutionStage::new(0)
+                .with_partitions(4)
+                .with_operator("NodeScanExec")
+                .with_operator("FilterExec"),
+            ExecutionStage::new(1)
+                .with_partitions(2)
+                .with_dependency(0)
+                .with_input_exchange(ExchangeMode::Shuffle)
+                .with_operator("HashAggregateExec"),
+        ];
+
+        let plan = DistributedPlan::new(stages, schema);
+
+        assert_eq!(plan.num_stages(), 2);
+        assert!(plan.get_stage(0).is_some());
+        assert!(plan.get_stage(1).is_some());
+        assert!(plan.get_stage(99).is_none());
+    }
+
+    #[test]
+    fn test_distributed_plan_topological_order() {
+        let schema = PhysicalSchemaBuilder::new().build();
+        let stages = vec![
+            ExecutionStage::new(0).with_partitions(4),
+            ExecutionStage::new(1).with_partitions(2).with_dependency(0),
+            ExecutionStage::new(2).with_partitions(1).with_dependency(1),
+        ];
+
+        let plan = DistributedPlan::new(stages, schema);
+        let order = plan.topological_order();
+
+        // Dependencies should come first
+        assert_eq!(order.len(), 3);
+        assert_eq!(order[0].id, 0);
+        assert_eq!(order[1].id, 1);
+        assert_eq!(order[2].id, 2);
+    }
+
+    #[test]
+    fn test_distributed_plan_root_stages() {
+        let schema = PhysicalSchemaBuilder::new().build();
+        let stages = vec![
+            ExecutionStage::new(0).with_partitions(4),
+            ExecutionStage::new(1).with_partitions(2).with_dependency(0),
+        ];
+
+        let plan = DistributedPlan::new(stages, schema);
+        let roots = plan.root_stages();
+
+        // Stage 1 depends on Stage 0, so Stage 1 is the root (final stage)
+        assert_eq!(roots.len(), 1);
+        assert_eq!(roots[0].id, 1);
+    }
+
+    #[test]
+    fn test_distributed_plan_explain() {
+        let schema = PhysicalSchemaBuilder::new().build();
+        let stages = vec![
+            ExecutionStage::new(0)
+                .with_partitions(4)
+                .with_operator("NodeScanExec")
+                .with_operator("FilterExec"),
+            ExecutionStage::new(1)
+                .with_partitions(1)
+                .with_dependency(0)
+                .with_input_exchange(ExchangeMode::Gather)
+                .with_operator("CollectExec"),
+        ];
+
+        let plan = DistributedPlan::new(stages, schema);
+        let explain = plan.explain();
+
+        assert!(explain.contains("Distributed Plan"));
+        assert!(explain.contains("Stage 0"));
+        assert!(explain.contains("Stage 1"));
+        assert!(explain.contains("NodeScanExec"));
+        assert!(explain.contains("FilterExec"));
+        assert!(explain.contains("CollectExec"));
+        assert!(explain.contains("Input Exchange: Gather"));
+    }
+
+    #[test]
+    fn test_execution_stage_with_exchange_modes() {
+        let stage = ExecutionStage::new(0)
+            .with_partitions(8)
+            .with_input_exchange(ExchangeMode::Shuffle)
+            .with_output_exchange(ExchangeMode::Gather)
+            .with_shuffle_keys(vec!["city".to_string()]);
+
+        assert!(stage.requires_input_exchange());
+        assert!(stage.requires_output_exchange());
+        assert_eq!(stage.shuffle_keys, vec!["city"]);
     }
 }

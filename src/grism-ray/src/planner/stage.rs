@@ -1,78 +1,53 @@
 //! Execution stage definition for distributed plans.
 //!
-//! A stage is a unit of parallel execution in a distributed plan.
+//! An execution stage is a unit of parallel execution in a distributed plan.
 //! Stages are separated by Exchange operators and execute as a unit
 //! on one or more workers.
 
 use serde::{Deserialize, Serialize};
 
-use grism_logical::LogicalOp;
+use crate::exchange::ExchangeMode;
 
 /// Stage identifier.
 pub type StageId = u64;
 
-/// Shuffle strategy for data distribution.
-///
-/// Determines how data flows between stages.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
-pub enum ShuffleStrategy {
-    /// No shuffle (preserve partitioning).
-    #[default]
-    None,
-    /// Hash-based partitioning by key.
-    Hash,
-    /// Round-robin distribution.
-    RoundRobin,
-    /// Broadcast to all partitions.
-    Broadcast,
-    /// Single partition (collect/gather).
-    Single,
-}
-
-impl std::fmt::Display for ShuffleStrategy {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::None => write!(f, "None"),
-            Self::Hash => write!(f, "Hash"),
-            Self::RoundRobin => write!(f, "RoundRobin"),
-            Self::Broadcast => write!(f, "Broadcast"),
-            Self::Single => write!(f, "Single"),
-        }
-    }
-}
-
-/// A stage in the distributed execution plan.
+/// An execution stage in the distributed plan.
 ///
 /// Per RFC-0102 Section 7.4, a stage:
 /// - Contains no internal Exchange operators
 /// - Is executed as a unit on one or more workers
 /// - Has explicit input and output partitioning
+///
+/// Stages store operator metadata for serialization rather than full operator trees.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Stage {
+pub struct ExecutionStage {
     /// Unique stage identifier.
     pub id: StageId,
     /// Number of partitions (parallelism).
     pub partitions: usize,
-    /// Operators in this stage (logical ops for serialization).
-    pub operators: Vec<LogicalOp>,
-    /// Input shuffle strategy.
-    pub shuffle: ShuffleStrategy,
+    /// Operator names in this stage (for serialization/display).
+    pub operator_names: Vec<String>,
+    /// Input exchange mode (how data arrives from upstream).
+    pub input_exchange: Option<ExchangeMode>,
+    /// Output exchange mode (how data leaves to downstream).
+    pub output_exchange: Option<ExchangeMode>,
     /// Dependencies (input stage IDs).
     pub dependencies: Vec<StageId>,
-    /// Output columns for shuffle key (if Hash shuffle).
+    /// Shuffle keys for hash-based exchange.
     pub shuffle_keys: Vec<String>,
     /// Optional stage name for debugging.
     pub name: Option<String>,
 }
 
-impl Stage {
-    /// Create a new stage.
+impl ExecutionStage {
+    /// Create a new execution stage.
     pub fn new(id: StageId) -> Self {
         Self {
             id,
             partitions: 1,
-            operators: Vec::new(),
-            shuffle: ShuffleStrategy::None,
+            operator_names: Vec::new(),
+            input_exchange: None,
+            output_exchange: None,
             dependencies: Vec::new(),
             shuffle_keys: Vec::new(),
             name: None,
@@ -85,20 +60,26 @@ impl Stage {
         self
     }
 
-    /// Add an operator to this stage.
-    pub fn with_operator(mut self, op: LogicalOp) -> Self {
-        self.operators.push(op);
+    /// Add an operator name to this stage.
+    pub fn with_operator(mut self, op_name: impl Into<String>) -> Self {
+        self.operator_names.push(op_name.into());
         self
     }
 
-    /// Add an operator (mutating version).
-    pub fn add_operator(&mut self, op: LogicalOp) {
-        self.operators.push(op);
+    /// Add an operator name (mutating version).
+    pub fn add_operator(&mut self, op_name: impl Into<String>) {
+        self.operator_names.push(op_name.into());
     }
 
-    /// Set the shuffle strategy.
-    pub fn with_shuffle(mut self, shuffle: ShuffleStrategy) -> Self {
-        self.shuffle = shuffle;
+    /// Set the input exchange mode.
+    pub fn with_input_exchange(mut self, mode: ExchangeMode) -> Self {
+        self.input_exchange = Some(mode);
+        self
+    }
+
+    /// Set the output exchange mode.
+    pub fn with_output_exchange(mut self, mode: ExchangeMode) -> Self {
+        self.output_exchange = Some(mode);
         self
     }
 
@@ -125,9 +106,14 @@ impl Stage {
         !self.dependencies.is_empty()
     }
 
-    /// Check if this stage requires shuffle.
-    pub fn requires_shuffle(&self) -> bool {
-        self.shuffle != ShuffleStrategy::None
+    /// Check if this stage requires input exchange.
+    pub fn requires_input_exchange(&self) -> bool {
+        self.input_exchange.is_some()
+    }
+
+    /// Check if this stage requires output exchange.
+    pub fn requires_output_exchange(&self) -> bool {
+        self.output_exchange.is_some()
     }
 
     /// Check if this stage is a leaf (no dependencies).
@@ -137,64 +123,48 @@ impl Stage {
 
     /// Get the display name for this stage.
     pub fn display_name(&self) -> String {
-        self.name.clone().unwrap_or_else(|| format!("Stage-{}", self.id))
+        self.name
+            .clone()
+            .unwrap_or_else(|| format!("Stage-{}", self.id))
     }
 
-    /// Estimate the computational cost of this stage.
-    ///
-    /// Returns a rough estimate based on operator types.
-    pub fn estimated_cost(&self) -> f64 {
-        let mut cost = 0.0;
-        for op in &self.operators {
-            cost += match op {
-                LogicalOp::Scan(_) => 1.0,
-                LogicalOp::Filter { .. } => 0.5,
-                LogicalOp::Project { .. } => 0.3,
-                LogicalOp::Aggregate { .. } => 2.0,
-                LogicalOp::Sort { .. } => 3.0,
-                LogicalOp::Expand { .. } => 2.0,
-                LogicalOp::Limit { .. } => 0.1,
-                LogicalOp::Union { .. } => 0.5,
-                LogicalOp::Rename { .. } => 0.1,
-                LogicalOp::Infer { .. } => 5.0,
-                LogicalOp::Empty => 0.0,
-            };
-        }
-        cost
+    /// Get the number of operators in this stage.
+    pub fn num_operators(&self) -> usize {
+        self.operator_names.len()
     }
 }
 
-impl std::fmt::Display for Stage {
+impl std::fmt::Display for ExecutionStage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Stage[id={}, partitions={}, ops={}, shuffle={}]",
+            "ExecutionStage[id={}, partitions={}, ops={}]",
             self.id,
             self.partitions,
-            self.operators.len(),
-            self.shuffle
+            self.operator_names.len()
         )
     }
 }
 
 // ============================================================================
-// Stage Builder
+// ExecutionStage Builder
 // ============================================================================
 
-/// Builder for constructing stages.
+/// Builder for constructing execution stages.
 #[derive(Debug, Default)]
-pub struct StageBuilder {
+pub struct ExecutionStageBuilder {
     id: StageId,
     partitions: usize,
-    operators: Vec<LogicalOp>,
-    shuffle: ShuffleStrategy,
+    operator_names: Vec<String>,
+    input_exchange: Option<ExchangeMode>,
+    output_exchange: Option<ExchangeMode>,
     dependencies: Vec<StageId>,
     shuffle_keys: Vec<String>,
     name: Option<String>,
 }
 
-impl StageBuilder {
-    /// Create a new stage builder.
+impl ExecutionStageBuilder {
+    /// Create a new execution stage builder.
     pub fn new(id: StageId) -> Self {
         Self {
             id,
@@ -209,15 +179,21 @@ impl StageBuilder {
         self
     }
 
-    /// Add an operator.
-    pub fn operator(mut self, op: LogicalOp) -> Self {
-        self.operators.push(op);
+    /// Add an operator name.
+    pub fn operator(mut self, op_name: impl Into<String>) -> Self {
+        self.operator_names.push(op_name.into());
         self
     }
 
-    /// Set shuffle strategy.
-    pub fn shuffle(mut self, strategy: ShuffleStrategy) -> Self {
-        self.shuffle = strategy;
+    /// Set input exchange mode.
+    pub fn input_exchange(mut self, mode: ExchangeMode) -> Self {
+        self.input_exchange = Some(mode);
+        self
+    }
+
+    /// Set output exchange mode.
+    pub fn output_exchange(mut self, mode: ExchangeMode) -> Self {
+        self.output_exchange = Some(mode);
         self
     }
 
@@ -239,13 +215,14 @@ impl StageBuilder {
         self
     }
 
-    /// Build the stage.
-    pub fn build(self) -> Stage {
-        Stage {
+    /// Build the execution stage.
+    pub fn build(self) -> ExecutionStage {
+        ExecutionStage {
             id: self.id,
             partitions: self.partitions,
-            operators: self.operators,
-            shuffle: self.shuffle,
+            operator_names: self.operator_names,
+            input_exchange: self.input_exchange,
+            output_exchange: self.output_exchange,
             dependencies: self.dependencies,
             shuffle_keys: self.shuffle_keys,
             name: self.name,
@@ -260,32 +237,32 @@ impl StageBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use grism_logical::ScanOp;
 
     #[test]
-    fn test_stage_creation() {
-        let stage = Stage::new(1)
+    fn test_execution_stage_creation() {
+        let stage = ExecutionStage::new(1)
             .with_partitions(4)
-            .with_shuffle(ShuffleStrategy::Hash);
+            .with_input_exchange(ExchangeMode::Shuffle);
 
         assert_eq!(stage.id, 1);
         assert_eq!(stage.partitions, 4);
-        assert!(stage.requires_shuffle());
+        assert!(stage.requires_input_exchange());
     }
 
     #[test]
-    fn test_stage_operators() {
-        let mut stage = Stage::new(1);
-        stage.add_operator(LogicalOp::Scan(ScanOp::nodes_with_label("Person")));
+    fn test_execution_stage_operators() {
+        let mut stage = ExecutionStage::new(1);
+        stage.add_operator("NodeScanExec");
+        stage.add_operator("FilterExec");
 
-        assert_eq!(stage.operators.len(), 1);
+        assert_eq!(stage.num_operators(), 2);
     }
 
     #[test]
-    fn test_stage_builder() {
-        let stage = StageBuilder::new(42)
+    fn test_execution_stage_builder() {
+        let stage = ExecutionStageBuilder::new(42)
             .partitions(8)
-            .shuffle(ShuffleStrategy::Hash)
+            .input_exchange(ExchangeMode::Shuffle)
             .depends_on(10)
             .name("my-stage")
             .build();
@@ -297,16 +274,18 @@ mod tests {
     }
 
     #[test]
-    fn test_stage_display() {
-        let stage = Stage::new(1).with_partitions(4);
+    fn test_execution_stage_display() {
+        let stage = ExecutionStage::new(1).with_partitions(4);
         let display = format!("{}", stage);
         assert!(display.contains("id=1"));
         assert!(display.contains("partitions=4"));
     }
 
     #[test]
-    fn test_shuffle_strategy_display() {
-        assert_eq!(ShuffleStrategy::Hash.to_string(), "Hash");
-        assert_eq!(ShuffleStrategy::Single.to_string(), "Single");
+    fn test_exchange_mode_used() {
+        let stage = ExecutionStage::new(1).with_output_exchange(ExchangeMode::Gather);
+
+        assert!(stage.requires_output_exchange());
+        assert!(!stage.requires_input_exchange());
     }
 }

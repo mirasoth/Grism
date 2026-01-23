@@ -2,13 +2,13 @@
 
 use common_error::GrismResult;
 
-use crate::planner::Stage;
+use crate::planner::ExecutionStage;
 use crate::transport::ArrowTransport;
 
 /// A task executed by a worker.
 pub struct WorkerTask {
     /// Stage to execute.
-    stage: Stage,
+    stage: ExecutionStage,
     /// Partition ID.
     partition_id: usize,
     /// Input data (Arrow IPC format).
@@ -17,7 +17,7 @@ pub struct WorkerTask {
 
 impl WorkerTask {
     /// Create a new worker task.
-    pub fn new(stage: Stage, partition_id: usize, input_data: Vec<u8>) -> Self {
+    pub fn new(stage: ExecutionStage, partition_id: usize, input_data: Vec<u8>) -> Self {
         Self {
             stage,
             partition_id,
@@ -26,6 +26,11 @@ impl WorkerTask {
     }
 
     /// Execute the task.
+    ///
+    /// # Status: Preview
+    ///
+    /// This is a placeholder implementation. Actual execution requires
+    /// building physical operators from stage metadata and executing them.
     pub async fn execute(self) -> GrismResult<Vec<u8>> {
         // Deserialize input data
         let _input = if self.input_data.is_empty() {
@@ -35,9 +40,10 @@ impl WorkerTask {
         };
 
         // Execute operators in sequence
-        for op in &self.stage.operators {
-            // TODO: Actually execute the operator
-            let _ = op; // Placeholder
+        // TODO: Build and execute physical operators from stage.operator_names
+        for op_name in &self.stage.operator_names {
+            // Placeholder - actual implementation would instantiate operators
+            let _ = op_name;
         }
 
         // Serialize output
@@ -46,7 +52,7 @@ impl WorkerTask {
     }
 
     /// Get the stage.
-    pub fn stage(&self) -> &Stage {
+    pub fn stage(&self) -> &ExecutionStage {
         &self.stage
     }
 

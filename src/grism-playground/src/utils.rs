@@ -16,7 +16,7 @@ pub fn print_results(result: &ExecutionResult) {
     println!("\n{}", "=".repeat(60));
     println!("Query Results");
     println!("{}", "=".repeat(60));
-    
+
     if result.is_empty() {
         println!("(empty result set)");
         println!("{}", "=".repeat(60));
@@ -30,14 +30,14 @@ pub fn print_results(result: &ExecutionResult) {
         print!("{:15} | ", field.name());
     }
     println!();
-    
+
     // Print separator
     print!("|");
     for _ in schema.arrow_schema().fields() {
         print!("{:-<17}|", "");
     }
     println!();
-    
+
     // Print rows
     let mut row_count = 0;
     for batch in &result.batches {
@@ -49,7 +49,7 @@ pub fn print_results(result: &ExecutionResult) {
             }
             println!();
             row_count += 1;
-            
+
             // Limit output for large results
             if row_count >= 100 {
                 println!("... (showing first 100 of {} rows)", result.total_rows());
@@ -60,7 +60,7 @@ pub fn print_results(result: &ExecutionResult) {
             break;
         }
     }
-    
+
     println!("{}", "=".repeat(60));
     println!("Total rows: {}", result.total_rows());
     println!("Execution time: {:?}", result.elapsed);
@@ -70,21 +70,21 @@ pub fn print_results(result: &ExecutionResult) {
 /// Format a single batch as a string table.
 pub fn format_batch(batch: &RecordBatch) -> String {
     let mut output = String::new();
-    
+
     // Header
     write!(output, "| ").unwrap();
     for field in batch.schema().fields() {
         write!(output, "{:15} | ", field.name()).unwrap();
     }
     writeln!(output).unwrap();
-    
+
     // Separator
     write!(output, "|").unwrap();
     for _ in batch.schema().fields() {
         write!(output, "{:-<17}|", "").unwrap();
     }
     writeln!(output).unwrap();
-    
+
     // Rows
     for row in 0..batch.num_rows().min(50) {
         write!(output, "| ").unwrap();
@@ -94,11 +94,11 @@ pub fn format_batch(batch: &RecordBatch) -> String {
         }
         writeln!(output).unwrap();
     }
-    
+
     if batch.num_rows() > 50 {
         writeln!(output, "... ({} more rows)", batch.num_rows() - 50).unwrap();
     }
-    
+
     output
 }
 
