@@ -75,7 +75,7 @@ Each RFC defines specific system aspects. Index: `specs/rfc-index.md`
 
 ### Priority 4: Planning Documents
 
-- **`specs/3_dev_schedule.md`** - Development schedule and milestones
+- **`_milestones/`** - Development schedule and milestone documents
 
 ---
 
@@ -202,6 +202,7 @@ grism/
 │   ├── grism-distributed/  # Ray distributed execution
 │   └── grism-storage/      # Storage layer (Lance backend)
 ├── specs/                  # Specifications and RFCs
+├── _milestones/            # Development milestones and schedules
 ├── tests/                  # Python integration tests
 └── _workdir/               # AI agent progress files
 ```
@@ -256,5 +257,5 @@ grism/
 | All RFCs | `specs/rfc-*.md` |
 | RFC Index | `specs/rfc-index.md` |
 | Python API | `specs/rfc-0101.md` |
-| Schedule | `specs/3_dev_schedule.md` |
+| Milestones | `_milestones/` |
 | Progress template | `_workdir/_template.md` |

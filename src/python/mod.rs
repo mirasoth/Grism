@@ -3,7 +3,7 @@
 //! This module provides PyO3 bindings for the Grism Python API,
 //! following the Daft pattern of individual python modules per crate.
 //!
-//! The Python API implements the specification in `specs/2_python_api_v0.1.md`,
+//! The Python API implements the specification in RFC-0101 (Python API Contract),
 //! with expression lowering to Rust LogicalPlan per RFC-0002, RFC-0003, and RFC-0006.
 
 #![allow(dead_code)] // Public API items may appear unused to Rust but are used by Python
