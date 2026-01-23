@@ -6,8 +6,7 @@
 use std::sync::Arc;
 
 use common_error::GrismResult;
-use grism_core::hypergraph::{Edge, EntityRef, Hyperedge, Node, PropertyMap};
-use grism_core::types::Value;
+use grism_core::hypergraph::{Edge, EntityRef, Hyperedge, Node};
 use grism_storage::{InMemoryStorage, Storage};
 
 /// Create a sample social network hypergraph.

@@ -24,7 +24,6 @@ use grism_logical::{LogicalOp, LogicalPlan};
 use grism_optimizer::Optimizer;
 use grism_storage::{InMemoryStorage, SnapshotId, Storage};
 
-use grism_playground::data::properties;
 use grism_playground::{create_social_network, print_divider, print_header, print_results};
 
 /// Hypergraph Demo CLI arguments.
