@@ -52,7 +52,7 @@ Issues = "https://github.com/mirasoth/Grism/issues"
 
 [tool.maturin]
 # Build with Python feature enabled
-features = ["python"]
+features = ["python","pyo3/extension-module"]
 # Python source directory (root contains the grism/ package)
 python-source = "."
 # Module name - the native extension lives at grism._grism

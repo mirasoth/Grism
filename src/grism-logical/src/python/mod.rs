@@ -1,8 +1,7 @@
 //! Python bindings for the Grism expression system.
 //!
-//! This module provides `PyO3` bindings for expressions, following the Daft pattern
-//! of individual python modules per crate. Implements expression lowering to Rust
-//! `LogicalExpr` per RFC-0003.
+//! This module provides `PyO3` bindings for expressions. Implements expression
+//! lowering to Rust `LogicalExpr` per RFC-0003.
 
 #![allow(unused_unsafe)]
 #![allow(unsafe_op_in_unsafe_fn)]
@@ -1278,11 +1277,11 @@ impl PyPattern {
     }
 }
 
-// ========== Module Registration (Daft Pattern) ==========
+// ========== Module Registration ==========
 
 /// Register all Python bindings from this crate with the parent module.
 ///
-/// Following the Daft pattern, each crate exports a `register_modules` function
+/// Each crate exports a `register_modules` function
 /// that registers its Python classes and functions with the parent module.
 pub fn register_modules(parent: &Bound<'_, PyModule>) -> PyResult<()> {
     // ========== Expression Classes ==========

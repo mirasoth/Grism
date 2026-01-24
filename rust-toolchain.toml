@@ -1,4 +1,4 @@
 [toolchain]
-channel = "1.92.0"  # Pin to specific version - update periodically
+channel = "stable"
 components = ["rustfmt", "clippy"]
 profile = "minimal"

@@ -117,7 +117,7 @@ impl GrismError {
         Self::InternalError(msg.into())
     }
 
-    /// Create an out-of-spec error (following Daft's parquet2 pattern).
+    /// Create an out-of-spec error.
     #[must_use]
     pub fn oos<S: Into<String>>(msg: S) -> Self {
         Self::OutOfSpec(msg.into())

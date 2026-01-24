@@ -1,9 +1,7 @@
 //! Type system for Grism values.
 //!
 //! This module defines the `Value` enum for runtime values and
-//! `DataType` for type information, following the pattern from
-//! Daft's parquet2 spec.rs for invariant checking.
-
+//! `DataType` for type information.
 mod data_type;
 mod spec;
 mod value;
