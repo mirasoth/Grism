@@ -39,7 +39,7 @@ jobs:
       - name: Rust Clippy
         run: make lint
 
-build-and-test:
+  build-and-test:
     name: Build & Test
     runs-on: ubuntu-latest
     needs: static-analysis
