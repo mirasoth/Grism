@@ -39,11 +39,10 @@ jobs:
       - name: Rust Clippy
         run: make lint
 
-  build-and-test:
+build-and-test:
     name: Build & Test
     runs-on: ubuntu-latest
-    # Wait for lints to pass before burning minutes on compilation
-    needs: static-analysis 
+    needs: static-analysis
     steps:
       - uses: actions/checkout@v4
 
@@ -59,21 +58,25 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      # Optimized caching: handles both Cargo registry AND target directory
-      - uses: Swatinem/rust-cache@v2
+      # The heavy lifter: caches target/ and cargo registry
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
 
-      - name: Install Maturin
-        run: pip install maturin
-
-      # Build the Rust extension ONCE in develop mode
-      # This replaces the need for a separate 'make build' step during CI
-      - name: Build Extension (Debug)
-        run: maturin develop
-
-      - name: Install Python Dev Deps
+      - name: Install Build & Test Dependencies
         run: |
-          pip install -e .[dev] --no-build-isolation
+          python -m pip install --upgrade pip
+          # patchelf is required for maturin to repair manylinux wheels
+          pip install maturin patchelf 
+
+      - name: Install Project (Editable)
+        # --no-build-isolation is the key to speed: it uses the cached 
+        # Rust toolchain and dependencies instead of creating a fresh env.
+        run: pip install -e .[dev] --no-build-isolation
 
       - name: Run Tests
-        run: |
-          make test
+        # Ensure 'make test' points to your pytest / python test suite
+        run: make test
+
+      - name: Build Wheel (Optional check)
+        # This confirms the project can package correctly for distribution
+        run: maturin build --out dist
