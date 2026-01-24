@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master # It will find the .toml automatically
+      - uses: dtolnay/rust-toolchain@stable
       - name: Rust Fmt
         run: cargo fmt --all -- --check
       - name: Rust Clippy
