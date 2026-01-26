@@ -136,7 +136,7 @@ Performed comprehensive consistency audit across RFC-0008, RFC-0009, RFC-0012, a
 ### 2026-01-22
 
 **RFC Management System Established**
-- Created rfc-index.md, rfc-specifications.md, rfc-history.md
+- Created rfc-index.md, rfc-standard.md, rfc-history.md
 - Standardized metadata across all RFCs
 - Added `Created` field to all existing RFCs
 

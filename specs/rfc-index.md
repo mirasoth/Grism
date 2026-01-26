@@ -302,11 +302,11 @@ These numbers are reserved for future specifications.
 - **Architecture Design**: [rfc-0100.md](rfc-0100.md) - Overall architecture and design principles
 - **Python API**: [rfc-0101.md](rfc-0101.md) - Python interface contract
 - **Development Schedule**: [3_dev_schedule.md](3_dev_schedule.md) - Development timeline
-- **RFC Specifications**: [rfc-specifications.md](rfc-specifications.md) - RFC process and guidelines
+- **RFC Specifications**: [rfc-standard.md](rfc-standard.md) - RFC process and guidelines
 - **RFC History**: [rfc-history.md](rfc-history.md) - Chronological record of RFC lifecycle events
 
 ---
 
 ## Contributing
 
-For information on creating new RFCs or updating existing ones, see [rfc-specifications.md](rfc-specifications.md).
+For information on creating new RFCs or updating existing ones, see [rfc-standard.md](rfc-standard.md).
