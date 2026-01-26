@@ -25,7 +25,7 @@ make lint    # No clippy warnings allowed (fails on any warning)
 
 ### 2. Progress Documentation
 
-Record all work in `_workdir/progress-YYYY-MM-DD-NNN.md` (see [Recording Work Progress](#recording-work-progress-must-comply) section).
+Record all work in `_worklog/progress-YYYY-MM-DD-NNN.md` (see [Recording Work Progress](#recording-work-progress-must-comply) section).
 
 ### 3. Specification Compliance
 
@@ -151,7 +151,7 @@ make test-optimizer   # grism-optimizer tests only
 
 ## Recording Work Progress (Must Comply)
 
-**AI agents MUST record work progress in `_workdir/` before completing any session.**
+**AI agents MUST record work progress in `_worklog/` before completing any session.**
 
 ### File Naming
 
@@ -159,7 +159,7 @@ Format: `progress-YYYY-MM-DD-NNN.md`
 - `YYYY-MM-DD`: Session date
 - `NNN`: Sequence number (001, 002, etc.)
 
-Example: `_workdir/progress-2026-01-21-001.md`
+Example: `_worklog/progress-2026-01-21-001.md`
 
 ### Required Format
 
@@ -192,13 +192,13 @@ Before ending a session, AI agents MUST:
 
 1. [ ] Run `make test` - all tests pass
 2. [ ] Run `make lint` - no warnings
-3. [ ] Create progress file in `_workdir/`
+3. [ ] Create progress file in `_worklog/`
 4. [ ] Document all files changed
 5. [ ] Record test and lint results
 6. [ ] Note next steps (even if "none")
 7. [ ] If RFC files were modified, update `specs/rfc-history.md`
 
-**Template:** `_workdir/_template.md`
+**Template:** `_worklog/_template.md`
 
 ---
 
@@ -225,7 +225,7 @@ grism/
 ├── specs/                  # Specifications and RFCs
 ├── _milestones/            # Development milestones and schedules
 ├── tests/                  # Python integration tests
-└── _workdir/               # AI agent progress files
+└── _worklog/               # AI agent progress files
 ```
 
 ---
@@ -279,4 +279,4 @@ grism/
 | RFC Index | `specs/rfc-index.md` |
 | Python API | `specs/rfc-0101.md` |
 | Milestones | `_milestones/` |
-| Progress template | `_workdir/_template.md` |
+| Progress template | `_worklog/_template.md` |
