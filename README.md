@@ -57,3 +57,7 @@ cargo test
 ## License
 
 See [LICENSE](LICENSE) for details.
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=mirasoth/Grism&type=date&legend=top-left)](https://www.star-history.com/#mirasoth/Grism&type=date&legend=top-left)
